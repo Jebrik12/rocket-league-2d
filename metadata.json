@@ -1,0 +1,6 @@
+{
+  "name": "Rocket League 2D",
+  "description": "2D физическая копия Rocket League с трейлом мяча, фристайл-трюками ботов (Musty Flick, Flip Reset, Air Dribble, Double Tap, Pinch), замедленным кинематографичным повтором голов (0.5x Slow-Mo) и DVR-панелью перемотки 10 секунд с плавным замедлением.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
