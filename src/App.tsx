@@ -56,7 +56,10 @@ import {
   Globe,
   Wifi,
   LogOut,
-  Share2
+  Share2,
+  Menu,
+  Smartphone,
+  RotateCw
 } from "lucide-react";
 import { exportClipAsVideo, exportClipAsGif, downloadBlob } from "./utils/clipExporter";
 import {
@@ -70,6 +73,8 @@ import {
 import { MultiplayerModal } from "./components/MultiplayerModal";
 import { peerNetwork } from "./network/peerManager";
 import { MatchSnapshot } from "./network/multiplayerTypes";
+import { MobileControlsOverlay, TouchInputState } from "./components/MobileControlsOverlay";
+import { MobileQuickMenu } from "./components/MobileQuickMenu";
 
 
 
@@ -8768,7 +8773,8 @@ const a2 = ({
   multiplayerRoomCode = null,
   multiplayerPing = 0,
   onOpenMultiplayer,
-  onLeaveMultiplayer
+  onLeaveMultiplayer,
+  onOpenQuickMenu
 }: any) => {
   const N = Math.floor(Math.max(0, r) / 60);
   const D = Math.floor(Math.max(0, r) % 60);
@@ -8932,21 +8938,30 @@ const a2 = ({
                 ]
               })
             ),
+            onOpenQuickMenu && d.jsxs("button", {
+              onClick: onOpenQuickMenu,
+              className: "md:hidden flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-900/95 border border-sky-500/50 hover:bg-slate-800 text-sky-400 font-gaming font-bold text-xs shadow-lg transition active:scale-95 shrink-0 cursor-pointer",
+              title: "Open Mobile Quick Menu",
+              children: [
+                d.jsx(Menu, { className: "w-4 h-4 text-sky-400" }),
+                d.jsx("span", { className: "text-white text-[11px]", children: "Menu" })
+              ]
+            }),
             onOpenMatchHistory && d.jsx("button", {
               onClick: onOpenMatchHistory,
-              className: "p-2 rounded-xl bg-slate-900/85 hover:bg-slate-800 text-sky-400 hover:text-sky-300 border border-slate-700/70 shadow-lg transition cursor-pointer shrink-0",
+              className: "hidden md:flex p-2 rounded-xl bg-slate-900/85 hover:bg-slate-800 text-sky-400 hover:text-sky-300 border border-slate-700/70 shadow-lg transition cursor-pointer shrink-0",
               title: "Match History & Replays",
               children: d.jsx(Clock, { className: "w-4 h-4 text-sky-400" })
             }),
             openStudio && d.jsx("button", {
               onClick: openStudio,
-              className: "p-2 rounded-xl bg-slate-900/85 hover:bg-slate-800 text-amber-300 hover:text-amber-200 border border-slate-700/70 shadow-lg transition cursor-pointer shrink-0",
+              className: "hidden md:flex p-2 rounded-xl bg-slate-900/85 hover:bg-slate-800 text-amber-300 hover:text-amber-200 border border-slate-700/70 shadow-lg transition cursor-pointer shrink-0",
               title: "Open Replay & Clip Studio (Key V)",
               children: d.jsx(Film, { className: "w-4 h-4 text-amber-400" })
             }),
             onToggleAutoCam && d.jsxs("button", {
               onClick: onToggleAutoCam,
-              className: `flex items-center gap-1 px-2 py-1.5 rounded-xl border text-xs font-gaming font-bold backdrop-blur-md shadow-lg transition cursor-pointer shrink-0 ${
+              className: `hidden lg:flex items-center gap-1 px-2 py-1.5 rounded-xl border text-xs font-gaming font-bold backdrop-blur-md shadow-lg transition cursor-pointer shrink-0 ${
                 autoCam
                   ? "text-purple-300 border-purple-400/60 bg-purple-950/80 shadow-purple-500/20 hover:brightness-125"
                   : "text-slate-400 border-slate-700/60 bg-slate-900/80 hover:text-slate-200"
@@ -8960,7 +8975,7 @@ const a2 = ({
             }),
             onToggleSteeringControl && d.jsxs("button", {
               onClick: onToggleSteeringControl,
-              className: `flex items-center gap-1 px-2 py-1.5 rounded-xl border text-xs font-gaming font-bold backdrop-blur-md shadow-lg transition cursor-pointer shrink-0 ${
+              className: `hidden lg:flex items-center gap-1 px-2 py-1.5 rounded-xl border text-xs font-gaming font-bold backdrop-blur-md shadow-lg transition cursor-pointer shrink-0 ${
                 steeringControl === "mouse"
                   ? "text-emerald-300 border-emerald-400/60 bg-emerald-950/80 shadow-emerald-500/20 hover:brightness-125"
                   : "text-slate-400 border-slate-700/60 bg-slate-900/80 hover:text-slate-200"
@@ -8974,7 +8989,7 @@ const a2 = ({
             }),
             d.jsx("button", {
               onClick: toggleFull,
-              className: "p-2 rounded-xl bg-slate-900/85 hover:bg-slate-800 text-slate-200 hover:text-white border border-slate-700/70 shadow-lg transition cursor-pointer shrink-0",
+              className: "hidden sm:flex p-2 rounded-xl bg-slate-900/85 hover:bg-slate-800 text-slate-200 hover:text-white border border-slate-700/70 shadow-lg transition cursor-pointer shrink-0",
               title: isFull ? "Exit Fullscreen (F)" : "Fullscreen (F)",
               children: isFull ? d.jsx(Minimize, { className: "w-4 h-4" }) : d.jsx(Maximize, { className: "w-4 h-4" })
             }),
@@ -8986,13 +9001,13 @@ const a2 = ({
             }),
             d.jsx("button", {
               onClick: z,
-              className: "p-2 rounded-xl bg-slate-900/85 hover:bg-slate-800 text-slate-200 hover:text-white border border-slate-700/70 shadow-lg transition cursor-pointer shrink-0",
+              className: "hidden md:flex p-2 rounded-xl bg-slate-900/85 hover:bg-slate-800 text-slate-200 hover:text-white border border-slate-700/70 shadow-lg transition cursor-pointer shrink-0",
               title: "Restart Match (R)",
               children: d.jsx(im, { className: "w-4 h-4" })
             }),
             d.jsx("button", {
               onClick: C,
-              className: "p-2 rounded-xl bg-slate-900/85 hover:bg-slate-800 text-slate-200 hover:text-white border border-slate-700/70 shadow-lg transition cursor-pointer shrink-0",
+              className: "hidden md:flex p-2 rounded-xl bg-slate-900/85 hover:bg-slate-800 text-slate-200 hover:text-white border border-slate-700/70 shadow-lg transition cursor-pointer shrink-0",
               title: "Match Settings",
               children: d.jsx(cm, { className: "w-4 h-4" })
             }),
@@ -10102,6 +10117,41 @@ const f2 = ({ isOpen: u, settings: f, onUpdateSettings: r, onClose: s, onApplyAn
                   })
                 ]
               })
+            }),
+
+            // Mobile Controls Setting
+            d.jsxs("div", {
+              className: "pt-3 border-t border-slate-800 flex flex-col gap-2",
+              children: [
+                d.jsx("label", {
+                  className: "text-xs font-gaming font-bold uppercase tracking-wider text-slate-400 block",
+                  children: "Mobile On-Screen Controls"
+                }),
+                d.jsx("div", {
+                  className: "grid grid-cols-3 gap-2",
+                  children: [
+                    { id: "auto", label: "Auto (Touch Devices)" },
+                    { id: "on", label: "Always On" },
+                    { id: "off", label: "Disabled" }
+                  ].map(opt => {
+                    const active = (f.mobileControls || "auto") === opt.id;
+                    return d.jsxs("button", {
+                      key: opt.id,
+                      type: "button",
+                      onClick: () => r({ ...f, mobileControls: opt.id }),
+                      className: `flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl border text-xs font-gaming font-bold transition cursor-pointer ${
+                        active
+                          ? "bg-sky-600/30 border-sky-500 text-sky-300 ring-1 ring-sky-400/40"
+                          : "bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200"
+                      }`,
+                      children: [
+                        d.jsx(Smartphone, { className: "w-3.5 h-3.5" }),
+                        d.jsx("span", { children: opt.label })
+                      ]
+                    });
+                  })
+                })
+              ]
             })
           ]
         }),
@@ -10129,14 +10179,15 @@ const f2 = ({ isOpen: u, settings: f, onUpdateSettings: r, onClose: s, onApplyAn
 
 const s2 = ({ jumpKey = "space", isOpen, onClose }: any) => {
   if (!isOpen) return null;
+  const [activeTab, setActiveTab] = st.useState<"keyboard" | "mobile">("keyboard");
 
   return d.jsx("div", {
     className: "fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md select-none",
     children: d.jsxs("div", {
-      className: "bg-slate-950 border border-slate-800 rounded-3xl p-6 shadow-2xl max-w-lg w-full text-slate-100 animate-fade-in font-sans",
+      className: "bg-slate-950 border border-slate-800 rounded-3xl p-6 shadow-2xl max-w-lg w-full text-slate-100 animate-fade-in font-sans max-h-[90vh] flex flex-col",
       children: [
         d.jsxs("div", {
-          className: "flex items-center justify-between pb-3 border-b border-slate-800 mb-4",
+          className: "flex items-center justify-between pb-3 border-b border-slate-800 mb-3",
           children: [
             d.jsxs("div", {
               className: "flex items-center gap-2.5",
@@ -10157,104 +10208,181 @@ const s2 = ({ jumpKey = "space", isOpen, onClose }: any) => {
         }),
 
         d.jsxs("div", {
-          className: "space-y-2.5 text-xs font-gaming",
+          className: "flex items-center gap-2 p-1 bg-slate-900 rounded-xl border border-slate-800 mb-3 shrink-0",
           children: [
-            d.jsxs("div", {
-              className: "flex justify-between items-center py-1.5 border-b border-slate-800/80",
+            d.jsxs("button", {
+              onClick: () => setActiveTab("keyboard"),
+              className: `flex-1 py-1.5 px-3 rounded-lg text-xs font-gaming font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                activeTab === "keyboard" ? "bg-sky-600 text-white shadow" : "text-slate-400 hover:text-white"
+              }`,
               children: [
-                d.jsx("span", { className: "text-slate-400", children: "Drive / Throttle" }),
-                d.jsx("span", { className: "font-mono font-bold bg-slate-900 border border-slate-700 px-2 py-0.5 rounded-lg text-sky-300", children: "W / ↑" })
+                d.jsx(zg, { className: "w-3.5 h-3.5" }),
+                d.jsx("span", { children: "Keyboard & Mouse" })
               ]
             }),
-            d.jsxs("div", {
-              className: "flex justify-between items-center py-1.5 border-b border-slate-800/80",
+            d.jsxs("button", {
+              onClick: () => setActiveTab("mobile"),
+              className: `flex-1 py-1.5 px-3 rounded-lg text-xs font-gaming font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                activeTab === "mobile" ? "bg-sky-600 text-white shadow" : "text-slate-400 hover:text-white"
+              }`,
               children: [
-                d.jsx("span", { className: "text-slate-400", children: "Brake / Reverse" }),
-                d.jsx("span", { className: "font-mono font-bold bg-slate-900 border border-slate-700 px-2 py-0.5 rounded-lg text-sky-300", children: "S / ↓" })
-              ]
-            }),
-            d.jsxs("div", {
-              className: "flex justify-between items-center py-1.5 border-b border-slate-800/80",
-              children: [
-                d.jsx("span", { className: "text-slate-400", children: "Steer (Ground) / Air Steer" }),
-                d.jsx("span", { className: "font-mono font-bold bg-slate-900 border border-slate-700 px-2 py-0.5 rounded-lg text-sky-300", children: "A / D or ← / →" })
-              ]
-            }),
-            d.jsxs("div", {
-              className: "flex justify-between items-center py-1.5 border-b border-slate-800/80",
-              children: [
-                d.jsx("span", { className: "text-slate-400", children: "Mouse Aim / Cursor Rotation" }),
-                d.jsx("span", { className: "font-mono font-bold bg-emerald-950/80 border border-emerald-500/50 px-2 py-0.5 rounded-lg text-emerald-300", children: "M (Toggle) / Mouse" })
-              ]
-            }),
-            d.jsxs("div", {
-              className: "flex justify-between items-center py-1.5 border-b border-slate-800/80",
-              children: [
-                d.jsx("span", { className: "text-slate-400", children: "Air Roll (Flip Ceiling / Wheels)" }),
-                d.jsx("span", { className: "font-mono font-bold bg-slate-900 border border-slate-700 px-2 py-0.5 rounded-lg text-amber-300", children: "Q / E" })
-              ]
-            }),
-            d.jsxs("div", {
-              className: "flex justify-between items-center py-1.5 border-b border-slate-800/80",
-              children: [
-                d.jsx("span", { className: "text-slate-400", children: "Dodge Flip (In Air)" }),
-                d.jsx("span", { className: "font-mono font-bold bg-slate-900 border border-slate-700 px-2 py-0.5 rounded-lg text-sky-300", children: "WASD + Space" })
-              ]
-            }),
-            d.jsxs("div", {
-              className: "flex justify-between items-center py-1.5 border-b border-slate-800/80",
-              children: [
-                d.jsx("span", { className: "text-slate-400", children: "Jump" }),
-                d.jsx("span", {
-                  className: "font-mono font-bold bg-slate-900 border border-slate-700 px-2 py-0.5 rounded-lg text-sky-300",
-                  children: jumpKey === "rmb" ? "Right Click / Space" : "Spacebar"
-                })
-              ]
-            }),
-            d.jsxs("div", {
-              className: "flex justify-between items-center py-1.5 border-b border-slate-800/80",
-              children: [
-                d.jsx("span", { className: "text-slate-400", children: "Rocket Boost" }),
-                d.jsx("span", { className: "font-mono font-bold bg-slate-900 border border-slate-700 px-2 py-0.5 rounded-lg text-amber-300", children: "Shift / LMB / J" })
-              ]
-            }),
-            d.jsxs("div", {
-              className: "flex justify-between items-center py-1.5 border-b border-slate-800/80",
-              children: [
-                d.jsx("span", { className: "text-slate-400", children: "Double Jump / Dodge Flip" }),
-                d.jsx("span", { className: "font-mono text-slate-200", children: "WASD + Space in air" })
-              ]
-            }),
-            d.jsxs("div", {
-              className: "flex justify-between items-center py-1.5 border-b border-slate-800/80",
-              children: [
-                d.jsx("span", { className: "text-slate-400", children: "Quick Chat" }),
-                d.jsx("span", { className: "font-mono font-bold bg-slate-900 border border-slate-700 px-2 py-0.5 rounded-lg text-slate-200", children: "T or C" })
-              ]
-            }),
-            d.jsxs("div", {
-              className: "flex justify-between items-center py-1.5 border-b border-slate-800/80",
-              children: [
-                d.jsx("span", { className: "text-slate-400", children: "Hitbox Wireframe Overlay" }),
-                d.jsx("span", { className: "font-mono font-bold bg-slate-900 border border-slate-700 px-2 py-0.5 rounded-lg text-amber-300", children: "H" })
-              ]
-            }),
-            d.jsxs("div", {
-              className: "flex justify-between items-center py-1.5",
-              children: [
-                d.jsx("span", { className: "text-slate-400", children: "Pause / Restart" }),
-                d.jsx("span", { className: "font-mono font-bold bg-slate-900 border border-slate-700 px-2 py-0.5 rounded-lg text-slate-200", children: "P / R" })
+                d.jsx(Smartphone, { className: "w-3.5 h-3.5 text-amber-300" }),
+                d.jsx("span", { children: "📱 Mobile Touch" })
               ]
             })
           ]
         }),
 
+        d.jsx("div", {
+          className: "overflow-y-auto flex-1 pr-1",
+          children: activeTab === "keyboard" ? (
+            d.jsxs("div", {
+              className: "space-y-2.5 text-xs font-gaming",
+              children: [
+                d.jsxs("div", {
+                  className: "flex justify-between items-center py-1.5 border-b border-slate-800/80",
+                  children: [
+                    d.jsx("span", { className: "text-slate-400", children: "Drive / Throttle" }),
+                    d.jsx("span", { className: "font-mono font-bold bg-slate-900 border border-slate-700 px-2 py-0.5 rounded-lg text-sky-300", children: "W / ↑" })
+                  ]
+                }),
+                d.jsxs("div", {
+                  className: "flex justify-between items-center py-1.5 border-b border-slate-800/80",
+                  children: [
+                    d.jsx("span", { className: "text-slate-400", children: "Brake / Reverse" }),
+                    d.jsx("span", { className: "font-mono font-bold bg-slate-900 border border-slate-700 px-2 py-0.5 rounded-lg text-sky-300", children: "S / ↓" })
+                  ]
+                }),
+                d.jsxs("div", {
+                  className: "flex justify-between items-center py-1.5 border-b border-slate-800/80",
+                  children: [
+                    d.jsx("span", { className: "text-slate-400", children: "Steer (Ground) / Air Steer" }),
+                    d.jsx("span", { className: "font-mono font-bold bg-slate-900 border border-slate-700 px-2 py-0.5 rounded-lg text-sky-300", children: "A / D or ← / →" })
+                  ]
+                }),
+                d.jsxs("div", {
+                  className: "flex justify-between items-center py-1.5 border-b border-slate-800/80",
+                  children: [
+                    d.jsx("span", { className: "text-slate-400", children: "Mouse Aim / Cursor Rotation" }),
+                    d.jsx("span", { className: "font-mono font-bold bg-emerald-950/80 border border-emerald-500/50 px-2 py-0.5 rounded-lg text-emerald-300", children: "M (Toggle) / Mouse" })
+                  ]
+                }),
+                d.jsxs("div", {
+                  className: "flex justify-between items-center py-1.5 border-b border-slate-800/80",
+                  children: [
+                    d.jsx("span", { className: "text-slate-400", children: "Air Roll (Flip Ceiling / Wheels)" }),
+                    d.jsx("span", { className: "font-mono font-bold bg-slate-900 border border-slate-700 px-2 py-0.5 rounded-lg text-amber-300", children: "Q / E" })
+                  ]
+                }),
+                d.jsxs("div", {
+                  className: "flex justify-between items-center py-1.5 border-b border-slate-800/80",
+                  children: [
+                    d.jsx("span", { className: "text-slate-400", children: "Dodge Flip (In Air)" }),
+                    d.jsx("span", { className: "font-mono font-bold bg-slate-900 border border-slate-700 px-2 py-0.5 rounded-lg text-sky-300", children: "WASD + Space" })
+                  ]
+                }),
+                d.jsxs("div", {
+                  className: "flex justify-between items-center py-1.5 border-b border-slate-800/80",
+                  children: [
+                    d.jsx("span", { className: "text-slate-400", children: "Jump" }),
+                    d.jsx("span", {
+                      className: "font-mono font-bold bg-slate-900 border border-slate-700 px-2 py-0.5 rounded-lg text-sky-300",
+                      children: jumpKey === "rmb" ? "Right Click / Space" : "Spacebar"
+                    })
+                  ]
+                }),
+                d.jsxs("div", {
+                  className: "flex justify-between items-center py-1.5 border-b border-slate-800/80",
+                  children: [
+                    d.jsx("span", { className: "text-slate-400", children: "Rocket Boost" }),
+                    d.jsx("span", { className: "font-mono font-bold bg-slate-900 border border-slate-700 px-2 py-0.5 rounded-lg text-amber-300", children: "Shift / LMB / J" })
+                  ]
+                }),
+                d.jsxs("div", {
+                  className: "flex justify-between items-center py-1.5 border-b border-slate-800/80",
+                  children: [
+                    d.jsx("span", { className: "text-slate-400", children: "Double Jump / Dodge Flip" }),
+                    d.jsx("span", { className: "font-mono text-slate-200", children: "WASD + Space in air" })
+                  ]
+                }),
+                d.jsxs("div", {
+                  className: "flex justify-between items-center py-1.5 border-b border-slate-800/80",
+                  children: [
+                    d.jsx("span", { className: "text-slate-400", children: "Quick Chat" }),
+                    d.jsx("span", { className: "font-mono font-bold bg-slate-900 border border-slate-700 px-2 py-0.5 rounded-lg text-slate-200", children: "T or C" })
+                  ]
+                }),
+                d.jsxs("div", {
+                  className: "flex justify-between items-center py-1.5 border-b border-slate-800/80",
+                  children: [
+                    d.jsx("span", { className: "text-slate-400", children: "Hitbox Wireframe Overlay" }),
+                    d.jsx("span", { className: "font-mono font-bold bg-slate-900 border border-slate-700 px-2 py-0.5 rounded-lg text-amber-300", children: "H" })
+                  ]
+                }),
+                d.jsxs("div", {
+                  className: "flex justify-between items-center py-1.5",
+                  children: [
+                    d.jsx("span", { className: "text-slate-400", children: "Pause / Restart" }),
+                    d.jsx("span", { className: "font-mono font-bold bg-slate-900 border border-slate-700 px-2 py-0.5 rounded-lg text-slate-200", children: "P / R" })
+                  ]
+                })
+              ]
+            })
+          ) : (
+            d.jsxs("div", {
+              className: "space-y-3 text-xs font-sans text-slate-300",
+              children: [
+                d.jsxs("div", {
+                  className: "p-3 rounded-2xl bg-sky-950/40 border border-sky-800/60",
+                  children: [
+                    d.jsx("h4", { className: "font-gaming font-black text-sky-300 text-sm mb-1.5", children: "🕹️ Left Thumb: Precision D-Pad" }),
+                    d.jsxs("ul", {
+                      className: "space-y-1 text-slate-300 text-[11px] list-disc list-inside",
+                      children: [
+                        d.jsxs("li", { children: [d.strong({ className: "text-white", children: "Steering (Left / Right):" }), " Tap or slide left & right to drive or rotate car."] }),
+                        d.jsxs("li", { children: [d.strong({ className: "text-white", children: "Throttle (Up):" }), " Accelerate forward."] }),
+                        d.jsxs("li", { children: [d.strong({ className: "text-white", children: "Brake / Reverse (Down):" }), " Slow down or reverse."] }),
+                        d.jsxs("li", { children: [d.strong({ className: "text-white", children: "Continuous Slide:" }), " Drag your thumb across directions seamlessly."] })
+                      ]
+                    })
+                  ]
+                }),
+                d.jsxs("div", {
+                  className: "p-3 rounded-2xl bg-amber-950/30 border border-amber-800/50",
+                  children: [
+                    d.jsx("h4", { className: "font-gaming font-black text-amber-300 text-sm mb-1.5", children: "⚡ Right Thumb: Action Pod" }),
+                    d.jsxs("ul", {
+                      className: "space-y-1 text-slate-300 text-[11px] list-disc list-inside",
+                      children: [
+                        d.jsxs("li", { children: [d.strong({ className: "text-amber-400", children: "🚀 BOOST:" }), " Hold for rocket boost. Includes visual boost gauge ring."] }),
+                        d.jsxs("li", { children: [d.strong({ className: "text-sky-400", children: "⤊ JUMP:" }), " Tap to jump. Tap again in mid-air while pressing a direction to Dodge Flip! Glows gold when you have a Flip Reset."] }),
+                        d.jsxs("li", { children: [d.strong({ className: "text-purple-400", children: "🔄 AIR ROLL:" }), " Instant 180° flip to land cleanly on wheels, ceiling, or walls."] }),
+                        d.jsxs("li", { children: [d.strong({ className: "text-emerald-400", children: "🛑 HANDBRAKE:" }), " Hold to drift and slide turn instantly."] })
+                      ]
+                    })
+                  ]
+                }),
+                d.jsxs("div", {
+                  className: "p-3 rounded-2xl bg-slate-900/80 border border-slate-800",
+                  children: [
+                    d.jsx("h4", { className: "font-gaming font-black text-slate-200 text-sm mb-1.5", children: "✨ Multi-Touch & Quick Menu" }),
+                    d.jsxs("p", {
+                      className: "text-[11px] text-slate-300 leading-relaxed",
+                      children: "You can hold Boost with your right thumb while steering with your left thumb and tapping Jump at any moment for fast aerial strikes. Tap the top-right 'Menu' button anytime to access settings, camera toggle, and match history."
+                    })
+                  ]
+                })
+              ]
+            })
+          )
+        }),
+
         d.jsxs("div", {
-          className: "mt-4 p-3 bg-sky-950/40 border border-sky-800/50 rounded-2xl text-xs text-sky-200 leading-relaxed font-sans",
+          className: "mt-3 p-3 bg-sky-950/40 border border-sky-800/50 rounded-2xl text-xs text-sky-200 leading-relaxed font-sans shrink-0",
           children: [
             d.jsxs("strong", { className: "text-white font-gaming", children: ["💡 ", "Authentic Rocket League Mechanics:"] }),
             d.jsxs("ul", {
-              className: "list-disc list-inside mt-1.5 space-y-1 text-slate-300 text-[11px]",
+              className: "list-disc list-inside mt-1 space-y-0.5 text-slate-300 text-[11px]",
               children: [
                 d.jsxs("li", {
                   children: ["Accelerate past 840 km/h to enter ", d.jsx("strong", { className: "text-amber-300", children: "SUPERSONIC" }), " and demolish (demo) opponents on impact!"]
@@ -11689,6 +11817,7 @@ function r2(){
     let savedAutoCam = false;
     let savedTrajectory = false;
     let savedSteeringControl = "keyboard";
+    let savedMobileControls = "auto";
     try {
       const p = localStorage.getItem("rl_physics_mode");
       if (p === "legacy" || p === "rocket_league") savedPhysics = p;
@@ -11704,6 +11833,8 @@ function r2(){
       if (tr === "true") savedTrajectory = true;
       const sc = localStorage.getItem("rl_steering_control");
       if (sc === "mouse" || sc === "keyboard") savedSteeringControl = sc;
+      const mc = localStorage.getItem("rl_mobile_controls");
+      if (mc === "auto" || mc === "on" || mc === "off") savedMobileControls = mc;
     } catch (e) {}
     syncMapGlobals(savedMap);
     return {
@@ -11721,7 +11852,8 @@ function r2(){
       showHitbox: savedShowHitbox,
       selectedMap: savedMap,
       autoCam: savedAutoCam,
-      steeringControl: savedSteeringControl
+      steeringControl: savedSteeringControl,
+      mobileControls: savedMobileControls
     };
   };
   const [f, r] = st.useState(getInitialSettings);
@@ -11785,6 +11917,9 @@ function r2(){
         if (newSettings.steeringControl) {
           localStorage.setItem("rl_steering_control", newSettings.steeringControl);
         }
+        if (newSettings.mobileControls) {
+          localStorage.setItem("rl_mobile_controls", newSettings.mobileControls);
+        }
       }
     } catch (e) {}
     r(newSettings);
@@ -11839,6 +11974,36 @@ function r2(){
   [roomStateVersion, setRoomStateVersion] = st.useState(0);
   const lastSnapshotBroadcastRef = st.useRef(0);
   const hasSavedMatchRef = st.useRef(false);
+
+  const [isQuickMenuOpen, setIsQuickMenuOpen] = st.useState(false);
+  const touchInputRef = st.useRef<TouchInputState>({});
+  const handleTouchInputChange = st.useCallback((state: TouchInputState) => {
+    touchInputRef.current = state;
+  }, []);
+  const [isTouchDevice, setIsTouchDevice] = st.useState(() => {
+    if (typeof window === "undefined") return false;
+    return ("ontouchstart" in window) || (navigator.maxTouchPoints > 0) || (window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
+  });
+  const [isPortrait, setIsPortrait] = st.useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.innerHeight > window.innerWidth;
+  });
+  const [dismissPortrait, setDismissPortrait] = st.useState(false);
+
+  st.useEffect(() => {
+    const checkMobileEnv = () => {
+      setIsPortrait(window.innerHeight > window.innerWidth);
+      setIsTouchDevice(("ontouchstart" in window) || (navigator.maxTouchPoints > 0) || (window.matchMedia && window.matchMedia("(pointer: coarse)").matches));
+    };
+    window.addEventListener("resize", checkMobileEnv);
+    window.addEventListener("orientationchange", checkMobileEnv);
+    return () => {
+      window.removeEventListener("resize", checkMobileEnv);
+      window.removeEventListener("orientationchange", checkMobileEnv);
+    };
+  }, []);
+
+  const showMobileControls = (f.mobileControls === "on") || (f.mobileControls !== "off" && isTouchDevice);
 
   st.useEffect(() => {
     try {
@@ -12250,12 +12415,32 @@ st.useEffect(()=>{
   We=!!(et.shiftleft||et.shiftright||et.shift||et.keyj||et.j||et.о||et.mouse0),
   Ge=!!(et.keyk||et.k||et.л||rt),
   Dn=Rt;
-let Be=de,
-  Cn=nt,
-  Ga=Et,
-  Rn=rt,
-  Du=Et,
-  ml=rt;
+
+const tIn = touchInputRef.current;
+const touchSteerLeft = !!tIn?.steerLeft;
+const touchSteerRight = !!tIn?.steerRight;
+const touchThrottleForward = !!tIn?.throttleForward;
+const touchThrottleReverse = !!tIn?.throttleReverse;
+const touchPitchUp = !!tIn?.pitchUp;
+const touchPitchDown = !!tIn?.pitchDown;
+const touchAirRollLeft = !!tIn?.airRollLeft;
+const touchAirRollRight = !!tIn?.airRollRight;
+const touchJump = !!tIn?.jump;
+const touchBoost = !!tIn?.boost;
+const touchHandbrake = !!tIn?.handbrake;
+
+let Be=de || touchSteerLeft,
+  Cn=nt || touchSteerRight,
+  Ga=Et || touchThrottleForward,
+  Rn=rt || touchThrottleReverse,
+  Du=Et || touchPitchUp || touchThrottleForward,
+  ml=rt || touchPitchDown || touchThrottleReverse;
+const airRollLeftCombined = isQ || touchAirRollLeft;
+const airRollRightCombined = isE || touchAirRollRight;
+const jumpCombined = Dn || touchJump;
+const boostCombined = We || touchBoost;
+const handbrakeCombined = Ge || touchHandbrake;
+
 const isMouseMode = (f.steeringControl || "keyboard") === "mouse";
 let mouseTargetAngle: number | undefined = undefined;
 if (isMouseMode && mouseScreenPos.active) {
@@ -12271,7 +12456,7 @@ if (isMouseMode && mouseScreenPos.active) {
     }
   }
 }
-if(p==="goal_scored"||p==="goal_replay"||(p==="kickoff"&&re.current>0)){xt.input={steerLeft:!1,steerRight:!1,throttleForward:!1,throttleReverse:!1,pitchUp:!1,pitchDown:!1,airRollLeft:!1,airRollRight:!1,jump:!1,boost:!1,handbrake:!1,mouseAim:!1,mouseTargetAngle:undefined};}else{xt.input={steerLeft:Be,steerRight:Cn,throttleForward:Ga,throttleReverse:Rn,pitchUp:Du,pitchDown:ml,airRollLeft:isQ,airRollRight:isE,jump:Dn,boost:We,handbrake:Ge,mouseAim:isMouseMode,mouseTargetAngle:mouseTargetAngle},Lt&&(xt.boost=100);if(peerNetwork.isConnected&&peerNetwork.role==="client"){peerNetwork.sendInput(xt.input);}}},1e3/60);return()=>{window.removeEventListener("keydown",H),window.removeEventListener("keyup",Z),window.removeEventListener("mousedown",w),window.removeEventListener("mouseup",q),window.removeEventListener("contextmenu",onCm),window.removeEventListener("mousemove",onMouseMove),window.removeEventListener("blur",Wt),clearInterval(il)}},[f.mode,ie,Lt,toggleFullscreen,toggleHitbox,toggleTrajectory,toggleSteeringControl,p,m,f.jumpKey,f.steeringControl]),st.useEffect(()=>{let H;const Z=w=>{var il;const q=(w-Te.current)/1e3;Te.current=w;const Wt=(il=u.current)==null?void 0:il.getContext("2d");if(dvrRef.current.active&&dvrRef.current.offsetSec>0.05){if(dvrRef.current.isPlaying&&q>0){const nextSec=Math.max(0,dvrRef.current.offsetSec-q*dvrRef.current.speed);dvrRef.current.offsetSec=nextSec,nextSec<=0.05&&(dvrRef.current.isPlaying=!1,dvrRef.current.offsetSec=0,dvrRef.current.active=!1),setDvr({...dvrRef.current})}const hist=replayHistoryRef.current;if(hist.length>0&&Wt){const lastTime=hist[hist.length-1].time,targetTime=lastTime-dvrRef.current.offsetSec*1000,snap=getSnapshotAtTime(hist,targetTime);snap&&kv(Wt,snap.cars,snap.ball,snap.boostPads||ne.current,snap.particles||[],{showTrajectory:!1,arenaTheme:f.arenaTheme,showMechanicAlerts:f.showMechanicAlerts!==false,showHitbox:f.showHitbox,isReplay:!0,replayTime:targetTime,matchEvents:matchEventsRef.current,autoCam:f.autoCam!==false});if(dvrRef.current.isPlaying&&q>0){const prevT=replayAudioTimeRef.current;if(prevT!==null&&targetTime>prevT&&targetTime-prevT<1200){for(const ev of matchEventsRef.current){if(ev.time>prevT&&ev.time<=targetTime){if(!isReplayAudioMuted)playReplayEventSound(ev);if(ev.type==="goal"){setActiveReplayBadge(ev);setTimeout(()=>setActiveReplayBadge((cur:any)=>(cur?.id===ev.id?null:cur)),1800);}}}}replayAudioTimeRef.current=targetTime;}}H=requestAnimationFrame(Z);return}if(p==="goal_replay"&&goalReplayRef.current){const gr=goalReplayRef.current;if(!gr.isPaused&&q>0){gr.currentSec+=q*(gr.speed||1)}if(gr.currentSec>=gr.durationSec){goalReplayRef.current=null,setGoalReplayUI(null),setActiveReplayBadge(null),replayAudioTimeRef.current=null,I?A("ended"):(X<=0&&f.matchDuration<9e3?(C===N?(U(!0),tt(0),be()):A("ended")):be())}else{const targetTime=gr.startTime+gr.currentSec*1000,snap=getSnapshotAtTime(gr.frames,targetTime);snap&&Wt&&kv(Wt,snap.cars,snap.ball,snap.boostPads||ne.current,snap.particles||[],{showTrajectory:!1,arenaTheme:f.arenaTheme,showMechanicAlerts:f.showMechanicAlerts!==false,showHitbox:f.showHitbox,isReplay:!0,replayTime:targetTime,matchEvents:matchEventsRef.current,autoCam:f.autoCam!==false});if(!gr.isPaused&&q>0){const prevT=replayAudioTimeRef.current;if(prevT!==null&&targetTime>prevT&&targetTime-prevT<1200){for(const ev of matchEventsRef.current){if(ev.time>prevT&&ev.time<=targetTime){if(!isReplayAudioMuted)playReplayEventSound(ev);if(ev.type==="goal"){setActiveReplayBadge(ev);setTimeout(()=>setActiveReplayBadge((cur:any)=>(cur?.id===ev.id?null:cur)),1800);}}}}replayAudioTimeRef.current=targetTime;}const nowTs=performance.now();if(!gr._lastUiUpdate||nowTs-gr._lastUiUpdate>35){gr._lastUiUpdate=nowTs,setGoalReplayUI((prev:any)=>prev?{...prev,isPaused:!!gr.isPaused,speed:gr.speed||1,currentSec:gr.currentSec.toFixed(1),progress:gr.durationSec>0?gr.currentSec/gr.durationSec:0}:null)}}H=requestAnimationFrame(Z);return}if(!m&&q>0){if(p==="kickoff"){re.current-=q;const nt=Math.ceil(re.current);nt>0&&nt<=3?Tt!==nt&&(at(nt),Me.playCountdown(!1)):re.current<=0&&(at(0),Me.playCountdown(!0),A("playing"),setTimeout(()=>at(null),800))}const isPlaying=p==="playing"||(p==="kickoff"&&re.current<=0);const xt=Gt.current,et=ht.current;isPlaying&&f.mode!=="training"&&f.matchDuration<9e3&&(I?tt(nt=>nt+q):X>0?tt(nt=>Math.max(0,nt-q)):et.y+et.radius>=k-3&&(C===N?(U(!0),tt(0),be()):A("ended")));for(const nt of xt)if(nt.isBot&&isPlaying){if(!peerNetwork.isConnected||peerNetwork.role==="host"){const Rt=xt.filter(Be=>Be.team!==nt.team),We=xt.filter(Be=>Be.team===nt.team&&Be.id!==nt.id),Ge=Yv(nt,et,Rt,We,nt.botDifficulty||f.botDifficulty,q,ne.current);Ge.chatMessage&&x(Ge.chatMessage,nt.name,nt.team);}}(isPlaying||p==="goal_scored")&&(replayHistoryRef.current.push({time:performance.now(),ball:{x:et.x,y:et.y,vx:et.vx,vy:et.vy,radius:et.radius,spin:et.spin,touchEffectTimer:et.touchEffectTimer,trail:et.trail?[...et.trail]:[],lastTouchTeam:et.lastTouchTeam,lastTouchPlayer:et.lastTouchPlayer},cars:xt.map(c=>({id:c.id,name:c.name,team:c.team,isBot:c.isBot,botDifficulty:c.botDifficulty,carModel:c.carModel||"octane",hitboxClass:c.hitboxClass||"Octane",wheelbase:c.wheelbase||40,wheelRadius:c.wheelRadius||8.5,x:c.x,y:c.y,vx:c.vx,vy:c.vy,angle:c.angle,airRollInverted:!!c.airRollInverted,facing:c.facing||1,width:c.width,height:c.height,isGrounded:c.isGrounded,boost:c.boost,isBoosting:c.isBoosting,isSupersonic:c.isSupersonic,isFlipping:c.isFlipping,hasFlipReset:c.hasFlipReset,isDemoed:c.isDemoed,demoRespawnTimer:c.demoRespawnTimer,score:c.score,goals:c.goals,activeMechanicAlerts:(c.activeMechanicAlerts||[]).map((a:any)=>({...a}))})),boostPads:(ne.current||[]).map((p:any)=>({id:p.id,x:p.x,y:p.y,type:p.type,active:p.active,cooldownTimer:p.cooldownTimer,respawnTime:p.respawnTime})),particles:(Yt.current||[]).slice(-35).map((pt:any)=>({...pt}))}));while(replayHistoryRef.current.length>40000){replayHistoryRef.current.shift()}if(p==="goal_scored"){Xt.current-=q;if(Xt.current<=0){const hist=replayHistoryRef.current;if(hist.length>=10){const lastTime=hist[hist.length-1].time,targetDurationMs=7000,startTime=lastTime-targetDurationMs;let slice=hist.filter((item:any)=>item.time>=startTime);if(slice.length<5)slice=hist.slice(-300);const actualStart=slice[0].time,actualEnd=slice[slice.length-1].time,durationSec=Math.max(1,(actualEnd-actualStart)/1000);goalReplayRef.current={frames:slice,startTime:actualStart,endTime:actualEnd,durationSec,currentSec:0,speed:1,isPaused:!1,info:lastGoalInfoRef.current,_lastUiUpdate:0},setGoalReplayUI({active:!0,progress:0,speed:1,isPaused:!1,info:lastGoalInfoRef.current,currentSec:"0.0",totalSec:durationSec.toFixed(1)}),ot(null),A("goal_replay")}else{I?A("ended"):(X<=0&&f.matchDuration<9e3?(C===N?(U(!0),tt(0),be()):A("ended")):be())}}}
+if(p==="goal_scored"||p==="goal_replay"||(p==="kickoff"&&re.current>0)){xt.input={steerLeft:!1,steerRight:!1,throttleForward:!1,throttleReverse:!1,pitchUp:!1,pitchDown:!1,airRollLeft:!1,airRollRight:!1,jump:!1,boost:!1,handbrake:!1,mouseAim:!1,mouseTargetAngle:undefined};}else{xt.input={steerLeft:Be,steerRight:Cn,throttleForward:Ga,throttleReverse:Rn,pitchUp:Du,pitchDown:ml,airRollLeft:airRollLeftCombined,airRollRight:airRollRightCombined,jump:jumpCombined,boost:boostCombined,handbrake:handbrakeCombined,mouseAim:isMouseMode,mouseTargetAngle:mouseTargetAngle},Lt&&(xt.boost=100);if(peerNetwork.isConnected&&peerNetwork.role==="client"){peerNetwork.sendInput(xt.input);}}},1e3/60);return()=>{window.removeEventListener("keydown",H),window.removeEventListener("keyup",Z),window.removeEventListener("mousedown",w),window.removeEventListener("mouseup",q),window.removeEventListener("contextmenu",onCm),window.removeEventListener("mousemove",onMouseMove),window.removeEventListener("blur",Wt),clearInterval(il)}},[f.mode,ie,Lt,toggleFullscreen,toggleHitbox,toggleTrajectory,toggleSteeringControl,p,m,f.jumpKey,f.steeringControl]),st.useEffect(()=>{let H;const Z=w=>{var il;const q=(w-Te.current)/1e3;Te.current=w;const Wt=(il=u.current)==null?void 0:il.getContext("2d");if(dvrRef.current.active&&dvrRef.current.offsetSec>0.05){if(dvrRef.current.isPlaying&&q>0){const nextSec=Math.max(0,dvrRef.current.offsetSec-q*dvrRef.current.speed);dvrRef.current.offsetSec=nextSec,nextSec<=0.05&&(dvrRef.current.isPlaying=!1,dvrRef.current.offsetSec=0,dvrRef.current.active=!1),setDvr({...dvrRef.current})}const hist=replayHistoryRef.current;if(hist.length>0&&Wt){const lastTime=hist[hist.length-1].time,targetTime=lastTime-dvrRef.current.offsetSec*1000,snap=getSnapshotAtTime(hist,targetTime);snap&&kv(Wt,snap.cars,snap.ball,snap.boostPads||ne.current,snap.particles||[],{showTrajectory:!1,arenaTheme:f.arenaTheme,showMechanicAlerts:f.showMechanicAlerts!==false,showHitbox:f.showHitbox,isReplay:!0,replayTime:targetTime,matchEvents:matchEventsRef.current,autoCam:f.autoCam!==false});if(dvrRef.current.isPlaying&&q>0){const prevT=replayAudioTimeRef.current;if(prevT!==null&&targetTime>prevT&&targetTime-prevT<1200){for(const ev of matchEventsRef.current){if(ev.time>prevT&&ev.time<=targetTime){if(!isReplayAudioMuted)playReplayEventSound(ev);if(ev.type==="goal"){setActiveReplayBadge(ev);setTimeout(()=>setActiveReplayBadge((cur:any)=>(cur?.id===ev.id?null:cur)),1800);}}}}replayAudioTimeRef.current=targetTime;}}H=requestAnimationFrame(Z);return}if(p==="goal_replay"&&goalReplayRef.current){const gr=goalReplayRef.current;if(!gr.isPaused&&q>0){gr.currentSec+=q*(gr.speed||1)}if(gr.currentSec>=gr.durationSec){goalReplayRef.current=null,setGoalReplayUI(null),setActiveReplayBadge(null),replayAudioTimeRef.current=null,I?A("ended"):(X<=0&&f.matchDuration<9e3?(C===N?(U(!0),tt(0),be()):A("ended")):be())}else{const targetTime=gr.startTime+gr.currentSec*1000,snap=getSnapshotAtTime(gr.frames,targetTime);snap&&Wt&&kv(Wt,snap.cars,snap.ball,snap.boostPads||ne.current,snap.particles||[],{showTrajectory:!1,arenaTheme:f.arenaTheme,showMechanicAlerts:f.showMechanicAlerts!==false,showHitbox:f.showHitbox,isReplay:!0,replayTime:targetTime,matchEvents:matchEventsRef.current,autoCam:f.autoCam!==false});if(!gr.isPaused&&q>0){const prevT=replayAudioTimeRef.current;if(prevT!==null&&targetTime>prevT&&targetTime-prevT<1200){for(const ev of matchEventsRef.current){if(ev.time>prevT&&ev.time<=targetTime){if(!isReplayAudioMuted)playReplayEventSound(ev);if(ev.type==="goal"){setActiveReplayBadge(ev);setTimeout(()=>setActiveReplayBadge((cur:any)=>(cur?.id===ev.id?null:cur)),1800);}}}}replayAudioTimeRef.current=targetTime;}const nowTs=performance.now();if(!gr._lastUiUpdate||nowTs-gr._lastUiUpdate>35){gr._lastUiUpdate=nowTs,setGoalReplayUI((prev:any)=>prev?{...prev,isPaused:!!gr.isPaused,speed:gr.speed||1,currentSec:gr.currentSec.toFixed(1),progress:gr.durationSec>0?gr.currentSec/gr.durationSec:0}:null)}}H=requestAnimationFrame(Z);return}if(!m&&q>0){if(p==="kickoff"){re.current-=q;const nt=Math.ceil(re.current);nt>0&&nt<=3?Tt!==nt&&(at(nt),Me.playCountdown(!1)):re.current<=0&&(at(0),Me.playCountdown(!0),A("playing"),setTimeout(()=>at(null),800))}const isPlaying=p==="playing"||(p==="kickoff"&&re.current<=0);const xt=Gt.current,et=ht.current;isPlaying&&f.mode!=="training"&&f.matchDuration<9e3&&(I?tt(nt=>nt+q):X>0?tt(nt=>Math.max(0,nt-q)):et.y+et.radius>=k-3&&(C===N?(U(!0),tt(0),be()):A("ended")));for(const nt of xt)if(nt.isBot&&isPlaying){if(!peerNetwork.isConnected||peerNetwork.role==="host"){const Rt=xt.filter(Be=>Be.team!==nt.team),We=xt.filter(Be=>Be.team===nt.team&&Be.id!==nt.id),Ge=Yv(nt,et,Rt,We,nt.botDifficulty||f.botDifficulty,q,ne.current);Ge.chatMessage&&x(Ge.chatMessage,nt.name,nt.team);}}(isPlaying||p==="goal_scored")&&(replayHistoryRef.current.push({time:performance.now(),ball:{x:et.x,y:et.y,vx:et.vx,vy:et.vy,radius:et.radius,spin:et.spin,touchEffectTimer:et.touchEffectTimer,trail:et.trail?[...et.trail]:[],lastTouchTeam:et.lastTouchTeam,lastTouchPlayer:et.lastTouchPlayer},cars:xt.map(c=>({id:c.id,name:c.name,team:c.team,isBot:c.isBot,botDifficulty:c.botDifficulty,carModel:c.carModel||"octane",hitboxClass:c.hitboxClass||"Octane",wheelbase:c.wheelbase||40,wheelRadius:c.wheelRadius||8.5,x:c.x,y:c.y,vx:c.vx,vy:c.vy,angle:c.angle,airRollInverted:!!c.airRollInverted,facing:c.facing||1,width:c.width,height:c.height,isGrounded:c.isGrounded,boost:c.boost,isBoosting:c.isBoosting,isSupersonic:c.isSupersonic,isFlipping:c.isFlipping,hasFlipReset:c.hasFlipReset,isDemoed:c.isDemoed,demoRespawnTimer:c.demoRespawnTimer,score:c.score,goals:c.goals,activeMechanicAlerts:(c.activeMechanicAlerts||[]).map((a:any)=>({...a}))})),boostPads:(ne.current||[]).map((p:any)=>({id:p.id,x:p.x,y:p.y,type:p.type,active:p.active,cooldownTimer:p.cooldownTimer,respawnTime:p.respawnTime})),particles:(Yt.current||[]).slice(-35).map((pt:any)=>({...pt}))}));while(replayHistoryRef.current.length>40000){replayHistoryRef.current.shift()}if(p==="goal_scored"){Xt.current-=q;if(Xt.current<=0){const hist=replayHistoryRef.current;if(hist.length>=10){const lastTime=hist[hist.length-1].time,targetDurationMs=7000,startTime=lastTime-targetDurationMs;let slice=hist.filter((item:any)=>item.time>=startTime);if(slice.length<5)slice=hist.slice(-300);const actualStart=slice[0].time,actualEnd=slice[slice.length-1].time,durationSec=Math.max(1,(actualEnd-actualStart)/1000);goalReplayRef.current={frames:slice,startTime:actualStart,endTime:actualEnd,durationSec,currentSec:0,speed:1,isPaused:!1,info:lastGoalInfoRef.current,_lastUiUpdate:0},setGoalReplayUI({active:!0,progress:0,speed:1,isPaused:!1,info:lastGoalInfoRef.current,currentSec:"0.0",totalSec:durationSec.toFixed(1)}),ot(null),A("goal_replay")}else{I?A("ended"):(X<=0&&f.matchDuration<9e3?(C===N?(U(!0),tt(0),be()):A("ended")):be())}}}
 const isMultiClient = peerNetwork.isConnected && peerNetwork.role === "client";
 if(!isMultiClient){
 const Et=isPlaying||p==="goal_scored",rt=jv(xt,et,ne.current,q,!Et&&p!=="goal_scored",f.physicsMode);rt.mechanicEvents&&rt.mechanicEvents.length>0&&(()=>{for(const ev of rt.mechanicEvents){matchEventsRef.current.push({id:"mech_"+ev.id+"_"+Date.now(),time:performance.now(),type:"mechanic",subType:ev.type,text:ev.text,player:ev.player,team:ev.team,color:ev.color,speedKmh:ev.speedKmh});const alertId=ev.id;mechAlertCountRef.current++;const hideTimeout=mechAlertCountRef.current>=3?1300:mechAlertCountRef.current===2?1750:2600;setMechAlerts(prev=>[...prev.slice(-3),ev]);setTimeout(()=>{mechAlertCountRef.current=Math.max(0,mechAlertCountRef.current-1);setMechAlerts(prev=>prev.filter(it=>it.id!==alertId))},hideTimeout)}})();rt.boostPickups&&rt.boostPickups.length>0&&matchEventsRef.current.push(...rt.boostPickups);rt.newParticles.length>0&&Yt.current.push(...rt.newParticles);for(let nt=Yt.current.length-1;nt>=0;nt--){const Rt=Yt.current[nt];Rt.x+=Rt.vx*q,Rt.y+=Rt.vy*q,Rt.life-=q,Rt.life<=0&&Yt.current.splice(nt,1)}for(const nt of rt.demoEvents){
@@ -12524,7 +12709,11 @@ onCeilingSetup=()=>{
   ht.current.vx=isB?(isLegacy?360:300):-(isLegacy?360:300);
   ht.current.vy=isLegacy?-60:-40;
   ht.current.spin=0;
-};const isSpectator = f.mode === "bot_vs_bot" || f.mode.startsWith("spectator");return d.jsx("main",{ref:containerRef,className:"relative w-screen h-screen bg-slate-950 overflow-hidden flex items-center justify-center font-sans select-none",children:d.jsxs("div",{className:"relative w-full h-full overflow-hidden",children:[d.jsx("canvas",{ref:u,className:"absolute inset-0 w-full h-full block"}),d.jsx(a2,{blueScore:C,orangeScore:N,timeLeft:X,isOvertime:I,matchState:p,gameMode:f.mode,botDifficulty:f.botDifficulty,physicsMode:f.physicsMode,currentMap:f.selectedMap||"standard",isPaused:m,onTogglePause:()=>g(H=>!H),onOpenSettings:()=>y(!0),onResetMatch:ie,isFullscreen:isFullscreen,onToggleFullscreen:toggleFullscreen,onOpenControls:()=>setIsControlsOpen(!0),onOpenReplayStudio:handleOpenStudioFromAnywhere,autoCam:f.autoCam===true,onToggleAutoCam:toggleAutoCam,steeringControl:f.steeringControl||"keyboard",onToggleSteeringControl:toggleSteeringControl,onOpenScoreboard:()=>setIsScoreboardOpen(prev=>!prev),onOpenMatchHistory:()=>setIsMatchHistoryOpen(true),isMultiplayerActive:peerNetwork.isConnected&&peerNetwork.roomState?.status==="in_game",multiplayerRoomCode:peerNetwork.roomState?.roomCode||null,multiplayerPing:multiplayerPing,onOpenMultiplayer:()=>setIsMultiplayerOpen(true),onLeaveMultiplayer:()=>{peerNetwork.disconnect();setIsMultiplayerOpen(false);ie();}}),d.jsx(u2,{messages:J,onSendMessage:H=>x(H,pilotName,"blue")}),d.jsx(s2,{jumpKey:f.jumpKey,isOpen:isControlsOpen,onClose:()=>setIsControlsOpen(!1)}),
+};const isSpectator = f.mode === "bot_vs_bot" || f.mode.startsWith("spectator");return d.jsx("main",{ref:containerRef,className:"relative w-screen h-screen bg-slate-950 overflow-hidden flex items-center justify-center font-sans select-none",children:d.jsxs("div",{className:"relative w-full h-full overflow-hidden",children:[d.jsx("canvas",{ref:u,className:"absolute inset-0 w-full h-full block"}),d.jsx(a2,{blueScore:C,orangeScore:N,timeLeft:X,isOvertime:I,matchState:p,gameMode:f.mode,botDifficulty:f.botDifficulty,physicsMode:f.physicsMode,currentMap:f.selectedMap||"standard",isPaused:m,onTogglePause:()=>g(H=>!H),onOpenSettings:()=>y(!0),onResetMatch:ie,isFullscreen:isFullscreen,onToggleFullscreen:toggleFullscreen,onOpenControls:()=>setIsControlsOpen(!0),onOpenReplayStudio:handleOpenStudioFromAnywhere,autoCam:f.autoCam===true,onToggleAutoCam:toggleAutoCam,steeringControl:f.steeringControl||"keyboard",onToggleSteeringControl:toggleSteeringControl,onOpenScoreboard:()=>setIsScoreboardOpen(prev=>!prev),onOpenMatchHistory:()=>setIsMatchHistoryOpen(true),isMultiplayerActive:peerNetwork.isConnected&&peerNetwork.roomState?.status==="in_game",multiplayerRoomCode:peerNetwork.roomState?.roomCode||null,multiplayerPing:multiplayerPing,onOpenMultiplayer:()=>setIsMultiplayerOpen(true),onLeaveMultiplayer:()=>{peerNetwork.disconnect();setIsMultiplayerOpen(false);ie();},onOpenQuickMenu:()=>setIsQuickMenuOpen(true)}),
+isPortrait&&isTouchDevice&&!dismissPortrait&&d.jsxs("div",{className:"absolute top-16 left-1/2 -translate-x-1/2 z-45 w-[92%] max-w-sm px-3.5 py-2.5 rounded-2xl bg-slate-900/95 border border-amber-500/60 shadow-2xl backdrop-blur-md flex items-center justify-between gap-2.5 text-amber-200 animate-fade-in pointer-events-auto",children:[d.jsxs("div",{className:"flex items-center gap-2",children:[d.jsx(RotateCw,{className:"w-4 h-4 text-amber-400 shrink-0 animate-spin-slow"}),d.jsxs("span",{className:"text-xs font-sans font-medium text-amber-100",children:["Rotate device to ",d.strong({className:"text-amber-300",children:"Landscape"})," for best view!"]})]}),d.jsx("button",{onClick:()=>setDismissPortrait(true),className:"px-2 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold text-[11px] shrink-0 cursor-pointer",children:"Got it"})]}),
+showMobileControls&&d.jsx(MobileControlsOverlay,{onInputChange:handleTouchInputChange,activeBoost:B?.boost??100,hasFlipReset:!!B?.hasFlipReset,isGrounded:!!B?.isGrounded,isSpectator:isSpectator,visible:!m&&p!=="ended"&&!goalReplayUI?.active&&!dvr.active}),
+d.jsx(MobileQuickMenu,{isOpen:isQuickMenuOpen,onClose:()=>setIsQuickMenuOpen(false),isPaused:m,onTogglePause:()=>g(H=>!H),onResetMatch:ie,isFullscreen:isFullscreen,onToggleFullscreen:toggleFullscreen,isAudioMuted:!f.soundEnabled,onToggleAudioMute:()=>handleUpdateSettings({...f,soundEnabled:!f.soundEnabled}),autoCam:f.autoCam===true,onToggleAutoCam:toggleAutoCam,steeringControl:f.steeringControl||"keyboard",onToggleSteeringControl:toggleSteeringControl,onOpenMultiplayer:()=>setIsMultiplayerOpen(true),onOpenSettings:()=>y(!0),onOpenControls:()=>setIsControlsOpen(!0),onOpenMatchHistory:()=>setIsMatchHistoryOpen(true),onOpenReplayStudio:handleOpenStudioFromAnywhere,isSpectator:isSpectator,isMultiplayerActive:peerNetwork.isConnected&&peerNetwork.roomState?.status==="in_game",multiplayerRoomCode:peerNetwork.roomState?.roomCode||null}),
+d.jsx(u2,{messages:J,onSendMessage:H=>x(H,pilotName,"blue")}),d.jsx(s2,{jumpKey:f.jumpKey,isOpen:isControlsOpen,onClose:()=>setIsControlsOpen(!1)}),
 d.jsx(ScoreboardModal,{isOpen:isScoreboardOpen,onClose:()=>setIsScoreboardOpen(false),cars:Gt.current,blueScore:C,orangeScore:N,gameMode:f.mode,arenaName:(activeMapDef||MAP_DEFINITIONS[f.selectedMap||"standard"]||MAP_DEFINITIONS.standard).name}),
 d.jsx(MatchHistoryModal,{isOpen:isMatchHistoryOpen,onClose:()=>setIsMatchHistoryOpen(false),onWatchReplay:handleWatchPastReplay}),
 d.jsx(MultiplayerModal,{isOpen:isMultiplayerOpen,onClose:()=>setIsMultiplayerOpen(false),onStartMatch:()=>{setIsMultiplayerOpen(false);ie();},playerCarModel:f.selectedCar||"octane",onSelectCarModel:(cm:string)=>handleUpdateSettings({...f,selectedCar:cm}),currentMap:f.selectedMap||"standard",onPlayerNameChange:handleUpdatePilotName}),!isSpectator&&d.jsxs("div",{className:"absolute bottom-3 left-4 z-20 pointer-events-none hidden md:flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-slate-950/70 border border-slate-800/80 text-[11px] font-medium text-slate-300 backdrop-blur-sm shadow-md",children:[d.jsxs("div",{className:"flex items-center gap-1",children:[d.jsx("kbd",{className:"px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-sky-300 font-bold text-[10px]",children:"W A S D"}),d.jsx("span",{children:"Drive"})]}),d.jsx("span",{className:"text-slate-600",children:"•"}),d.jsxs("div",{className:"flex items-center gap-1",children:[d.jsx("kbd",{className:"px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-amber-300 font-bold text-[10px]",children:"Q / E"}),d.jsx("span",{children:"Air Roll (180° Flip)"})]}),d.jsx("span",{className:"text-slate-600",children:"•"}),d.jsxs("div",{className:"flex items-center gap-1",children:[d.jsx("kbd",{className:"px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-sky-300 font-bold text-[10px]",children:f.jumpKey==="rmb"?"RMB / Space":"Space"}),d.jsx("span",{children:"Jump"})]}),d.jsx("span",{className:"text-slate-600",children:"•"}),d.jsxs("div",{className:"flex items-center gap-1",children:[d.jsx("kbd",{className:"px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-amber-300 font-bold text-[10px]",children:"Shift / LMB"}),d.jsx("span",{children:"Boost"})]}),d.jsx("span",{className:"text-slate-600",children:"•"}),d.jsxs("div",{className:"flex items-center gap-1",children:[d.jsx("kbd",{className:"px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-amber-300 font-bold text-[10px]",children:"H"}),d.jsx("span",{children:"Hitbox"})]}),d.jsx("span",{className:"text-slate-600",children:"•"}),d.jsxs("div",{className:"flex items-center gap-1",children:[d.jsx("kbd",{className:"px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-purple-300 font-bold text-[10px]",children:"C"}),d.jsx("span",{children:"Auto Cam"})]}),d.jsx("span",{className:"text-slate-600",children:"•"}),d.jsxs("div",{className:"flex items-center gap-1 cursor-pointer",onClick:()=>setIsScoreboardOpen(prev=>!prev),children:[d.jsx("kbd",{className:"px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-amber-300 font-bold text-[10px]",children:"Tab"}),d.jsx("span",{children:"Scoreboard"})]}),
