@@ -21,7 +21,8 @@ Play directly in your browser:
 
 ---
 
-## 🚀 Features
+- **Online P2P Multiplayer (WebRTC)**: Host & join custom 1v1 duels, 2v2 doubles, or 3v3 squad matches with custom room codes or 1-click shareable invite links (`?room=CODE`). Includes live ping tracking, pre-match lobby chat, and in-game quick chat synchronization.
+- **AI Bot Auto-Filling**: Host can toggle "Auto-Fill Empty Slots" or manually add AI bots across all 5 difficulty levels (Rookie to SSL / Unfair) to balance teams automatically when players leave or slots are open.
 - **1:1 Champions Field Arena**: Stylized stadium backdrop, crowd stands, floodlights, team banners, diagonal mown turf grass, and hexagonal honeycomb goal nets.
 - **Realistic 2D Physics**: Ball momentum, car aerodynamics, wall/ceiling adhesion, corner transitions, and crossbar rebounds.
 - **Boost Pad Network**: Corner 100 boost pads with cooldown timers and perimeter small boost diamonds.
