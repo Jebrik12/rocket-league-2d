@@ -2153,8 +2153,8 @@ function checkAndEmitSave(u: any, f: any, prevVx: number, prevVy: number, s: any
 function Uv_legacy(u: any, f: any, r: number, s: any) {
   const _now = Date.now(), prevVx = f.vx, prevVy = f.vy;
   const y = Math.cos(u.angle), m = Math.sin(u.angle), g = f.x - u.x, p = f.y - u.y, A = g * y + p * m;
-  const isNoseLeft = u.facing !== undefined ? u.facing === -1 : Math.cos(u.angle) < 0;
-  const lateralSign = (isNoseLeft ? -1 : 1) * (u.airRollInverted ? -1 : 1);
+  const isMirrored = u.isGrounded && (u.facing === -1 || (u.surfaceType === "floor" && Math.cos(u.angle) < -0.5));
+  const lateralSign = (isMirrored ? -1 : 1) * (u.airRollInverted ? -1 : 1);
   const C = (-g * m + p * y) * lateralSign, z = u.width / 2, N = u.height / 2, D = Math.max(-z, Math.min(z, A)), X = Math.max(-N, Math.min(N, C)), tt = A - D, I = C - X, U = Math.hypot(tt, I);
   if (U < f.radius) {
     const Tt = f.radius - (U || .001);
@@ -2190,7 +2190,9 @@ function Uv_legacy(u: any, f: any, r: number, s: any) {
       u.isCeilingDrop = false;
     }
 
-    const isTurtleShot = (u.airRollInverted || (!u.isGrounded && Math.cos(u.angle) * (u.facing === -1 ? -1 : 1) < -0.7)) && u.y >= k - (u.height || 28) - 15;
+    const rollMult = u.airRollInverted ? -1 : 1;
+    const downY = Math.cos(u.angle) * rollMult;
+    const isTurtleShot = downY < -0.7 && u.y >= k - (u.height || 28) - 15;
     if (isTurtleShot && !u.isGrounded) {
       Me.playTurtle && Me.playTurtle();
       emitMechanicEvent(s, u, { type: "turtle", text: "🐢 TURTLE SHOT", color: "#10b981" });
@@ -2500,9 +2502,8 @@ function Rv(u: any) {
     if (u.x >= At + F && u.x <= Mt - F && u.y - wheelContact <= Qt) {
       u.y = Qt + wheelContact;
       if (u.vy < 0) u.vy = 0;
-      const isLeft = u.facing === -1;
       const rollMult = u.airRollInverted ? -1 : 1;
-      const downY = (!isLeft ? Math.cos(u.angle) : -Math.cos(u.angle)) * rollMult;
+      const downY = Math.cos(u.angle) * rollMult;
       const wheelsTouchCeiling = downY < -0.25 || (u.isGrounded && (u.surfaceType === "ceiling" || u.surfaceType === "curve"));
       if (wheelsTouchCeiling) {
         s = true;
@@ -2546,9 +2547,8 @@ function Rv(u: any) {
       if (u.x >= At + F && u.x <= Mt - F && u.y - wheelContact <= Qt) {
         u.y = Qt + wheelContact;
         if (u.vy < 0) u.vy = 0;
-        const isLeft = u.facing === -1;
         const rollMult = u.airRollInverted ? -1 : 1;
-        const downY = (!isLeft ? Math.cos(u.angle) : -Math.cos(u.angle)) * rollMult;
+        const downY = Math.cos(u.angle) * rollMult;
         const wheelsTouchCeiling = downY < -0.25 || (u.isGrounded && (u.surfaceType === "ceiling" || u.surfaceType === "curve"));
         if (wheelsTouchCeiling) {
           s = true;
@@ -2631,11 +2631,9 @@ function Rv(u: any) {
       u.y = Qt + wheelContact;
       if (u.vy < 0) u.vy = 0;
 
-      const isLeft = u.facing === -1;
       const rollMult = u.airRollInverted ? -1 : 1;
-      const downY = (!isLeft ? Math.cos(u.angle) : -Math.cos(u.angle)) * rollMult;
+      const downY = Math.cos(u.angle) * rollMult;
       const wheelsTouchCeiling = downY < -0.25 || (u.isGrounded && (u.surfaceType === "ceiling" || u.surfaceType === "curve"));
-
       if (wheelsTouchCeiling) {
         s = true;
         y = { x: 0, y: 1 };
@@ -2777,10 +2775,9 @@ function Rv(u: any) {
       const Ht = -U / at, ot = -Tt / at;
       u.x = tlA + (U / at) * contactR;
       u.y = tlC + (Tt / at) * contactR;
-      const isLeft = u.facing === -1;
       const rollMult = u.airRollInverted ? -1 : 1;
-      const downX = (!isLeft ? -Math.sin(u.angle) : Math.sin(u.angle)) * rollMult;
-      const downY = (!isLeft ? Math.cos(u.angle) : -Math.cos(u.angle)) * rollMult;
+      const downX = -Math.sin(u.angle) * rollMult;
+      const downY = Math.cos(u.angle) * rollMult;
       const wheelsTouch = u.isGrounded || (downX * (-Ht) + downY * (-ot) > 0.15);
       if (wheelsTouch) {
         s = true;
@@ -2803,10 +2800,9 @@ function Rv(u: any) {
       const Ht = -U / at, ot = -Tt / at;
       u.x = trA + (U / at) * contactR;
       u.y = trC + (Tt / at) * contactR;
-      const isLeft = u.facing === -1;
       const rollMult = u.airRollInverted ? -1 : 1;
-      const downX = (!isLeft ? -Math.sin(u.angle) : Math.sin(u.angle)) * rollMult;
-      const downY = (!isLeft ? Math.cos(u.angle) : -Math.cos(u.angle)) * rollMult;
+      const downX = -Math.sin(u.angle) * rollMult;
+      const downY = Math.cos(u.angle) * rollMult;
       const wheelsTouch = u.isGrounded || (downX * (-Ht) + downY * (-ot) > 0.15);
       if (wheelsTouch) {
         s = true;
@@ -3150,8 +3146,8 @@ function Uv(u:any,f:any,r:number,s:any){
   const y=Math.cos(u.angle),m=Math.sin(u.angle);
   const g=f.x-u.x,p=f.y-u.y;
   const A=g*y+p*m;
-  const isNoseLeft = u.facing !== undefined ? u.facing === -1 : Math.cos(u.angle) < 0;
-  const lateralSign = (isNoseLeft ? -1 : 1) * (u.airRollInverted ? -1 : 1);
+  const isMirrored = u.isGrounded && (u.facing === -1 || (u.surfaceType === "floor" && Math.cos(u.angle) < -0.5));
+  const lateralSign = (isMirrored ? -1 : 1) * (u.airRollInverted ? -1 : 1);
   const C=(-g*m+p*y)*lateralSign;
   const z=u.width/2,N=u.height/2;
   const D=Math.max(-z,Math.min(z,A));
@@ -3197,7 +3193,9 @@ function Uv(u:any,f:any,r:number,s:any){
       u.isCeilingDrop = false;
     }
 
-    const isTurtleShot = (u.airRollInverted || (!u.isGrounded && Math.cos(u.angle) * (u.facing === -1 ? -1 : 1) < -0.7)) && u.y >= k - (u.height || 28) - 15;
+    const rollMult = u.airRollInverted ? -1 : 1;
+    const downY = Math.cos(u.angle) * rollMult;
+    const isTurtleShot = downY < -0.7 && u.y >= k - (u.height || 28) - 15;
     if (isTurtleShot && !u.isGrounded) {
       Me.playTurtle && Me.playTurtle();
       emitMechanicEvent(s, u, { type: "turtle", text: "🐢 TURTLE SHOT", color: "#10b981" });
@@ -7785,23 +7783,13 @@ function eg(u: any, f: any, m: any = {}) {
       fwdX = -t1X;
       fwdY = -t1Y;
     }
-  } else if (f.isFlipping) {
+  } else {
+    // In the air: smooth continuous rigid-body 2D rotation for all aerial maneuvers & flips
     fwdX = Math.cos(f.angle);
     fwdY = Math.sin(f.angle);
     const rollMult = f.airRollInverted ? -1 : 1;
     downX = -fwdY * rollMult;
     downY = fwdX * rollMult;
-  } else {
-    fwdX = Math.cos(f.angle);
-    fwdY = Math.sin(f.angle);
-    const rollMult = f.airRollInverted ? -1 : 1;
-    if (fwdX >= 0) {
-      downX = -fwdY * rollMult;
-      downY = fwdX * rollMult;
-    } else {
-      downX = fwdY * rollMult;
-      downY = -fwdX * rollMult;
-    }
   }
 
   // Set the 2D coordinate space for the car
