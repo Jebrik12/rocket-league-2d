@@ -1,48 +1,57 @@
 # Rocket League 2D 🚗⚽
 
-2D физическая копия Rocket League с динамичной физикой, трейлом мяча, трюками ботов (Musty Flick, Flip Reset, Air Dribble, Double Tap, Pinch), кинематографичным замедленным повтором голов (0.5x Slow-Mo) и DVR-панелью перемотки 10 секунд с плавным замедлением.
+Fast-paced 2D physics car soccer web game featuring authentic mechanics, ball speed trails, advanced bot AI (Musty Flick, Flip Reset, Air Dribble, Double Tap, Kuxir Pinch), slow-mo goal replays, and a 10-second DVR instant replay system.
 
-## 🎮 Демо / Онлайн игра
-После включения GitHub Pages в настройках репозитория игра доступна по адресу:
+## 🎮 Play Online
+Play directly in your browser:
 👉 **https://orbit-good.github.io/rocket/**
 
 ---
 
-## 🕹 Управление
+## 🕹 Controls
 
-- **A / D** или **Стрелки влево / вправо**: Движение / поворот в воздухе
-- **W** или **Стрелка вверх**: Газ / езда по стенам и потолку
-- **S** или **Стрелка вниз**: Тормоз / задний ход
-- **Space** или **J**: Прыжок / двойной прыжок / додж (флип)
-- **Shift** или **K**: Буст (ускорение)
-- **R**: Быстрый сброс мяча и машин в центр
-
----
-
-## 🚀 Возможности
-- Реалистичная 2D-физика отскоков от стен, потолка и штанг ворот.
-- Система буст-падов (маленькие и большие сферы ускорения с таймерами восстановления).
-- Умные боты с поддержкой механик: *Air Dribble*, *Flip Reset*, *Musty Flick*, *Double Tap*, *Pinch*.
-- Звуковые эффекты (Jump, Hit, Boost, Explosion, Flip, Supersonic).
-- Кинематографичный Slow-Mo повтор забитых голов.
-- DVR-панель: интерактивная перемотка последних 10 секунд матча.
+- **W / S** or **Up / Down Arrows**: Throttle / Reverse / Wall & Ceiling Climbing
+- **A / D** or **Left / Right Arrows**: Steer / Air Pitch & Roll
+- **Space** (or **Right Mouse Button**): Jump / Double Jump / Dodge Flip
+- **Shift** or **Left Mouse Button** or **J**: Rocket Boost
+- **T** or **C**: Quick Chat Menu
+- **P**: Pause / Resume Match
+- **R**: Quick Reset Ball & Cars to Center
+- **F**: Fullscreen Toggle
 
 ---
 
-## 💻 Локальный запуск
+## 🚀 Features
+- **1:1 Champions Field Arena**: Stylized stadium backdrop, crowd stands, floodlights, team banners, diagonal mown turf grass, and hexagonal honeycomb goal nets.
+- **Realistic 2D Physics**: Ball momentum, car aerodynamics, wall/ceiling adhesion, corner transitions, and crossbar rebounds.
+- **Boost Pad Network**: Corner 100 boost pads with cooldown timers and perimeter small boost diamonds.
+- **Advanced Bot AI**: Multiple difficulty tiers from Rookie to SSL Terminator & Unfair Cheat Bot with aerial reads, roof dribbles, power flicks, and supersonic demos.
+- **Audio Synthesizer**: Procedural Web Audio SFX for engine, jumps, ball impacts, boost, supersonic sonic booms, and goal explosions.
+- **Esports HUD**: Clean, high-contrast tournament scoreboard, circular boost gauge, speedometer, flight status pill, and skill event banners.
+- **Instant DVR Replay**: Interactive 10-second scrubber with variable speed controls (0.25x–1.5x) and frame stepping.
 
-1. Клонируйте репозиторий:
+---
+
+## 💻 Local Development
+
+1. Clone the repository:
    ```bash
    git clone https://github.com/orbit-good/rocket.git
    cd rocket
    ```
 
-2. Установите зависимости:
+2. Install dependencies:
    ```bash
    npm install
    ```
 
-3. Запустите локальный сервер:
+3. Run development server:
    ```bash
    npm run dev
    ```
+
+4. Build production bundle:
+   ```bash
+   npm run build
+   ```
+

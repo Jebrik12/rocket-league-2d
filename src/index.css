@@ -1,1 +1,22 @@
 @import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-gaming: 'Chakra Petch', sans-serif;
+    --font-ui: 'Inter', sans-serif;
+  }
+
+  body {
+    font-family: var(--font-ui);
+    user-select: none;
+    -webkit-user-select: none;
+  }
+}
+
+.font-gaming {
+  font-family: var(--font-gaming);
+}
+
+.font-ui {
+  font-family: var(--font-ui);
+}
