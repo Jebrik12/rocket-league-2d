@@ -42,6 +42,7 @@ interface MultiplayerModalProps {
   playerCarModel: string;
   onSelectCarModel: (model: string) => void;
   currentMap: string;
+  onPlayerNameChange?: (name: string) => void;
 }
 
 const CAR_OPTIONS = [
@@ -84,7 +85,8 @@ export const MultiplayerModal: React.FC<MultiplayerModalProps> = ({
   onStartMatch,
   playerCarModel,
   onSelectCarModel,
-  currentMap
+  currentMap,
+  onPlayerNameChange
 }) => {
   // Local state
   const [activeTab, setActiveTab] = useState<"host" | "join">("host");
@@ -103,6 +105,14 @@ export const MultiplayerModal: React.FC<MultiplayerModalProps> = ({
   const [hostDuration, setHostDuration] = useState(180);
   const [hostFillBots, setHostFillBots] = useState(true);
   const [hostBotDiff, setHostBotDiff] = useState<BotDifficulty>("ssl");
+  const [hostPhysicsMode, setHostPhysicsMode] = useState<"rocket_league" | "legacy">(() => {
+    try {
+      const saved = localStorage.getItem("rl_physics_mode");
+      return saved === "legacy" ? "legacy" : "rocket_league";
+    } catch (e) {
+      return "rocket_league";
+    }
+  });
 
   // Join settings state
   const [joinCode, setJoinCode] = useState("");
@@ -169,12 +179,16 @@ export const MultiplayerModal: React.FC<MultiplayerModalProps> = ({
     }
   }, [lobbyChat]);
 
-  // Save player name
+  // Save player name and sync to network
   const handleNameChange = (newName: string) => {
     setPlayerName(newName);
     try {
       localStorage.setItem("rl_player_name", newName);
     } catch (e) {}
+    onPlayerNameChange?.(newName);
+    if (peerNetwork.isConnected) {
+      peerNetwork.updatePlayerName(newName);
+    }
   };
 
   // Host room action
@@ -192,7 +206,8 @@ export const MultiplayerModal: React.FC<MultiplayerModalProps> = ({
         arena: hostArena,
         duration: hostDuration,
         fillBots: hostFillBots,
-        botDifficulty: hostBotDiff
+        botDifficulty: hostBotDiff,
+        physicsMode: hostPhysicsMode
       }
     );
 
@@ -537,6 +552,48 @@ export const MultiplayerModal: React.FC<MultiplayerModalProps> = ({
                     </div>
                   )}
 
+                  {/* Physics Mode Selector */}
+                  <div>
+                    <label className="text-xs font-gaming font-bold uppercase text-slate-400 mb-1.5 block flex items-center gap-1.5">
+                      Match Physics Preset
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {[
+                        {
+                          id: "rocket_league" as const,
+                          name: "Rocket League Pro",
+                          badge: "Authentic & Flicks",
+                          color: "text-sky-400",
+                          desc: "Authentic 720 gravity, ground dribble carry & 45°/Musty flicks"
+                        },
+                        {
+                          id: "legacy" as const,
+                          name: "Classic / Arcade",
+                          badge: "Arcade & Pinches",
+                          color: "text-amber-400",
+                          desc: "Original high bounce turf, 1250 boost & extreme bumper pop launches"
+                        }
+                      ].map((p) => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => setHostPhysicsMode(p.id)}
+                          className={`p-2.5 rounded-xl border text-left transition cursor-pointer flex flex-col justify-between ${
+                            hostPhysicsMode === p.id
+                              ? "bg-sky-950/60 border-sky-400 text-sky-200 shadow-sm ring-1 ring-sky-400/30"
+                              : "bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-gaming font-black text-xs text-white">{p.name}</span>
+                            <span className={`text-[10px] font-mono font-bold ${p.color}`}>{p.badge}</span>
+                          </div>
+                          <span className="text-[10px] text-slate-400 mt-1 leading-snug">{p.desc}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   {/* Room Code */}
                   <div className="flex items-center gap-2 pt-2">
                     <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-950 border border-slate-700">
@@ -683,6 +740,22 @@ export const MultiplayerModal: React.FC<MultiplayerModalProps> = ({
                   Bots: <strong className={roomState.settings.fillBots ? "text-emerald-400" : "text-slate-500"}>
                     {roomState.settings.fillBots ? `Auto-Fill (${roomState.settings.botDifficulty.toUpperCase()})` : "Off"}
                   </strong>
+                </span>
+                <span className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 font-bold flex items-center gap-1.5">
+                  Physics: <strong className="text-amber-400">{roomState.settings.physicsMode === "legacy" ? "Classic" : "Rocket League"}</strong>
+                  {isHost && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = roomState.settings.physicsMode === "legacy" ? "rocket_league" : "legacy";
+                        peerNetwork.updatePhysicsMode(next);
+                      }}
+                      className="text-[10px] text-sky-400 hover:text-sky-300 underline font-normal cursor-pointer ml-1"
+                      title="Toggle physics mode for this match"
+                    >
+                      (Change)
+                    </button>
+                  )}
                 </span>
               </div>
 

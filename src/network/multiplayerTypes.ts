@@ -144,6 +144,7 @@ export type NetMessage =
   | { type: "room_state"; roomState: RoomState }
   | { type: "slot_change_request"; targetTeam: Team; targetSlotIndex: number }
   | { type: "car_change_request"; carModel: string }
+  | { type: "name_change_request"; playerName: string }
   | { type: "ready_toggle" }
   | { type: "add_bot"; team: Team; slotIndex: number; difficulty: BotDifficulty }
   | { type: "remove_bot"; slotId: string }

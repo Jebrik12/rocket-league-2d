@@ -368,6 +368,21 @@ export class PeerNetworkManager {
         break;
       }
 
+      case "name_change_request": {
+        const slot = this.roomState.slots.find((s) => s.peerId === peerId);
+        if (slot) {
+          slot.playerName = msg.playerName.trim().slice(0, 16) || "Player";
+          this.broadcastRoomState();
+        } else {
+          const spec = this.roomState.spectators.find((s) => s.peerId === peerId);
+          if (spec) {
+            spec.playerName = msg.playerName.trim().slice(0, 16) || "Player";
+            this.broadcastRoomState();
+          }
+        }
+        break;
+      }
+
       case "ready_toggle": {
         const slot = this.roomState.slots.find((s) => s.peerId === peerId);
         if (slot) {
@@ -685,6 +700,26 @@ export class PeerNetworkManager {
       const msg: NetMessage = { type: "car_change_request", carModel };
       this.hostConn.send(msg);
     }
+  }
+
+  public updatePlayerName(newName: string) {
+    const trimmed = newName.trim().slice(0, 16) || "Player";
+    if (this.role === "host" && this.roomState) {
+      const slot = this.roomState.slots.find((s) => s.peerId === this.myPeerId);
+      if (slot) {
+        slot.playerName = trimmed;
+        this.broadcastRoomState();
+      }
+    } else if (this.role === "client" && this.hostConn && this.hostConn.open) {
+      const msg: NetMessage = { type: "name_change_request", playerName: trimmed };
+      this.hostConn.send(msg);
+    }
+  }
+
+  public updatePhysicsMode(physicsMode: "rocket_league" | "legacy") {
+    if (this.role !== "host" || !this.roomState) return;
+    this.roomState.settings.physicsMode = physicsMode;
+    this.broadcastRoomState();
   }
 
   public toggleReady() {
