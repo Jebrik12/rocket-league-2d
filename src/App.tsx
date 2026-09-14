@@ -469,49 +469,37 @@ function syncPhysicsGlobals(mode: string) {
   Ev = c.Ev; Bh = c.Bh; qh = c.qh; _v = c._v; Av = c.Av;
 }
 const BOT_PRO_NAMES = [
-  "Zen_God", "Vatira_Clutch", "Squishy_Legacy", "Jstn_0Seconds", "Kronovi_Mountain",
-  "GarrettG_Captain", "MonkeyM00n_Brain", "Ahmad_WallPinch", "Daniel_Defense", "Firstkiller_Pace",
-  "Joyo_Freestyle", "AppJack_Tactics", "BeastMode_Aggro", "Mawkzy_1s_Demon", "Atow_Speed",
-  "Rw9_BrickWall", "Kiileerrz_Striker", "Alpha54_Boost", "Turbopolsa_4Time", "Kaydop_Striker",
-  "Rizzo_Corner", "Sizz_Fire", "Lethamyr_Customs", "Sunless_LongShot", "Wayton_Mechanics",
-  "Musty_Original", "Kuxir_Twist", "Torment_Rock", "Gimmick_Chaos", "ScrubKilla_Salt",
-  "FairyPeak_Mind", "Paschy90_Tactics", "Deevo_DoubleTap", "Jhzer_Freestyle", "Muster_Master",
-  "Itachi_Phantom", "ExoTiiK_Flair", "Seikoo_Touch", "Dralii_Apex", "Rise_Clutch",
-  "Oski_Blitz", "Archie_Sniper", "Kash_Flick", "Joreuz_OneVOne", "AyyJayy_Solo"
+  "Zen", "Vatira", "Squishy", "Jstn", "Kronovi",
+  "Garrett", "MonkeyM00n", "Ahmad", "Daniel", "First",
+  "Joyo", "AppJack", "Beast", "Mawkzy", "Atow",
+  "Rw9", "Killerz", "Alpha54", "Turbo", "Kaydop",
+  "Rizzo", "Sizz", "Leth", "Sunless", "Wayton",
+  "Musty", "Kuxir", "Torment", "Gimmick", "Scrub",
+  "Fairy", "Paschy", "Deevo", "Jhzer",
+  "Itachi", "ExoTiiK", "Seikoo", "Dralii", "Rise",
+  "Oski", "Archie", "Kash", "Joreuz", "AyyJayy"
 ];
 
 const BOT_MEME_NAMES = [
-  "AKAN550", "AKAN67", "AKAN550_MENTALITY", "AKAN_THE_GOAT", "AKAN550_PRIME", "AKAN67_TURBO", "AKAN_WARRIOR",
-  "Skibidi_Striker", "Rizzler_2026", "Sigma_Mentality", "Gigachad_FlipReset", "CaseOh_Gravity",
-  "Jynxzi_Aim_God", "Fanum_Tax_Officer", "Mewing_Champion", "What_The_Sigma", "Kai_Cenat_Speed",
-  "Baby_Gronk_SSL", "IShowSpeed_Bark", "Grimace_Shake_Flick", "Aura_Plus_1000", "Minus_10000_Aura",
-  "Ohio_Final_Boss", "Broski_Nation", "Lock_In_2026", "No_Cap_Merchant", "Gyatt_Reset_King",
-  "Brainrot_Sweeper", "Looksmaxxing_Dribbler", "Hawk_Tuah_Spit", "Bussin_Ceiling_Pinch", "Glazing_Master",
-  "Cooked_To_Perfection", "Let_Him_Cook", "Real_Cinema", "Skill_Issue_Detected",
-  "Ceiling_Shuffler", "Corner_Pinch_Sniper", "AirDribble_Merchant", "FlipReset_Farmer",
-  "Rule1_Enforcer", "Whiff_Artist_99", "Boost_Vampire", "Speedflip_Demon",
-  "Turtle_Goal_Enjoyer", "Crossbar_Lover", "Shadow_Defense_God", "Calculated_Spammer",
-  "What_A_Save_Andy", "Breezi_Connoisseur", "Demo_Addict", "Zero_Boost_Hero",
-  "Pudge_Mid_Hook", "GoalLine_Camper", "Ceiling_Pinch_King", "Kickoff_Scammer",
-  "OpenNet_Whiffer", "WaveDash_Bandit", "Helicopter_Spinner", "Puck_Chaser",
-  "Hoops_Dunker", "Fennec_Abuser", "Dominus_Aerobatics", "Octane_Purist",
-  "Merc_Bulldozer", "Batmobile_Plank", "Breakout_Flicker", "Supersonic_Freight",
-  "Aerial_Sniper_3000", "BallCam_Disorient", "Backboard_Rebounder", "Post_Bouncer_69",
-  "AirRoll_Spinner", "Tornado_Spin_Bot", "NoLook_Backpass", "OwnGoal_Specialist",
-  "Tactical_Demo_Pro", "BoostPad_Hoarder", "GrandChamp_Hardstuck", "Diamond_Delusion",
-  "Bronze_Mechanic_God", "SSL_Smurf_Detected", "SpinBot_360", "Musty_Or_Bust",
-  "Pinch_Or_Perish", "Calculated_Calculated", "AirRoll_Addict", "Post_Clanger"
+  "AKAN550", "AKAN67", "AKAN", "AKAN_GOAT", "AKAN_M",
+  "Skibidi", "Rizzler", "Sigma", "Gigachad", "CaseOh",
+  "Jynxzi", "Fanum", "Mewing", "Speed", "KaiCenat",
+  "Gronk", "Grimace", "Aura+1k", "LockIn", "NoCap",
+  "Gyatt", "Brainrot", "HawkTuah", "Glazer", "Cooked",
+  "Cinema", "SkillDiff", "Shuffler", "Enforcer", "WhiffGod",
+  "Vampire", "Turtle", "Crossbar", "Spammer", "Andy",
+  "Breezi", "Demoman", "Camper", "Scammer", "Whiffer",
+  "Bandit", "Dunker", "PinchGod", "SpinBot", "Clanger",
+  "Smurf", "ZeroBoost", "DemoGod", "Flicker", "PostHit",
+  "Broski", "OhioBoss", "Plank", "Sweeper", "Gamer77"
 ];
 
 const BOT_CLAN_TAGS = [
-  "[AKAN]", "[SIGMA]", "[RIZZ]", "[NRG]", "[BDS]", "[KC]", "[VIT]", "[G2]", "[SSG]", "[GENG]", "[FURIA]",
-  "[RULE1]", "[FALCONS]", "[OXY]", "[MOIST]", "[COL]", "[PWR]", "[OG]", "[FAZE]",
-  "[C9]", "[TL]", "[KCP]", "[SMPR]", "[TSM]", "[OPTIC]", "[V1]", "[G1]"
+  "[AK]", "[G2]", "[BDS]", "[VIT]", "[KC]", "[NRG]", "[TL]", "[OG]", "[C9]", "[TSM]"
 ];
 
 const BOT_SUFFIXES = [
-  "_RL", "_TTV", "_SSL", "_EU", "_NA", "_OCE", "_SAM", "_MENA", "_FPS",
-  "_77", "_99", "_999", "_v2", "_Jr", "_Pro", "_AI", "_Bot", "_X"
+  "_99", "_77", "_X", "_v2", "_Pro", "_AI", "_EZ"
 ];
 
 const usedLobbyNames = new Set<string>();
@@ -527,21 +515,46 @@ export function getRandomMemeName(prefix = ""): string {
       ? BOT_PRO_NAMES[Math.floor(Math.random() * BOT_PRO_NAMES.length)]
       : BOT_MEME_NAMES[Math.floor(Math.random() * BOT_MEME_NAMES.length)];
 
-    const hasTag = Math.random() < 0.38;
-    const tag = hasTag ? (BOT_CLAN_TAGS[Math.floor(Math.random() * BOT_CLAN_TAGS.length)] + " ") : "";
+    let name = base;
+    const p = prefix ? prefix.trim() : "";
 
-    const hasSuffix = Math.random() < 0.35;
-    const suffix = hasSuffix ? BOT_SUFFIXES[Math.floor(Math.random() * BOT_SUFFIXES.length)] : "";
+    if (p) {
+      // With emoji prefix, keep name very short: either just prefix+base or short suffix if base is tiny
+      if (base.length <= 6 && Math.random() < 0.22) {
+        const suf = BOT_SUFFIXES[Math.floor(Math.random() * BOT_SUFFIXES.length)];
+        name = `${p} ${base}${suf}`;
+      } else {
+        name = `${p} ${base}`;
+      }
+    } else {
+      // Without prefix: add either a short clan tag OR a suffix, NEVER both
+      const roll = Math.random();
+      if (roll < 0.28) {
+        const tag = BOT_CLAN_TAGS[Math.floor(Math.random() * BOT_CLAN_TAGS.length)];
+        if (tag.length + 1 + base.length <= 12) {
+          name = `${tag} ${base}`;
+        }
+      } else if (roll < 0.48) {
+        const suf = BOT_SUFFIXES[Math.floor(Math.random() * BOT_SUFFIXES.length)];
+        if (base.length + suf.length <= 12) {
+          name = `${base}${suf}`;
+        }
+      } else {
+        name = base;
+      }
+    }
 
-    let name = prefix ? `${prefix} ${tag}${base}${suffix}` : `${tag}${base}${suffix}`;
     name = name.trim();
+    if (name.length > 12) {
+      name = name.slice(0, 12);
+    }
 
     if (!usedLobbyNames.has(name)) {
       usedLobbyNames.add(name);
       return name;
     }
   }
-  const fallback = (prefix ? `${prefix} ` : "") + `Bot_${Math.floor(100 + Math.random() * 900)}`;
+  const fallback = ((prefix ? `${prefix.trim()} ` : "") + `Bot_${Math.floor(10 + Math.random() * 89)}`).slice(0, 12);
   usedLobbyNames.add(fallback);
   return fallback;
 }
@@ -8048,19 +8061,22 @@ function oc(u: any, f: any, r: any, s: any, y: any, m: any, g: any) {
 function lg(u: any, f: any, m: any = {}) {
   u.save();
   const isBlue = f.team === "blue";
-  const name = f.name || (isBlue ? "Player" : "Bot");
+  let name = f.name || (isBlue ? "Player" : "Bot");
+  if (name.length > 12) {
+    name = name.slice(0, 11) + "…";
+  }
   const score = Math.round(f.score || 0);
   const scoreStr = `${score}`;
 
-  u.font = "bold 15px -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif";
+  u.font = "bold 13px -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif";
   const nameMetrics = u.measureText(name);
-  u.font = "900 13px monospace, -apple-system, sans-serif";
+  u.font = "900 12px monospace, -apple-system, sans-serif";
   const scoreMetrics = u.measureText(scoreStr);
 
-  const pillW = Math.max(96, Math.round(nameMetrics.width + scoreMetrics.width + 36));
-  const pillH = 26;
+  const pillW = Math.max(76, Math.min(130, Math.round(nameMetrics.width + scoreMetrics.width + 28)));
+  const pillH = 24;
   const rx = Math.round(f.x);
-  const ry = Math.round(f.y - 46);
+  const ry = Math.round(f.y - 44);
 
   u.shadowColor = "rgba(0, 0, 0, 0.55)";
   u.shadowBlur = 6;
@@ -8079,17 +8095,17 @@ function lg(u: any, f: any, m: any = {}) {
   u.shadowOffsetY = 0;
 
   // Player Name
-  u.font = "bold 15px -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif";
+  u.font = "bold 13px -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif";
   u.fillStyle = "#ffffff";
   u.textAlign = "left";
   u.textBaseline = "middle";
-  u.fillText(name, rx - pillW / 2 + 10, ry);
+  u.fillText(name, rx - pillW / 2 + 8, ry);
 
   // Player Live Score
-  u.font = "900 13px monospace, -apple-system, sans-serif";
+  u.font = "900 12px monospace, -apple-system, sans-serif";
   u.fillStyle = "#facc15";
   u.textAlign = "right";
-  u.fillText(scoreStr, rx + pillW / 2 - 10, ry);
+  u.fillText(scoreStr, rx + pillW / 2 - 8, ry);
 
   const barW = pillW - 12;
   const barH = 3.5;
@@ -11882,13 +11898,13 @@ function r2(){
   const [f, r] = st.useState(getInitialSettings);
   const [pilotName, setPilotName] = st.useState<string>(() => {
     try {
-      return localStorage.getItem("rl_player_name") || "Player";
+      return (localStorage.getItem("rl_player_name") || "Player").slice(0, 12);
     } catch (e) {
       return "Player";
     }
   });
   const handleUpdatePilotName = st.useCallback((newName: string) => {
-    const trimmed = newName.trim().slice(0, 16) || "Player";
+    const trimmed = newName.trim().slice(0, 12) || "Player";
     setPilotName(trimmed);
     try {
       localStorage.setItem("rl_player_name", trimmed);
@@ -12062,7 +12078,7 @@ function r2(){
   clearLobbyNames();
   const currentPilotName = (() => {
     try {
-      return localStorage.getItem("rl_player_name") || "Player";
+      return (localStorage.getItem("rl_player_name") || "Player").slice(0, 12);
     } catch (e) {
       return "Player";
     }

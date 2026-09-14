@@ -92,7 +92,7 @@ export const MultiplayerModal: React.FC<MultiplayerModalProps> = ({
   const [activeTab, setActiveTab] = useState<"host" | "join">("host");
   const [playerName, setPlayerName] = useState(() => {
     try {
-      return localStorage.getItem("rl_player_name") || "Player";
+      return (localStorage.getItem("rl_player_name") || "Player").slice(0, 12);
     } catch (e) {
       return "Player";
     }
@@ -181,13 +181,14 @@ export const MultiplayerModal: React.FC<MultiplayerModalProps> = ({
 
   // Save player name and sync to network
   const handleNameChange = (newName: string) => {
-    setPlayerName(newName);
+    const trimmed = newName.slice(0, 12);
+    setPlayerName(trimmed);
     try {
-      localStorage.setItem("rl_player_name", newName);
+      localStorage.setItem("rl_player_name", trimmed);
     } catch (e) {}
-    onPlayerNameChange?.(newName);
+    onPlayerNameChange?.(trimmed);
     if (peerNetwork.isConnected) {
-      peerNetwork.updatePlayerName(newName);
+      peerNetwork.updatePlayerName(trimmed);
     }
   };
 
@@ -346,7 +347,7 @@ export const MultiplayerModal: React.FC<MultiplayerModalProps> = ({
               <span className="text-xs font-gaming font-bold uppercase text-slate-400">Pilot Name:</span>
               <input
                 type="text"
-                maxLength={16}
+                maxLength={12}
                 value={playerName}
                 onChange={(e) => handleNameChange(e.target.value)}
                 placeholder="Enter pilot name..."
