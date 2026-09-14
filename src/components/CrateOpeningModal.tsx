@@ -23,6 +23,7 @@ import {
   ITEM_CATALOG,
   RARITY_CONFIG
 } from "../customization/customizationData";
+import { ItemVisualIcon } from "./ItemVisualIcon";
 import {
   getPlayerInventory,
   openCrate,
@@ -366,18 +367,17 @@ export const CrateOpeningModal: React.FC<CrateOpeningModalProps> = ({
                         <span className="text-[8px] sm:text-[9px] text-slate-400 capitalize">{item.slot}</span>
                       </div>
 
-                      {/* Icon preview */}
+                      {/* Distinct Item Icon Preview */}
                       <div className="my-auto flex flex-col items-center justify-center">
                         <div
-                          className="w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl flex items-center justify-center shadow-md"
+                          className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl flex items-center justify-center shadow-md p-1 border border-white/5"
                           style={{
                             backgroundColor: item.accentColor
-                              ? `${item.accentColor}30`
-                              : "rgba(56, 189, 248, 0.2)",
-                            color: item.accentColor || "#38bdf8"
+                              ? `${item.accentColor}25`
+                              : "rgba(56, 189, 248, 0.15)"
                           }}
                         >
-                          <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                          <ItemVisualIcon item={item} size={34} />
                         </div>
                       </div>
 
@@ -464,7 +464,7 @@ export const CrateOpeningModal: React.FC<CrateOpeningModalProps> = ({
 
               {/* Item Display Artwork */}
               <div
-                className="w-24 h-24 rounded-3xl flex items-center justify-center mb-4 shadow-2xl border border-white/20"
+                className="w-24 h-24 rounded-3xl flex items-center justify-center mb-4 shadow-2xl border border-white/20 p-2"
                 style={{
                   backgroundColor: unlockedResult.item.accentColor
                     ? `${unlockedResult.item.accentColor}35`
@@ -474,7 +474,7 @@ export const CrateOpeningModal: React.FC<CrateOpeningModalProps> = ({
                   }`
                 }}
               >
-                <Sparkles className="w-12 h-12 text-white drop-shadow-md animate-pulse" />
+                <ItemVisualIcon item={unlockedResult.item} size="lg" showGlow />
               </div>
 
               <h3 className="text-xl sm:text-2xl font-gaming font-black text-white">

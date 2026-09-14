@@ -46,8 +46,10 @@ import {
 import {
   drawCarDecal,
   drawCustomWheel,
-  drawCarTopper
+  drawCarTopper,
+  drawCarModelBody
 } from "../customization/customizationRenderer";
+import { ItemVisualIcon } from "./ItemVisualIcon";
 import {
   getBotUpgrades,
   upgradeBotAttribute,
@@ -149,72 +151,151 @@ export const GarageModal: React.FC<GarageModalProps> = ({
       ctx.stroke();
       ctx.restore();
 
-      // Render car
+      // Render authentic car model on stage
       ctx.save();
       ctx.translate(cx, cy);
+      ctx.scale(1.7, 1.7);
 
-      const carW = 68;
-      const carH = 26;
-      const halfW = carW / 2;
-      const halfH = carH / 2;
-      const rearX = -18;
-      const frontX = 18;
-      const wheelY = halfH + 2;
+      const r = 34;
+      const s = 13;
       const wheelRadius = 7.5;
+      const nearWheelY = s - wheelRadius + 0.5; // 6
+      const farWheelY = nearWheelY - 2.5; // 3.5
+      const rearWheelX = -17;
+      const frontWheelX = 18;
 
       const targetBody =
         previewItem && previewItem.slot === "body" ? previewItem : equippedBody;
-      const primaryColor = targetBody.visualData.primaryColor || "#0284c7";
-      const accentColor = targetBody.visualData.accentColor || "#38bdf8";
+      const targetBoost =
+        previewItem && previewItem.slot === "boost" ? previewItem : equippedBoost;
+      const targetWheels =
+        previewItem && previewItem.slot === "wheels" ? previewItem : equippedWheels;
+      const targetDecal =
+        previewItem && previewItem.slot === "decal" ? previewItem : equippedDecal;
+      const targetTopper =
+        previewItem && previewItem.slot === "topper" ? previewItem : equippedTopper;
 
-      // Background wheel shadows
-      ctx.fillStyle = "#020617";
+      // Determine authentic palette based on chassis edition
+      let primaryBright = "#38bdf8";
+      let primaryMid = "#0284c7";
+      let primaryDark = "#024673";
+      let accentColor = targetBody.accentColor || "#7dd3fc";
+      let chassisDark = "#080c14";
+      const metalSilver = "#cbd5e1";
+      const metalDark = "#334155";
+
+      if (targetBody.id === "body_tw_octane") {
+        primaryBright = "#ffffff";
+        primaryMid = "#e2e8f0";
+        primaryDark = "#94a3b8";
+        accentColor = "#ffffff";
+        chassisDark = "#cbd5e1"; // Platinum white chassis trim
+      } else if (targetBody.id === "body_gold_dominus") {
+        primaryBright = "#fef08a";
+        primaryMid = "#fbbf24";
+        primaryDark = "#b45309";
+        accentColor = "#fef08a";
+      } else if (targetBody.id === "body_cyber_fennec") {
+        primaryBright = "#06b6d4";
+        primaryMid = "#0891b2";
+        primaryDark = "#164e63";
+        accentColor = "#f43f5e";
+      } else if (targetBody.visualData?.primaryColor) {
+        primaryMid = targetBody.visualData.primaryColor;
+      }
+
+      // 1. Far-side wheels (darker, recessed perspective)
+      wheelRotation += 0.035;
+      drawCustomWheel(ctx, rearWheelX - 2, farWheelY, wheelRadius * 0.92, targetWheels, wheelRotation, true);
+      drawCustomWheel(ctx, frontWheelX - 2, farWheelY, wheelRadius * 0.92, targetWheels, wheelRotation, true);
+
+      // 2. Rocket thruster nozzle & idle boost glow
+      ctx.fillStyle = "#1e293b";
+      ctx.strokeStyle = "#475569";
+      ctx.lineWidth = 1.2;
       ctx.beginPath();
-      ctx.arc(rearX, wheelY - 2, wheelRadius, 0, Math.PI * 2);
-      ctx.arc(frontX, wheelY - 2, wheelRadius, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Car body chassis
-      ctx.save();
-      ctx.fillStyle = primaryColor;
-      ctx.strokeStyle = "#0f172a";
-      ctx.lineWidth = 2;
-
-      ctx.beginPath();
-      ctx.roundRect(-halfW, -halfH, carW, carH, [8, 12, 4, 4]);
+      ctx.moveTo(-r + 6, -2);
+      ctx.lineTo(-r - 4, -4);
+      ctx.lineTo(-r - 6, -5);
+      ctx.lineTo(-r - 6, 5);
+      ctx.lineTo(-r - 4, 4);
+      ctx.lineTo(-r + 6, 2);
+      ctx.closePath();
       ctx.fill();
       ctx.stroke();
 
-      // Cabin windshield
-      ctx.fillStyle = "#0f172a";
+      ctx.fillStyle = "#f59e0b";
       ctx.beginPath();
-      ctx.roundRect(-halfW + 12, -halfH - 8, carW - 24, 10, [6, 8, 0, 0]);
+      ctx.arc(-r - 4, 0, 2.8, 0, Math.PI * 2);
       ctx.fill();
 
-      // Tint glass
-      ctx.fillStyle = "rgba(56, 189, 248, 0.4)";
+      // Soft idle exhaust glow
+      const idleGlow = Math.sin(Date.now() * 0.005) * 3 + 12;
+      const boostGrad = ctx.createLinearGradient(-r - 6, 0, -r - 6 - idleGlow, 0);
+      boostGrad.addColorStop(0, targetBoost.accentColor || "#38bdf8");
+      boostGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
+      ctx.fillStyle = boostGrad;
       ctx.beginPath();
-      ctx.roundRect(-halfW + 14, -halfH - 6, carW - 28, 8, [4, 6, 0, 0]);
+      ctx.moveTo(-r - 6, -3);
+      ctx.lineTo(-r - 6 - idleGlow, 0);
+      ctx.lineTo(-r - 6, 3);
+      ctx.closePath();
       ctx.fill();
 
-      // Equipped Decal
-      const targetDecal =
-        previewItem && previewItem.slot === "decal" ? previewItem : equippedDecal;
-      drawCarDecal(ctx, null, halfW, halfH, targetDecal);
+      // 3. Lower chassis plate
+      ctx.fillStyle = chassisDark;
+      ctx.strokeStyle = "#1e293b";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(-r + 4, nearWheelY);
+      ctx.lineTo(r - 4, nearWheelY);
+      ctx.lineTo(r - 2, nearWheelY - 2);
+      ctx.lineTo(-r + 2, nearWheelY - 2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
 
-      // Equipped Topper
-      const targetTopper =
-        previewItem && previewItem.slot === "topper" ? previewItem : equippedTopper;
-      drawCarTopper(ctx, 0, -halfH - 8, targetTopper);
+      // 4. Authentic Car Model Body Silhouette
+      const modelId = targetBody.visualData?.modelId || "octane";
+      drawCarModelBody(
+        ctx,
+        modelId,
+        r,
+        s,
+        nearWheelY,
+        rearWheelX,
+        frontWheelX,
+        wheelRadius,
+        primaryBright,
+        primaryMid,
+        primaryDark,
+        accentColor,
+        chassisDark,
+        metalSilver,
+        metalDark
+      );
 
-      ctx.restore();
+      // 5. Equipped Livery Decal
+      drawCarDecal(ctx, null, r, s, targetDecal);
 
-      // Foreground wheels
-      wheelRotation += 0.04;
-      const targetWheels =
-        previewItem && previewItem.slot === "wheels" ? previewItem : equippedWheels;
-      drawCustomWheel(ctx, rearX, wheelY, wheelRadius, targetWheels, wheelRotation);
-      drawCustomWheel(ctx, frontX, wheelY, wheelRadius, targetWheels, wheelRotation);
+      // 6. Forward Headlight Beam casting onto turntable
+      const beamGrad = ctx.createLinearGradient(r + 2, -1, r + 75, -1);
+      beamGrad.addColorStop(0, "rgba(254, 240, 138, 0.4)");
+      beamGrad.addColorStop(1, "rgba(254, 240, 138, 0)");
+      ctx.fillStyle = beamGrad;
+      ctx.beginPath();
+      ctx.moveTo(r + 2, -1);
+      ctx.lineTo(r + 75, -12);
+      ctx.lineTo(r + 75, 14);
+      ctx.closePath();
+      ctx.fill();
+
+      // 7. Foreground wheels
+      drawCustomWheel(ctx, rearWheelX, nearWheelY, wheelRadius, targetWheels, wheelRotation, false);
+      drawCustomWheel(ctx, frontWheelX, nearWheelY, wheelRadius, targetWheels, wheelRotation, false);
+
+      // 8. Equipped Roof Topper
+      drawCarTopper(ctx, null, r, s, targetTopper);
 
       ctx.restore();
 
@@ -396,21 +477,33 @@ export const GarageModal: React.FC<GarageModalProps> = ({
 
               {/* Quick Spec Pills (Hidden on mobile phones to save vertical space) */}
               <div className="hidden md:grid grid-cols-2 gap-2 w-full mt-3">
-                <div className="p-2 rounded-xl bg-slate-900/60 border border-slate-800 text-xs flex flex-col">
-                  <span className="text-[9px] uppercase font-bold text-slate-400">Decal</span>
-                  <span className="font-semibold text-slate-200 truncate">{equippedDecal.name}</span>
+                <div className="p-2 rounded-xl bg-slate-900/60 border border-slate-800 text-xs flex items-center gap-2">
+                  <ItemVisualIcon item={equippedDecal} size="xs" />
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-[9px] uppercase font-bold text-slate-400">Decal</span>
+                    <span className="font-semibold text-slate-200 truncate">{equippedDecal.name}</span>
+                  </div>
                 </div>
-                <div className="p-2 rounded-xl bg-slate-900/60 border border-slate-800 text-xs flex flex-col">
-                  <span className="text-[9px] uppercase font-bold text-slate-400">Wheels</span>
-                  <span className="font-semibold text-slate-200 truncate">{equippedWheels.name}</span>
+                <div className="p-2 rounded-xl bg-slate-900/60 border border-slate-800 text-xs flex items-center gap-2">
+                  <ItemVisualIcon item={equippedWheels} size="xs" />
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-[9px] uppercase font-bold text-slate-400">Wheels</span>
+                    <span className="font-semibold text-slate-200 truncate">{equippedWheels.name}</span>
+                  </div>
                 </div>
-                <div className="p-2 rounded-xl bg-slate-900/60 border border-slate-800 text-xs flex flex-col">
-                  <span className="text-[9px] uppercase font-bold text-slate-400">Boost</span>
-                  <span className="font-semibold text-slate-200 truncate">{equippedBoost.name}</span>
+                <div className="p-2 rounded-xl bg-slate-900/60 border border-slate-800 text-xs flex items-center gap-2">
+                  <ItemVisualIcon item={equippedBoost} size="xs" />
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-[9px] uppercase font-bold text-slate-400">Boost</span>
+                    <span className="font-semibold text-slate-200 truncate">{equippedBoost.name}</span>
+                  </div>
                 </div>
-                <div className="p-2 rounded-xl bg-slate-900/60 border border-slate-800 text-xs flex flex-col">
-                  <span className="text-[9px] uppercase font-bold text-slate-400">Topper</span>
-                  <span className="font-semibold text-slate-200 truncate">{equippedTopper.name}</span>
+                <div className="p-2 rounded-xl bg-slate-900/60 border border-slate-800 text-xs flex items-center gap-2">
+                  <ItemVisualIcon item={equippedTopper} size="xs" />
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-[9px] uppercase font-bold text-slate-400">Topper</span>
+                    <span className="font-semibold text-slate-200 truncate">{equippedTopper.name}</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -761,15 +854,14 @@ export const GarageModal: React.FC<GarageModalProps> = ({
 
                         <div className="my-2 flex flex-col items-center justify-center">
                           <div
-                            className="w-9 h-9 rounded-xl flex items-center justify-center shadow-md"
+                            className="w-12 h-10 rounded-xl flex items-center justify-center shadow-md p-1 border border-white/5"
                             style={{
                               backgroundColor: item.accentColor
-                                ? `${item.accentColor}25`
-                                : "rgba(56, 189, 248, 0.15)",
-                              color: item.accentColor || "#38bdf8"
+                                ? `${item.accentColor}20`
+                                : "rgba(56, 189, 248, 0.12)"
                             }}
                           >
-                            <Sparkles className="w-4 h-4" />
+                            <ItemVisualIcon item={item} size={32} />
                           </div>
                         </div>
 

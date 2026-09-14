@@ -129,7 +129,8 @@ export function drawCustomWheel(
   wy: number,
   radius: number,
   wheelItem?: CustomizationItem,
-  spinAngle: number = 0
+  spinAngle: number = 0,
+  isFarSide: boolean = false
 ) {
   const style = wheelItem?.visualData?.wheelStyle || "oem";
   const glowHex = wheelItem?.visualData?.glowHex;
@@ -137,19 +138,23 @@ export function drawCustomWheel(
   ctx.save();
   ctx.translate(wx, wy);
 
+  if (isFarSide) {
+    ctx.globalAlpha = 0.55;
+  }
+
   // Outer tire tread
-  ctx.fillStyle = "#090d16";
+  ctx.fillStyle = isFarSide ? "#05070c" : "#090d16";
   ctx.beginPath();
   ctx.arc(0, 0, radius, 0, Math.PI * 2);
   ctx.fill();
 
   // Outer tire edge ring
-  ctx.strokeStyle = "#1e293b";
+  ctx.strokeStyle = isFarSide ? "#0f172a" : "#1e293b";
   ctx.lineWidth = 1.2;
   ctx.stroke();
 
-  // Glow if exotic / black market
-  if (glowHex) {
+  // Glow if exotic / black market (near side only)
+  if (glowHex && !isFarSide) {
     ctx.shadowColor = glowHex;
     ctx.shadowBlur = 8;
   }
@@ -337,3 +342,928 @@ export function drawCarTopper(
 
   ctx.restore();
 }
+
+/**
+ * Detailed Octane side-profile chassis renderer
+ */
+export function drawOctaneBody(
+  u: CanvasRenderingContext2D,
+  f: any,
+  r: number,
+  s: number,
+  nearWheelY: number,
+  rearWheelX: number,
+  frontWheelX: number,
+  wheelRadius: number,
+  primaryBright: string,
+  primaryMid: string,
+  primaryDark: string,
+  accentColor: string,
+  chassisDark: string,
+  metalSilver: string,
+  metalDark: string
+) {
+  // 1. Rear exposed engine bay
+  u.fillStyle = "#1e293b";
+  u.strokeStyle = metalDark;
+  u.lineWidth = 1.2;
+  u.fillRect(-r + 9, -5, 12, 9);
+  u.strokeRect(-r + 9, -5, 12, 9);
+
+  // Chrome intake pipes
+  u.strokeStyle = metalSilver;
+  u.lineWidth = 1.8;
+  for (let px = -r + 11; px <= -r + 19; px += 4) {
+    u.beginPath();
+    u.moveTo(px, -5);
+    u.lineTo(px, -9);
+    u.lineTo(px - 2, -11);
+    u.stroke();
+  }
+
+  // 2. Main Octane Body
+  const bodyGrad = u.createLinearGradient(0, -s - 6, 0, nearWheelY);
+  bodyGrad.addColorStop(0, primaryBright);
+  bodyGrad.addColorStop(0.4, primaryMid);
+  bodyGrad.addColorStop(1, primaryDark);
+
+  u.fillStyle = bodyGrad;
+  u.strokeStyle = chassisDark;
+  u.lineWidth = 2;
+  u.beginPath();
+  u.moveTo(-r + 5, nearWheelY);
+  u.lineTo(rearWheelX - wheelRadius - 2.5, nearWheelY);
+  u.quadraticCurveTo(rearWheelX, nearWheelY - wheelRadius - 3.5, rearWheelX + wheelRadius + 2.5, nearWheelY);
+  u.lineTo(frontWheelX - wheelRadius - 2.5, nearWheelY);
+  u.quadraticCurveTo(frontWheelX, nearWheelY - wheelRadius - 3.5, frontWheelX + wheelRadius + 2.5, nearWheelY);
+  u.lineTo(r - 3, nearWheelY);
+  u.lineTo(r + 1, nearWheelY - 3);
+  u.lineTo(r + 2, 0);
+  u.lineTo(r - 2, -3);
+  u.lineTo(6, -6);
+  u.lineTo(-4, -s);
+  u.lineTo(-15, -s + 1);
+  u.lineTo(-20, -5);
+  u.lineTo(-r + 6, -3);
+  u.lineTo(-r + 5, nearWheelY - 1);
+  u.closePath();
+  u.fill();
+  u.stroke();
+
+  // 3. Cabin & tinted window
+  u.fillStyle = "#070c14";
+  u.strokeStyle = primaryDark;
+  u.lineWidth = 1.4;
+  u.beginPath();
+  u.moveTo(4, -6);
+  u.lineTo(-3, -s + 1.5);
+  u.lineTo(-13, -s + 2.5);
+  u.lineTo(-17, -5);
+  u.closePath();
+  u.fill();
+  u.stroke();
+
+  u.strokeStyle = "rgba(255, 255, 255, 0.65)";
+  u.lineWidth = 1.5;
+  u.beginPath();
+  u.moveTo(2, -6);
+  u.lineTo(-3, -s + 2);
+  u.stroke();
+
+  // Tubular roll cage
+  u.strokeStyle = metalSilver;
+  u.lineWidth = 1.4;
+  u.beginPath();
+  u.moveTo(3, -6);
+  u.lineTo(-3.5, -s + 1.5);
+  u.moveTo(-13.5, -s + 2);
+  u.lineTo(-17, -5);
+  u.stroke();
+
+  // Roof scoop
+  u.fillStyle = "#1e293b";
+  u.strokeStyle = metalDark;
+  u.lineWidth = 1;
+  u.beginPath();
+  u.moveTo(-2, -s);
+  u.lineTo(-10, -s);
+  u.lineTo(-8, -s - 2.8);
+  u.lineTo(-1, -s - 2.8);
+  u.closePath();
+  u.fill();
+  u.stroke();
+
+  // Hood white stripe
+  u.fillStyle = "rgba(255, 255, 255, 0.92)";
+  u.beginPath();
+  u.moveTo(r - 2, -1.5);
+  u.lineTo(6, -5);
+  u.lineTo(5, -6.5);
+  u.lineTo(r - 3, -3);
+  u.closePath();
+  u.fill();
+
+  // Side accent swoosh
+  u.strokeStyle = accentColor;
+  u.lineWidth = 1.5;
+  u.beginPath();
+  u.moveTo(frontWheelX - 4, nearWheelY - 6);
+  u.lineTo(0, nearWheelY - 8);
+  u.lineTo(rearWheelX + 6, nearWheelY - 6);
+  u.stroke();
+
+  // High-mounted rear spoiler wing
+  u.strokeStyle = chassisDark;
+  u.lineWidth = 2.5;
+  u.beginPath();
+  u.moveTo(-20, -5);
+  u.lineTo(-24, -s - 4);
+  u.moveTo(-17, -4);
+  u.lineTo(-21, -s - 4);
+  u.stroke();
+
+  u.strokeStyle = metalSilver;
+  u.lineWidth = 1;
+  u.beginPath();
+  u.moveTo(-19.5, -5);
+  u.lineTo(-23.5, -s - 4);
+  u.stroke();
+
+  const wingGrad = u.createLinearGradient(-28, -s - 7, -17, -s - 5);
+  wingGrad.addColorStop(0, "#0f172a");
+  wingGrad.addColorStop(0.5, primaryMid);
+  wingGrad.addColorStop(1, primaryBright);
+
+  u.fillStyle = wingGrad;
+  u.strokeStyle = chassisDark;
+  u.lineWidth = 1.4;
+  u.beginPath();
+  u.moveTo(-28, -s - 4);
+  u.lineTo(-17, -s - 3);
+  u.lineTo(-16, -s - 7);
+  u.lineTo(-28, -s - 7);
+  u.closePath();
+  u.fill();
+  u.stroke();
+
+  u.fillStyle = primaryBright;
+  u.fillRect(-29, -s - 8, 3.5, 6);
+  u.strokeStyle = chassisDark;
+  u.lineWidth = 1;
+  u.strokeRect(-29, -s - 8, 3.5, 6);
+
+  // Headlight
+  u.fillStyle = "#fef08a";
+  u.shadowColor = "#fef08a";
+  u.shadowBlur = 8;
+  u.beginPath();
+  u.arc(r + 1, -1, 2.2, 0, Math.PI * 2);
+  u.fill();
+  u.shadowBlur = 0;
+}
+
+/**
+ * Detailed Fennec side-profile chassis renderer
+ */
+export function drawFennecBody(
+  u: CanvasRenderingContext2D,
+  f: any,
+  r: number,
+  s: number,
+  nearWheelY: number,
+  rearWheelX: number,
+  frontWheelX: number,
+  wheelRadius: number,
+  primaryBright: string,
+  primaryMid: string,
+  primaryDark: string,
+  accentColor: string,
+  chassisDark: string,
+  metalSilver: string,
+  metalDark: string
+) {
+  // Fennec: Boxy Rally Hot-Hatch (Lancia Delta Integrale style)
+  const bodyGrad = u.createLinearGradient(0, -s, 0, nearWheelY);
+  bodyGrad.addColorStop(0, primaryBright);
+  bodyGrad.addColorStop(0.45, primaryMid);
+  bodyGrad.addColorStop(1, primaryDark);
+
+  u.fillStyle = bodyGrad;
+  u.strokeStyle = chassisDark;
+  u.lineWidth = 2;
+  u.beginPath();
+  u.moveTo(-r + 4, nearWheelY);
+  u.lineTo(rearWheelX - wheelRadius - 2.5, nearWheelY);
+  // Flared rally arch
+  u.lineTo(rearWheelX - wheelRadius - 1.5, nearWheelY - wheelRadius - 2.5);
+  u.lineTo(rearWheelX + wheelRadius + 1.5, nearWheelY - wheelRadius - 2.5);
+  u.lineTo(rearWheelX + wheelRadius + 2.5, nearWheelY);
+  u.lineTo(frontWheelX - wheelRadius - 2.5, nearWheelY);
+  u.lineTo(frontWheelX - wheelRadius - 1.5, nearWheelY - wheelRadius - 2.5);
+  u.lineTo(frontWheelX + wheelRadius + 1.5, nearWheelY - wheelRadius - 2.5);
+  u.lineTo(frontWheelX + wheelRadius + 2.5, nearWheelY);
+  // Front chin
+  u.lineTo(r - 2, nearWheelY);
+  u.lineTo(r + 1, nearWheelY - 2);
+  // Upright front bumper
+  u.lineTo(r + 1.5, -2);
+  u.lineTo(r + 0.5, -5);
+  // Short muscular hood
+  u.lineTo(6, -7);
+  // Steep rally windshield
+  u.lineTo(2, -s);
+  // Flat roofline
+  u.lineTo(-24, -s);
+  // Integrated roof spoiler
+  u.lineTo(-27, -s - 2);
+  u.lineTo(-28, -s + 1);
+  // Steep rear hatch
+  u.lineTo(-r + 4, -1);
+  u.lineTo(-r + 3, nearWheelY - 2);
+  u.closePath();
+  u.fill();
+  u.stroke();
+
+  // Front grille mesh
+  u.fillStyle = "#0a0f1d";
+  u.strokeStyle = "#1e293b";
+  u.lineWidth = 1.2;
+  u.beginPath();
+  u.roundRect(r - 3, -4, 4.5, 7, 1);
+  u.fill();
+  u.stroke();
+
+  u.strokeStyle = "#334155";
+  u.lineWidth = 0.8;
+  for (let gy = -3; gy <= 2; gy += 1.8) {
+    u.beginPath();
+    u.moveTo(r - 3, gy);
+    u.lineTo(r + 1.5, gy);
+    u.stroke();
+  }
+
+  // Dual rectangular rally headlights
+  u.fillStyle = "#fef08a";
+  u.shadowColor = "#fef08a";
+  u.shadowBlur = 6;
+  u.fillRect(r - 2, -4, 2.8, 2.2);
+  u.fillRect(r - 2, -1, 2.8, 2.2);
+  u.shadowBlur = 0;
+
+  // Hatchback cabin & tinted windows
+  u.fillStyle = "#070c14";
+  u.strokeStyle = primaryDark;
+  u.lineWidth = 1.2;
+  u.beginPath();
+  u.moveTo(4, -6.5);
+  u.lineTo(1, -s + 1.5);
+  u.lineTo(-10, -s + 1.5);
+  u.lineTo(-10, -4.5);
+  u.lineTo(4, -4.5);
+  u.closePath();
+  u.fill();
+  u.stroke();
+
+  u.beginPath();
+  u.moveTo(-12, -s + 1.5);
+  u.lineTo(-22, -s + 1.5);
+  u.lineTo(-25, -2);
+  u.lineTo(-12, -2);
+  u.closePath();
+  u.fill();
+  u.stroke();
+
+  // Reflections
+  u.strokeStyle = "rgba(255, 255, 255, 0.6)";
+  u.lineWidth = 1.2;
+  u.beginPath();
+  u.moveTo(2, -6.5);
+  u.lineTo(0.5, -s + 2);
+  u.moveTo(-13, -s + 2);
+  u.lineTo(-21, -s + 2);
+  u.stroke();
+
+  // B-pillar
+  u.fillStyle = "#0f172a";
+  u.fillRect(-12, -s + 1, 2, s - 3);
+
+  // Decals
+  u.fillStyle = "rgba(255, 255, 255, 0.9)";
+  u.fillRect(8, -6.5, r - 10, 1.8);
+  u.fillStyle = accentColor;
+  const carW = f?.width || (r * 2);
+  u.fillRect(-r + 6, nearWheelY - 5, carW - 12, 1.6);
+
+  // Twin exhaust
+  u.fillStyle = metalSilver;
+  u.strokeStyle = metalDark;
+  u.lineWidth = 1;
+  u.beginPath();
+  u.arc(-r + 1, 3, 2, 0, Math.PI * 2);
+  u.arc(-r + 1, -1, 2, 0, Math.PI * 2);
+  u.fill();
+  u.stroke();
+}
+
+/**
+ * Detailed Dominus side-profile chassis renderer
+ */
+export function drawDominusBody(
+  u: CanvasRenderingContext2D,
+  f: any,
+  r: number,
+  s: number,
+  nearWheelY: number,
+  rearWheelX: number,
+  frontWheelX: number,
+  wheelRadius: number,
+  primaryBright: string,
+  primaryMid: string,
+  primaryDark: string,
+  accentColor: string,
+  chassisDark: string,
+  metalSilver: string,
+  metalDark: string
+) {
+  // Dominus: Low, Long Classic American Muscle Car
+  const bodyGrad = u.createLinearGradient(0, -s, 0, nearWheelY);
+  bodyGrad.addColorStop(0, primaryBright);
+  bodyGrad.addColorStop(0.4, primaryMid);
+  bodyGrad.addColorStop(1, primaryDark);
+
+  u.fillStyle = bodyGrad;
+  u.strokeStyle = chassisDark;
+  u.lineWidth = 2;
+  u.beginPath();
+  u.moveTo(-r + 4, nearWheelY);
+  u.lineTo(rearWheelX - wheelRadius - 2.5, nearWheelY);
+  u.quadraticCurveTo(rearWheelX, nearWheelY - wheelRadius - 3.5, rearWheelX + wheelRadius + 2.5, nearWheelY);
+  u.lineTo(frontWheelX - wheelRadius - 2.5, nearWheelY);
+  u.quadraticCurveTo(frontWheelX, nearWheelY - wheelRadius - 3.5, frontWheelX + wheelRadius + 2.5, nearWheelY);
+  u.lineTo(r - 2, nearWheelY);
+  u.lineTo(r + 1, nearWheelY - 2);
+  u.lineTo(r + 2, 0);
+  u.lineTo(r + 1, -3);
+  u.lineTo(6, -4.5);
+  u.lineTo(1, -s);
+  u.lineTo(-16, -s);
+  u.lineTo(-27, -2);
+  u.lineTo(-r + 1, -s + 4);
+  u.lineTo(-r, -1);
+  u.lineTo(-r + 2, nearWheelY - 2);
+  u.closePath();
+  u.fill();
+  u.stroke();
+
+  // Supercharger blower scoop
+  u.fillStyle = "#1e293b";
+  u.strokeStyle = metalSilver;
+  u.lineWidth = 1.3;
+  u.beginPath();
+  u.roundRect(14, -7.5, 11, 4, 1.5);
+  u.fill();
+  u.stroke();
+  u.fillStyle = "#ef4444";
+  u.beginPath();
+  u.arc(24, -5.5, 1.6, 0, Math.PI * 2);
+  u.fill();
+  u.fillStyle = "#0f172a";
+  u.fillRect(12.5, -6.5, 2, 3);
+
+  // Muscle grille & quad headlights
+  u.fillStyle = "#0a0a0f";
+  u.fillRect(r - 3, -3, 4, 5);
+  u.strokeStyle = metalSilver;
+  u.lineWidth = 1;
+  u.strokeRect(r - 3, -3, 4, 5);
+
+  u.fillStyle = "#fef08a";
+  u.shadowColor = "#fef08a";
+  u.shadowBlur = 6;
+  u.beginPath();
+  u.arc(r - 0.5, -1.8, 1.6, 0, Math.PI * 2);
+  u.arc(r - 0.5, 1.2, 1.6, 0, Math.PI * 2);
+  u.fill();
+  u.shadowBlur = 0;
+
+  // Muscle fastback cabin
+  u.fillStyle = "#070c14";
+  u.strokeStyle = primaryDark;
+  u.lineWidth = 1.2;
+  u.beginPath();
+  u.moveTo(4, -4);
+  u.lineTo(0.5, -s + 1.5);
+  u.lineTo(-14, -s + 1.5);
+  u.lineTo(-24, -1.5);
+  u.closePath();
+  u.fill();
+  u.stroke();
+
+  u.strokeStyle = metalSilver;
+  u.lineWidth = 1;
+  u.beginPath();
+  u.moveTo(-6, -s + 1.5);
+  u.lineTo(-6, -3);
+  u.stroke();
+
+  u.strokeStyle = "rgba(255, 255, 255, 0.6)";
+  u.lineWidth = 1.3;
+  u.beginPath();
+  u.moveTo(2, -4);
+  u.lineTo(0, -s + 2);
+  u.stroke();
+
+  // Racing stripes
+  u.fillStyle = "rgba(255, 255, 255, 0.9)";
+  u.beginPath();
+  u.moveTo(r - 1, -2);
+  u.lineTo(13, -4);
+  u.lineTo(13, -5.5);
+  u.lineTo(r - 1, -3);
+  u.closePath();
+  u.fill();
+
+  // Ducktail spoiler chrome
+  u.strokeStyle = metalSilver;
+  u.lineWidth = 1.4;
+  u.beginPath();
+  u.moveTo(-27, -2);
+  u.lineTo(-r + 1, -s + 4);
+  u.stroke();
+
+  // Side-exit chrome exhaust
+  u.fillStyle = metalSilver;
+  u.strokeStyle = metalDark;
+  u.lineWidth = 1;
+  u.beginPath();
+  u.roundRect(rearWheelX + wheelRadius + 3, nearWheelY - 4, 5, 2.5, 1);
+  u.fill();
+  u.stroke();
+}
+
+/**
+ * Detailed Breakout side-profile chassis renderer
+ */
+export function drawBreakoutBody(
+  u: CanvasRenderingContext2D,
+  f: any,
+  r: number,
+  s: number,
+  nearWheelY: number,
+  rearWheelX: number,
+  frontWheelX: number,
+  wheelRadius: number,
+  primaryBright: string,
+  primaryMid: string,
+  primaryDark: string,
+  accentColor: string,
+  chassisDark: string,
+  metalSilver: string,
+  metalDark: string
+) {
+  // Breakout: Wedge Prototype Supercar
+  const bodyGrad = u.createLinearGradient(0, -s, 0, nearWheelY);
+  bodyGrad.addColorStop(0, primaryBright);
+  bodyGrad.addColorStop(0.4, primaryMid);
+  bodyGrad.addColorStop(1, primaryDark);
+
+  u.fillStyle = bodyGrad;
+  u.strokeStyle = chassisDark;
+  u.lineWidth = 2;
+  u.beginPath();
+  u.moveTo(-r + 4, nearWheelY);
+  u.lineTo(rearWheelX - wheelRadius - 2.5, nearWheelY);
+  u.quadraticCurveTo(rearWheelX, nearWheelY - wheelRadius - 3.5, rearWheelX + wheelRadius + 2.5, nearWheelY);
+  u.lineTo(frontWheelX - wheelRadius - 2.5, nearWheelY);
+  u.quadraticCurveTo(frontWheelX, nearWheelY - wheelRadius - 3.5, frontWheelX + wheelRadius + 2.5, nearWheelY);
+  u.lineTo(r - 1, nearWheelY);
+  u.lineTo(r + 3, nearWheelY - 2);
+  u.lineTo(r + 3.5, 2);
+  u.lineTo(r + 1, -1);
+  u.lineTo(10, -4);
+  u.lineTo(3, -s);
+  u.lineTo(-12, -s);
+  u.lineTo(-28, -2);
+  u.lineTo(-r + 5, -2);
+  u.lineTo(-r + 3, nearWheelY - 2);
+  u.closePath();
+  u.fill();
+  u.stroke();
+
+  // Canopy cockpit
+  u.fillStyle = "#070c14";
+  u.strokeStyle = primaryDark;
+  u.lineWidth = 1.2;
+  u.beginPath();
+  u.moveTo(8, -3.5);
+  u.lineTo(2, -s + 1.2);
+  u.lineTo(-10, -s + 1.2);
+  u.lineTo(-17, -2);
+  u.closePath();
+  u.fill();
+  u.stroke();
+
+  u.strokeStyle = "rgba(56, 189, 248, 0.7)";
+  u.lineWidth = 1.3;
+  u.beginPath();
+  u.moveTo(6, -3.5);
+  u.lineTo(1.5, -s + 1.8);
+  u.stroke();
+
+  // Deck louvers
+  u.strokeStyle = "#0f172a";
+  u.lineWidth = 1.4;
+  for (let lx = -13; lx >= -23; lx -= 3.2) {
+    u.beginPath();
+    u.moveTo(lx, -s + 2.5);
+    u.lineTo(lx - 2, -1);
+    u.stroke();
+  }
+
+  // Pop-up headlights
+  u.fillStyle = "#fef08a";
+  u.shadowColor = "#fef08a";
+  u.shadowBlur = 8;
+  u.beginPath();
+  u.moveTo(r - 1, 0);
+  u.lineTo(r - 7, -2.5);
+  u.lineTo(r - 6, -3.5);
+  u.lineTo(r, -1);
+  u.closePath();
+  u.fill();
+  u.shadowBlur = 0;
+
+  // Elevated GT racing wing
+  u.strokeStyle = chassisDark;
+  u.lineWidth = 2.2;
+  u.beginPath();
+  u.moveTo(-24, -2);
+  u.lineTo(-27, -s - 5);
+  u.moveTo(-18, -2);
+  u.lineTo(-21, -s - 5);
+  u.stroke();
+
+  const wingGrad = u.createLinearGradient(-34, -s - 6, -16, -s - 4);
+  wingGrad.addColorStop(0, "#0f172a");
+  wingGrad.addColorStop(0.5, primaryMid);
+  wingGrad.addColorStop(1, primaryBright);
+
+  u.fillStyle = wingGrad;
+  u.strokeStyle = chassisDark;
+  u.lineWidth = 1.3;
+  u.beginPath();
+  u.moveTo(-33, -s - 4);
+  u.lineTo(-16, -s - 3);
+  u.lineTo(-15, -s - 6.5);
+  u.lineTo(-33, -s - 6.5);
+  u.closePath();
+  u.fill();
+  u.stroke();
+
+  u.fillStyle = primaryBright;
+  u.fillRect(-34, -s - 7.5, 3, 5.5);
+  u.strokeRect(-34, -s - 7.5, 3, 5.5);
+
+  // Diffuser
+  u.fillStyle = "#0f172a";
+  for (let dx = -r + 5; dx <= -r + 13; dx += 3.5) {
+    u.fillRect(dx, nearWheelY - 3, 1.8, 3.5);
+  }
+
+  // Accent pinstripe
+  u.strokeStyle = accentColor;
+  u.lineWidth = 1.4;
+  u.beginPath();
+  u.moveTo(r - 6, -2);
+  u.lineTo(12, -3.8);
+  u.lineTo(-10, nearWheelY - 5);
+  u.stroke();
+}
+
+/**
+ * Detailed Skyline GT-R side-profile chassis renderer
+ */
+export function drawSkylineBody(
+  u: CanvasRenderingContext2D,
+  f: any,
+  r: number,
+  s: number,
+  nearWheelY: number,
+  rearWheelX: number,
+  frontWheelX: number,
+  wheelRadius: number,
+  primaryBright: string,
+  primaryMid: string,
+  primaryDark: string,
+  accentColor: string,
+  chassisDark: string,
+  metalSilver: string,
+  metalDark: string
+) {
+  // Nissan Skyline GT-R R34
+  const bodyGrad = u.createLinearGradient(0, -s, 0, nearWheelY);
+  bodyGrad.addColorStop(0, primaryBright);
+  bodyGrad.addColorStop(0.4, primaryMid);
+  bodyGrad.addColorStop(1, primaryDark);
+
+  u.fillStyle = bodyGrad;
+  u.strokeStyle = chassisDark;
+  u.lineWidth = 2;
+  u.beginPath();
+  u.moveTo(-r + 4, nearWheelY);
+  u.lineTo(rearWheelX - wheelRadius - 2.5, nearWheelY);
+  u.quadraticCurveTo(rearWheelX, nearWheelY - wheelRadius - 3.5, rearWheelX + wheelRadius + 2.5, nearWheelY);
+  u.lineTo(frontWheelX - wheelRadius - 2.5, nearWheelY);
+  u.quadraticCurveTo(frontWheelX, nearWheelY - wheelRadius - 3.5, frontWheelX + wheelRadius + 2.5, nearWheelY);
+  u.lineTo(r - 2, nearWheelY);
+  u.lineTo(r + 1, nearWheelY - 2);
+  u.lineTo(r + 2, 1);
+  u.lineTo(r + 1, -3);
+  u.lineTo(7, -5.5);
+  u.lineTo(1, -s);
+  u.lineTo(-15, -s + 0.8);
+  u.lineTo(-27, -3);
+  u.lineTo(-r + 5, -2.5);
+  u.lineTo(-r + 3, nearWheelY - 2);
+  u.closePath();
+  u.fill();
+  u.stroke();
+
+  // Front intercooler mesh
+  u.fillStyle = "#0f172a";
+  u.fillRect(r - 4, 1, 5.5, 5);
+  u.strokeStyle = metalSilver;
+  u.lineWidth = 0.9;
+  for (let ix = r - 3; ix <= r + 1; ix += 1.8) {
+    u.beginPath();
+    u.moveTo(ix, 1);
+    u.lineTo(ix, 6);
+    u.stroke();
+  }
+
+  // Angled Xenon headlights
+  u.fillStyle = "#38bdf8";
+  u.shadowColor = "#38bdf8";
+  u.shadowBlur = 6;
+  u.beginPath();
+  u.roundRect(r - 2, -2.5, 3.5, 2.5, 1);
+  u.fill();
+  u.fillStyle = "#ffffff";
+  u.beginPath();
+  u.arc(r - 0.5, -1.2, 1, 0, Math.PI * 2);
+  u.fill();
+  u.shadowBlur = 0;
+
+  // Coupe greenhouse
+  u.fillStyle = "#070c14";
+  u.strokeStyle = primaryDark;
+  u.lineWidth = 1.2;
+  u.beginPath();
+  u.moveTo(5, -4.5);
+  u.lineTo(0.5, -s + 1.5);
+  u.lineTo(-13, -s + 2);
+  u.lineTo(-24, -2.5);
+  u.closePath();
+  u.fill();
+  u.stroke();
+
+  u.strokeStyle = metalSilver;
+  u.lineWidth = 1.2;
+  u.beginPath();
+  u.moveTo(-6, -s + 1.8);
+  u.lineTo(-6, -3.5);
+  u.stroke();
+
+  u.strokeStyle = "rgba(255, 255, 255, 0.65)";
+  u.lineWidth = 1.3;
+  u.beginPath();
+  u.moveTo(3, -4.5);
+  u.lineTo(0, -s + 2);
+  u.stroke();
+
+  // Twin silver stripes
+  u.fillStyle = "rgba(226, 232, 240, 0.9)";
+  u.beginPath();
+  u.moveTo(r - 1, -2);
+  u.lineTo(6, -4.8);
+  u.lineTo(5.5, -5.8);
+  u.lineTo(r - 1, -3);
+  u.closePath();
+  u.fill();
+
+  // GT-R wing
+  u.strokeStyle = metalSilver;
+  u.lineWidth = 2;
+  u.beginPath();
+  u.moveTo(-24, -3);
+  u.lineTo(-26, -s - 4);
+  u.moveTo(-19, -3);
+  u.lineTo(-21, -s - 4);
+  u.stroke();
+
+  const wingGrad = u.createLinearGradient(-30, -s - 5, -18, -s - 3);
+  wingGrad.addColorStop(0, "#0f172a");
+  wingGrad.addColorStop(0.5, primaryMid);
+  wingGrad.addColorStop(1, primaryBright);
+
+  u.fillStyle = wingGrad;
+  u.strokeStyle = chassisDark;
+  u.lineWidth = 1.2;
+  u.beginPath();
+  u.moveTo(-29, -s - 3.5);
+  u.lineTo(-18, -s - 2.5);
+  u.lineTo(-17, -s - 5.5);
+  u.lineTo(-29, -s - 5.5);
+  u.closePath();
+  u.fill();
+  u.stroke();
+
+  // Round tail lights (signature Skyline)
+  u.fillStyle = "#ef4444";
+  u.shadowColor = "#ef4444";
+  u.shadowBlur = 6;
+  u.beginPath();
+  u.arc(-r + 4, -1, 1.8, 0, Math.PI * 2);
+  u.arc(-r + 4, 3, 1.8, 0, Math.PI * 2);
+  u.fill();
+  u.shadowBlur = 0;
+
+  // Titanium exhaust
+  u.fillStyle = "#38bdf8";
+  u.strokeStyle = metalSilver;
+  u.lineWidth = 1;
+  u.beginPath();
+  u.roundRect(-r + 1, nearWheelY - 4, 4, 2.5, 1);
+  u.fill();
+  u.stroke();
+}
+
+/**
+ * Detailed Merc side-profile chassis renderer
+ */
+export function drawMercBody(
+  u: CanvasRenderingContext2D,
+  f: any,
+  r: number,
+  s: number,
+  nearWheelY: number,
+  rearWheelX: number,
+  frontWheelX: number,
+  wheelRadius: number,
+  primaryBright: string,
+  primaryMid: string,
+  primaryDark: string,
+  accentColor: string,
+  chassisDark: string,
+  metalSilver: string,
+  metalDark: string
+) {
+  // Merc: Heavy Custom Van
+  const bodyGrad = u.createLinearGradient(0, -s, 0, nearWheelY);
+  bodyGrad.addColorStop(0, primaryBright);
+  bodyGrad.addColorStop(0.4, primaryMid);
+  bodyGrad.addColorStop(1, primaryDark);
+
+  u.fillStyle = bodyGrad;
+  u.strokeStyle = chassisDark;
+  u.lineWidth = 2;
+  u.beginPath();
+  u.moveTo(-r + 4, nearWheelY);
+  u.lineTo(rearWheelX - wheelRadius - 2.5, nearWheelY);
+  u.quadraticCurveTo(rearWheelX, nearWheelY - wheelRadius - 4, rearWheelX + wheelRadius + 2.5, nearWheelY);
+  u.lineTo(frontWheelX - wheelRadius - 2.5, nearWheelY);
+  u.quadraticCurveTo(frontWheelX, nearWheelY - wheelRadius - 4, frontWheelX + wheelRadius + 2.5, nearWheelY);
+  u.lineTo(r - 2, nearWheelY);
+  u.lineTo(r + 2, nearWheelY - 3);
+  u.lineTo(r + 2.5, -4);
+  u.lineTo(12, -9);
+  u.lineTo(6, -s);
+  u.lineTo(-27, -s);
+  u.lineTo(-r + 4, nearWheelY - 2);
+  u.closePath();
+  u.fill();
+  u.stroke();
+
+  // Van grille & bull bar
+  u.fillStyle = "#0f172a";
+  u.fillRect(r - 3, -4, 5, 12);
+  u.strokeStyle = metalSilver;
+  u.lineWidth = 1.2;
+  for (let gy = -2; gy <= 7; gy += 2.5) {
+    u.beginPath();
+    u.moveTo(r - 3, gy);
+    u.lineTo(r + 2, gy);
+    u.stroke();
+  }
+  u.strokeStyle = "#475569";
+  u.lineWidth = 2.4;
+  u.beginPath();
+  u.moveTo(r + 1, nearWheelY - 1);
+  u.lineTo(r + 3.5, 2);
+  u.lineTo(r + 3.5, -3);
+  u.lineTo(r + 1, -5);
+  u.stroke();
+
+  u.fillStyle = "#fef08a";
+  u.shadowColor = "#fef08a";
+  u.shadowBlur = 6;
+  u.fillRect(r - 2, -3.5, 3, 2.5);
+  u.fillRect(r - 2, 0, 3, 2.5);
+  u.shadowBlur = 0;
+
+  // Cab window & sun visor
+  u.fillStyle = "#070c14";
+  u.strokeStyle = primaryDark;
+  u.lineWidth = 1.2;
+  u.beginPath();
+  u.moveTo(10, -8);
+  u.lineTo(5, -s + 2);
+  u.lineTo(-7, -s + 2);
+  u.lineTo(-7, -6);
+  u.closePath();
+  u.fill();
+  u.stroke();
+
+  u.fillStyle = primaryBright;
+  u.strokeStyle = chassisDark;
+  u.lineWidth = 1;
+  u.beginPath();
+  u.moveTo(6, -s);
+  u.lineTo(13, -s + 2.5);
+  u.lineTo(12, -s + 3.8);
+  u.lineTo(5, -s + 1.5);
+  u.closePath();
+  u.fill();
+  u.stroke();
+
+  // Roof rack
+  u.strokeStyle = metalSilver;
+  u.lineWidth = 1.8;
+  u.beginPath();
+  u.moveTo(4, -s - 2.5);
+  u.lineTo(-25, -s - 2.5);
+  u.stroke();
+  u.lineWidth = 1.2;
+  for (let rx = 3; rx >= -24; rx -= 9) {
+    u.beginPath();
+    u.moveTo(rx, -s);
+    u.lineTo(rx, -s - 2.5);
+    u.stroke();
+  }
+
+  // Retro flames
+  u.fillStyle = accentColor;
+  u.beginPath();
+  u.moveTo(-r + 10, nearWheelY - 6);
+  u.lineTo(-5, nearWheelY - 9);
+  u.lineTo(8, nearWheelY - 7);
+  u.lineTo(0, nearWheelY - 5);
+  u.lineTo(-r + 10, nearWheelY - 5);
+  u.closePath();
+  u.fill();
+
+  // Rear cargo door split
+  u.strokeStyle = chassisDark;
+  u.lineWidth = 1.4;
+  u.beginPath();
+  u.moveTo(-r + 4, -s + 2);
+  u.lineTo(-r + 4, nearWheelY - 3);
+  u.stroke();
+}
+
+/**
+ * Universal dispatcher to draw any car model body
+ */
+export function drawCarModelBody(
+  ctx: CanvasRenderingContext2D,
+  model: string,
+  r: number,
+  s: number,
+  nearWheelY: number,
+  rearWheelX: number,
+  frontWheelX: number,
+  wheelRadius: number,
+  primaryBright: string,
+  primaryMid: string,
+  primaryDark: string,
+  accentColor: string,
+  chassisDark: string = "#080c14",
+  metalSilver: string = "#cbd5e1",
+  metalDark: string = "#334155"
+) {
+  const cleanModel = (model || "octane").toLowerCase();
+  if (cleanModel.includes("fennec")) {
+    drawFennecBody(ctx, null, r, s, nearWheelY, rearWheelX, frontWheelX, wheelRadius, primaryBright, primaryMid, primaryDark, accentColor, chassisDark, metalSilver, metalDark);
+  } else if (cleanModel.includes("dominus")) {
+    drawDominusBody(ctx, null, r, s, nearWheelY, rearWheelX, frontWheelX, wheelRadius, primaryBright, primaryMid, primaryDark, accentColor, chassisDark, metalSilver, metalDark);
+  } else if (cleanModel.includes("breakout")) {
+    drawBreakoutBody(ctx, null, r, s, nearWheelY, rearWheelX, frontWheelX, wheelRadius, primaryBright, primaryMid, primaryDark, accentColor, chassisDark, metalSilver, metalDark);
+  } else if (cleanModel.includes("skyline")) {
+    drawSkylineBody(ctx, null, r, s, nearWheelY, rearWheelX, frontWheelX, wheelRadius, primaryBright, primaryMid, primaryDark, accentColor, chassisDark, metalSilver, metalDark);
+  } else if (cleanModel.includes("merc")) {
+    drawMercBody(ctx, null, r, s, nearWheelY, rearWheelX, frontWheelX, wheelRadius, primaryBright, primaryMid, primaryDark, accentColor, chassisDark, metalSilver, metalDark);
+  } else {
+    drawOctaneBody(ctx, null, r, s, nearWheelY, rearWheelX, frontWheelX, wheelRadius, primaryBright, primaryMid, primaryDark, accentColor, chassisDark, metalSilver, metalDark);
+  }
+}
+
