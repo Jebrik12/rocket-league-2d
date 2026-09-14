@@ -136,8 +136,9 @@ export const CrateOpeningModal: React.FC<CrateOpeningModalProps> = ({
 
   const selectedCrate = CRATE_DEFINITIONS[selectedCrateId] || CRATE_DEFINITIONS.champion_crate;
   const ownedCrateCount = inventory.unopenedCrates[selectedCrateId] || 0;
-  const canAffordWithCredits = inventory.credits >= selectedCrate.costCredits;
-  const canOpen = ownedCrateCount > 0 || canAffordWithCredits;
+  const crateCost = selectedCrate.costCoins ?? selectedCrate.costCredits;
+  const canAffordWithCoins = inventory.coins >= crateCost;
+  const canOpen = ownedCrateCount > 0 || canAffordWithCoins;
 
   // Build randomized roulette array for the spinner
   const generateSpinnerStrip = (wonItem: CustomizationItem): CustomizationItem[] => {
@@ -223,7 +224,7 @@ export const CrateOpeningModal: React.FC<CrateOpeningModalProps> = ({
         setUnlockedResult({
           item: wonItem,
           isDuplicate: result.isDuplicate,
-          creditBonus: result.creditBonus
+          creditBonus: result.coinsBonus ?? result.creditBonus
         });
       }
     };
@@ -242,28 +243,28 @@ export const CrateOpeningModal: React.FC<CrateOpeningModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-lg p-2 sm:p-4 animate-fade-in font-sans select-none">
-      <div className="bg-slate-950/95 border border-slate-700/80 rounded-3xl w-full max-w-4xl max-h-[92vh] shadow-2xl flex flex-col overflow-hidden text-slate-100">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-lg p-1.5 sm:p-4 animate-fade-in font-sans select-none">
+      <div className="bg-slate-950/95 border border-slate-700/80 rounded-2xl sm:rounded-3xl w-full max-w-4xl h-[94dvh] sm:max-h-[92vh] shadow-2xl flex flex-col overflow-hidden text-slate-100">
         {/* Top Header */}
-        <div className="p-4 sm:px-6 py-3.5 border-b border-slate-800 flex items-center justify-between bg-slate-900/70 shrink-0">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-purple-500/20 text-purple-400 border border-purple-500/30">
-              <Package className="w-5 h-5" />
+        <div className="p-3 sm:px-6 py-2.5 sm:py-3.5 border-b border-slate-800 flex items-center justify-between bg-slate-900/70 shrink-0 gap-2">
+          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+            <div className="p-1.5 sm:p-2 rounded-xl bg-purple-500/20 text-purple-400 border border-purple-500/30 shrink-0">
+              <Package className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div>
-              <h2 className="text-lg sm:text-xl font-gaming font-black tracking-wide text-white flex items-center gap-2">
+            <div className="min-w-0">
+              <h2 className="text-sm sm:text-xl font-gaming font-black tracking-wide text-white flex items-center gap-2 truncate">
                 CRATE UNBOXING
               </h2>
-              <p className="text-xs text-slate-400">
-                Spin cases to unlock exclusive chassis, black market decals, and rare items.
+              <p className="text-[10px] sm:text-xs text-slate-400 truncate">
+                Spin cases for chassis, black market decals & rare drops.
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-mono font-bold text-amber-400">
-              <Coins className="w-4 h-4 text-amber-400" />
-              <span>{inventory.credits.toLocaleString()} CR</span>
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs font-mono font-bold text-amber-300">
+              <Coins className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400" />
+              <span>{inventory.coins.toLocaleString()} Coins</span>
             </div>
             <button
               onClick={onClose}
@@ -313,7 +314,7 @@ export const CrateOpeningModal: React.FC<CrateOpeningModalProps> = ({
                     {count > 0 ? (
                       <span className="text-amber-400 font-bold">{count} Owned</span>
                     ) : (
-                      <span>{crate.costCredits} CR</span>
+                      <span>{(crate.costCoins ?? crate.costCredits).toLocaleString()} 🪙</span>
                     )}
                   </div>
                 </div>
@@ -424,13 +425,13 @@ export const CrateOpeningModal: React.FC<CrateOpeningModalProps> = ({
                   <Package className="w-4 h-4" />
                   <span>Open Crate (1 of {ownedCrateCount})</span>
                 </>
-              ) : canAffordWithCredits ? (
+              ) : canAffordWithCoins ? (
                 <>
-                  <Coins className="w-4 h-4" />
-                  <span>Unlock for {selectedCrate.costCredits} CR</span>
+                  <Coins className="w-4 h-4 text-amber-400" />
+                  <span>Unlock for {crateCost.toLocaleString()} Coins</span>
                 </>
               ) : (
-                <span>Need {selectedCrate.costCredits} Credits</span>
+                <span>Need {crateCost.toLocaleString()} Coins</span>
               )}
             </button>
 
@@ -489,7 +490,7 @@ export const CrateOpeningModal: React.FC<CrateOpeningModalProps> = ({
 
               {unlockedResult.isDuplicate && (
                 <div className="mb-4 px-3 py-1.5 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-300 font-mono text-xs font-bold">
-                  Duplicate Item! Refunded +{unlockedResult.creditBonus} Credits
+                  Duplicate Item! Refunded +{unlockedResult.creditBonus} Gold Coins
                 </div>
               )}
 

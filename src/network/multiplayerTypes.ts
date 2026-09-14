@@ -14,6 +14,7 @@ export interface RoomSlot {
   playerName?: string;
   peerId?: string;
   carModel: string;
+  pilotMode?: "human" | "bot";
   isReady: boolean;
   ping: number;
 }
@@ -144,6 +145,7 @@ export type NetMessage =
   | { type: "room_state"; roomState: RoomState }
   | { type: "slot_change_request"; targetTeam: Team; targetSlotIndex: number }
   | { type: "car_change_request"; carModel: string }
+  | { type: "pilot_mode_request"; pilotMode: "human" | "bot" }
   | { type: "name_change_request"; playerName: string }
   | { type: "ready_toggle" }
   | { type: "add_bot"; team: Team; slotIndex: number; difficulty: BotDifficulty }

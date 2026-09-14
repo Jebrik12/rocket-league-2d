@@ -62,6 +62,7 @@ function createSlotsForMode(mode: GameMode, botDifficulty: BotDifficulty = "ssl"
       playerName: undefined,
       peerId: undefined,
       carModel: "octane",
+      pilotMode: "human",
       isReady: false,
       ping: 0
     });
@@ -124,6 +125,7 @@ export class PeerNetworkManager {
     slots[0].playerName = playerName || "Host";
     slots[0].peerId = targetPeerId;
     slots[0].carModel = carModel || "octane";
+    slots[0].pilotMode = "human";
     slots[0].isReady = true;
 
     this.roomState = {
@@ -363,6 +365,15 @@ export class PeerNetworkManager {
         const slot = this.roomState.slots.find((s) => s.peerId === peerId);
         if (slot) {
           slot.carModel = msg.carModel;
+          this.broadcastRoomState();
+        }
+        break;
+      }
+
+      case "pilot_mode_request": {
+        const slot = this.roomState.slots.find((s) => s.peerId === peerId);
+        if (slot) {
+          slot.pilotMode = msg.pilotMode;
           this.broadcastRoomState();
         }
         break;
@@ -698,6 +709,24 @@ export class PeerNetworkManager {
 
     if (this.hostConn && this.hostConn.open) {
       const msg: NetMessage = { type: "car_change_request", carModel };
+      this.hostConn.send(msg);
+    }
+  }
+
+  public requestPilotModeChange(pilotMode: "human" | "bot", targetSlotId?: string) {
+    if (this.role === "host" && this.roomState) {
+      const slot = targetSlotId
+        ? this.roomState.slots.find(s => s.id === targetSlotId)
+        : this.roomState.slots.find(s => s.peerId === this.myPeerId);
+      if (slot) {
+        slot.pilotMode = pilotMode;
+        this.broadcastRoomState();
+      }
+      return;
+    }
+
+    if (this.hostConn && this.hostConn.open) {
+      const msg: NetMessage = { type: "pilot_mode_request", pilotMode };
       this.hostConn.send(msg);
     }
   }

@@ -41,6 +41,7 @@ export interface CrateDefinition {
   subtitle: string;
   description: string;
   costCredits: number;
+  costCoins?: number;
   iconName: string;
   accentColor: string;
   bgGradient: string;
@@ -73,7 +74,9 @@ export interface PlayerInventory {
   ownedItemIds: string[];
   loadout: PlayerLoadout;
   credits: number;
+  coins: number;
   keys: number;
+  lastDailyBonusClaim?: number; // timestamp in ms
   unopenedCrates: Record<string, number>; // crateId -> count
   carMastery: Record<string, CarMastery>; // carModelId -> CarMastery
 }

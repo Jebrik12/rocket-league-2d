@@ -15,7 +15,12 @@ import {
   Camera,
   Globe,
   LogOut,
-  Smartphone
+  Smartphone,
+  Car,
+  Package,
+  Trophy,
+  Coins,
+  Bot
 } from "lucide-react";
 
 interface MobileQuickMenuProps {
@@ -38,6 +43,13 @@ interface MobileQuickMenuProps {
   multiplayerRoomCode: string | null;
   onOpenMultiplayer?: () => void;
   onLeaveMultiplayer?: () => void;
+  onOpenGarage?: () => void;
+  onOpenCrates?: () => void;
+  onOpenRanked?: () => void;
+  onOpenMatchSetup?: () => void;
+  coinsCount?: number;
+  unopenedCratesCount?: number;
+  currentRankLabel?: string;
 }
 
 export const MobileQuickMenu: React.FC<MobileQuickMenuProps> = ({
@@ -59,15 +71,22 @@ export const MobileQuickMenu: React.FC<MobileQuickMenuProps> = ({
   isMultiplayerActive,
   multiplayerRoomCode,
   onOpenMultiplayer,
-  onLeaveMultiplayer
+  onLeaveMultiplayer,
+  onOpenGarage,
+  onOpenCrates,
+  onOpenRanked,
+  onOpenMatchSetup,
+  coinsCount,
+  unopenedCratesCount,
+  currentRankLabel
 }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md select-none animate-fade-in">
-      <div className="bg-slate-950 border border-slate-800 rounded-3xl p-5 shadow-2xl max-w-sm w-full text-slate-100 flex flex-col gap-4 font-sans">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md select-none animate-fade-in">
+      <div className="bg-slate-950 border border-slate-800 rounded-3xl p-4 sm:p-5 shadow-2xl max-w-sm w-full text-slate-100 flex flex-col gap-3.5 font-sans max-h-[94dvh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+        <div className="flex items-center justify-between pb-2.5 border-b border-slate-800">
           <div className="flex items-center gap-2">
             <Smartphone className="w-5 h-5 text-sky-400" />
             <span className="font-gaming font-black text-sm uppercase tracking-wider text-white">
@@ -80,6 +99,89 @@ export const MobileQuickMenu: React.FC<MobileQuickMenuProps> = ({
           >
             <X className="w-5 h-5" />
           </button>
+        </div>
+
+        {/* Mobile Meta Progression Quick Cards */}
+        <div className="grid grid-cols-2 gap-2">
+          {onOpenGarage && (
+            <button
+              onClick={() => {
+                onClose();
+                onOpenGarage();
+              }}
+              className="p-2.5 rounded-xl bg-gradient-to-br from-sky-950/70 to-slate-900 border border-sky-500/40 hover:border-sky-400 text-left flex items-center gap-2 transition active:scale-95 cursor-pointer shadow-sm"
+            >
+              <div className="p-1.5 rounded-lg bg-sky-500/20 text-sky-400 shrink-0">
+                <Car className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs font-gaming font-black text-white truncate">Garage</div>
+                <div className="text-[10px] text-amber-400 font-mono font-bold truncate">
+                  {(coinsCount ?? 1500).toLocaleString()} 🪙
+                </div>
+              </div>
+            </button>
+          )}
+
+          {onOpenCrates && (
+            <button
+              onClick={() => {
+                onClose();
+                onOpenCrates();
+              }}
+              className="p-2.5 rounded-xl bg-gradient-to-br from-purple-950/70 to-slate-900 border border-purple-500/40 hover:border-purple-400 text-left flex items-center gap-2 transition active:scale-95 cursor-pointer shadow-sm"
+            >
+              <div className="p-1.5 rounded-lg bg-purple-500/20 text-purple-400 shrink-0">
+                <Package className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs font-gaming font-black text-white truncate">Crates</div>
+                <div className="text-[10px] text-purple-300 font-mono font-bold truncate">
+                  {unopenedCratesCount ?? 0} Crates
+                </div>
+              </div>
+            </button>
+          )}
+
+          {onOpenRanked && (
+            <button
+              onClick={() => {
+                onClose();
+                onOpenRanked();
+              }}
+              className="p-2.5 rounded-xl bg-gradient-to-br from-amber-950/50 to-slate-900 border border-amber-500/40 hover:border-amber-400 text-left flex items-center gap-2 transition active:scale-95 cursor-pointer shadow-sm"
+            >
+              <div className="p-1.5 rounded-lg bg-amber-500/20 text-amber-400 shrink-0">
+                <Trophy className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs font-gaming font-black text-white truncate">Ranked</div>
+                <div className="text-[10px] text-amber-300 font-gaming font-bold truncate">
+                  {currentRankLabel || "Ranked MMR"}
+                </div>
+              </div>
+            </button>
+          )}
+
+          {onOpenMatchSetup && (
+            <button
+              onClick={() => {
+                onClose();
+                onOpenMatchSetup();
+              }}
+              className="p-2.5 rounded-xl bg-gradient-to-br from-emerald-950/50 to-slate-900 border border-emerald-500/40 hover:border-emerald-400 text-left flex items-center gap-2 transition active:scale-95 cursor-pointer shadow-sm"
+            >
+              <div className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 shrink-0">
+                <Bot className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs font-gaming font-black text-white truncate">Host Match</div>
+                <div className="text-[10px] text-emerald-300 font-gaming font-bold truncate">
+                  Human / Bot
+                </div>
+              </div>
+            </button>
+          )}
         </div>
 
         {/* Multiplayer Status Pill (if connected) */}

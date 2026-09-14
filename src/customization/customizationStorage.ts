@@ -52,14 +52,18 @@ export function getPlayerInventory(): PlayerInventory {
     const loadout: PlayerLoadout = rawLoadout ? { ...DEFAULT_LOADOUT, ...JSON.parse(rawLoadout) } : { ...DEFAULT_LOADOUT };
     const economy = rawEconomy
       ? JSON.parse(rawEconomy)
-      : { credits: 600, keys: 3, unopenedCrates: { ...DEFAULT_CRATES } };
+      : { credits: 1500, coins: 1500, keys: 3, unopenedCrates: { ...DEFAULT_CRATES }, lastDailyBonusClaim: 0 };
     const carMastery: Record<string, CarMastery> = rawMastery ? JSON.parse(rawMastery) : {};
+
+    const coinsVal = Math.max(0, economy.coins ?? economy.credits ?? 1500);
 
     return {
       ownedItemIds,
       loadout,
-      credits: Math.max(0, economy.credits ?? 600),
+      credits: coinsVal,
+      coins: coinsVal,
       keys: Math.max(0, economy.keys ?? 3),
+      lastDailyBonusClaim: economy.lastDailyBonusClaim ?? 0,
       unopenedCrates: economy.unopenedCrates ?? { ...DEFAULT_CRATES },
       carMastery
     };
@@ -68,8 +72,10 @@ export function getPlayerInventory(): PlayerInventory {
     return {
       ownedItemIds: [...DEFAULT_OWNED_ITEMS],
       loadout: { ...DEFAULT_LOADOUT },
-      credits: 600,
+      credits: 1500,
+      coins: 1500,
       keys: 3,
+      lastDailyBonusClaim: 0,
       unopenedCrates: { ...DEFAULT_CRATES },
       carMastery: {}
     };
@@ -80,11 +86,15 @@ export function savePlayerInventory(inv: PlayerInventory): void {
   try {
     localStorage.setItem(STORAGE_KEYS.INVENTORY, JSON.stringify(inv.ownedItemIds));
     localStorage.setItem(STORAGE_KEYS.LOADOUT, JSON.stringify(inv.loadout));
+    // Keep credits and coins in sync
+    inv.credits = inv.coins;
     localStorage.setItem(
       STORAGE_KEYS.ECONOMY,
       JSON.stringify({
-        credits: inv.credits,
+        credits: inv.coins,
+        coins: inv.coins,
         keys: inv.keys,
+        lastDailyBonusClaim: inv.lastDailyBonusClaim,
         unopenedCrates: inv.unopenedCrates
       })
     );
@@ -116,11 +126,67 @@ export function equipItem(slot: ItemSlot, itemId: string): PlayerLoadout {
   return inv.loadout;
 }
 
-export function addCredits(amount: number): number {
+export function getPlayerCoins(): number {
   const inv = getPlayerInventory();
-  inv.credits = Math.max(0, inv.credits + amount);
+  return inv.coins;
+}
+
+export function addCoins(amount: number): number {
+  const inv = getPlayerInventory();
+  inv.coins = Math.max(0, inv.coins + amount);
+  inv.credits = inv.coins;
   savePlayerInventory(inv);
-  return inv.credits;
+  return inv.coins;
+}
+
+export function spendCoins(amount: number): boolean {
+  const inv = getPlayerInventory();
+  if (inv.coins < amount) return false;
+  inv.coins -= amount;
+  inv.credits = inv.coins;
+  savePlayerInventory(inv);
+  return true;
+}
+
+export function addCredits(amount: number): number {
+  return addCoins(amount);
+}
+
+const DAILY_BONUS_COOLDOWN_MS = 20 * 60 * 60 * 1000; // 20 hours
+const DAILY_BONUS_AMOUNT = 500;
+
+export function claimDailyBonus(): {
+  success: boolean;
+  coinsGranted: number;
+  nextAvailableMs?: number;
+  message: string;
+} {
+  const inv = getPlayerInventory();
+  const now = Date.now();
+  const lastClaim = inv.lastDailyBonusClaim || 0;
+  const elapsed = now - lastClaim;
+
+  if (elapsed < DAILY_BONUS_COOLDOWN_MS) {
+    const nextAvailableMs = lastClaim + DAILY_BONUS_COOLDOWN_MS;
+    const remainingHrs = Math.ceil((nextAvailableMs - now) / (1000 * 60 * 60));
+    return {
+      success: false,
+      coinsGranted: 0,
+      nextAvailableMs,
+      message: `Daily bonus ready in ${remainingHrs}h`
+    };
+  }
+
+  inv.coins += DAILY_BONUS_AMOUNT;
+  inv.credits = inv.coins;
+  inv.lastDailyBonusClaim = now;
+  savePlayerInventory(inv);
+
+  return {
+    success: true,
+    coinsGranted: DAILY_BONUS_AMOUNT,
+    message: `Claimed +${DAILY_BONUS_AMOUNT} Gold Coins!`
+  };
 }
 
 export function addCrates(crateId: string, count: number = 1): Record<string, number> {
@@ -185,6 +251,7 @@ export function openCrate(crateId: string): {
   success: boolean;
   item?: CustomizationItem;
   isDuplicate?: boolean;
+  coinsBonus?: number;
   creditBonus?: number;
   message?: string;
 } {
@@ -196,31 +263,35 @@ export function openCrate(crateId: string): {
     return { success: false, message: "Invalid crate ID" };
   }
 
-  // Deduct crate if owned, or deduct credits if sufficient
+  const cost = crateDef.costCoins ?? crateDef.costCredits;
+
+  // Deduct crate if owned, or deduct coins if sufficient
   if (count > 0) {
     inv.unopenedCrates[crateId] = count - 1;
-  } else if (inv.credits >= crateDef.costCredits) {
-    inv.credits -= crateDef.costCredits;
+  } else if (inv.coins >= cost) {
+    inv.coins -= cost;
+    inv.credits = inv.coins;
   } else {
-    return { success: false, message: "Not enough credits or crates" };
+    return { success: false, message: `Need ${cost} Coins (you have ${inv.coins})` };
   }
 
   const wonItem = rollItemFromCrate(crateId);
   const isDuplicate = inv.ownedItemIds.includes(wonItem.id);
-  let creditBonus = 0;
+  let coinsBonus = 0;
 
   if (isDuplicate) {
     // Duplicate compensation based on rarity
     const rarityRefund: Record<string, number> = {
-      common: 50,
-      rare: 100,
-      very_rare: 150,
-      import: 250,
-      exotic: 400,
-      black_market: 800
+      common: 100,
+      rare: 250,
+      very_rare: 500,
+      import: 1000,
+      exotic: 2000,
+      black_market: 5000
     };
-    creditBonus = rarityRefund[wonItem.rarity] || 50;
-    inv.credits += creditBonus;
+    coinsBonus = rarityRefund[wonItem.rarity] || 100;
+    inv.coins += coinsBonus;
+    inv.credits = inv.coins;
   } else {
     inv.ownedItemIds.push(wonItem.id);
   }
@@ -231,7 +302,8 @@ export function openCrate(crateId: string): {
     success: true,
     item: wonItem,
     isDuplicate,
-    creditBonus
+    coinsBonus,
+    creditBonus: coinsBonus
   };
 }
 
@@ -270,11 +342,12 @@ export function upgradeCarMastery(carModelId: string): { success: boolean; newLe
   }
 
   const cost = getCarUpgradeCost(mastery.level);
-  if (inv.credits < cost) {
-    return { success: false, newLevel: mastery.level, message: `Need ${cost} credits (you have ${inv.credits})` };
+  if (inv.coins < cost) {
+    return { success: false, newLevel: mastery.level, message: `Need ${cost} Coins (you have ${inv.coins})` };
   }
 
-  inv.credits -= cost;
+  inv.coins -= cost;
+  inv.credits = inv.coins;
   mastery.level += 1;
   savePlayerInventory(inv);
   return { success: true, newLevel: mastery.level };
@@ -283,7 +356,7 @@ export function upgradeCarMastery(carModelId: string): { success: boolean; newLe
 export function recordMatchMastery(
   carModelId: string,
   stats: { goals: number; saves: number; shots: number; isWin: boolean; isMvp: boolean }
-): { xpEarned: number; creditsEarned: number; crateDropped?: string } {
+): { xpEarned: number; coinsEarned: number; creditsEarned: number; crateDropped?: string } {
   const inv = getPlayerInventory();
   const mastery = getCarMastery(carModelId);
 
@@ -309,18 +382,20 @@ export function recordMatchMastery(
     mastery.level += 1;
   }
 
-  // Credit reward
-  const creditsEarned =
-    (stats.isWin ? 50 : 20) +
-    stats.goals * 15 +
-    stats.saves * 10 +
-    (stats.isMvp ? 30 : 0);
+  // Coins reward: generous and motivating
+  const coinsEarned =
+    (stats.isWin ? 250 : 150) +
+    stats.goals * 75 +
+    stats.saves * 50 +
+    stats.shots * 25 +
+    (stats.isMvp ? 150 : 0);
 
-  inv.credits += creditsEarned;
+  inv.coins += coinsEarned;
+  inv.credits = inv.coins;
 
-  // Crate drop roll (25% chance on win, 10% on loss)
+  // Crate drop roll (35% chance on win, 15% on loss)
   let crateDropped: string | undefined;
-  const dropChance = stats.isWin ? 0.35 : 0.12;
+  const dropChance = stats.isWin ? 0.35 : 0.15;
   if (Math.random() < dropChance) {
     const cratePool = ["champion_crate", "ignition_crate", "victory_drop", "cosmic_crate"];
     const chosen = cratePool[Math.floor(Math.random() * cratePool.length)];
@@ -331,5 +406,5 @@ export function recordMatchMastery(
   inv.carMastery[carModelId] = mastery;
   savePlayerInventory(inv);
 
-  return { xpEarned, creditsEarned, crateDropped };
+  return { xpEarned, coinsEarned, creditsEarned: coinsEarned, crateDropped };
 }

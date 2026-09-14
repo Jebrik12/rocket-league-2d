@@ -141,10 +141,10 @@ export const RankProgressionOverlay: React.FC<RankProgressionOverlayProps> = ({
             <div className="flex items-center justify-between">
               <span className="text-slate-300 flex items-center gap-1.5">
                 <Coins className="w-4 h-4 text-amber-400" />
-                <span>Credits Earned</span>
+                <span>Gold Coins Earned</span>
               </span>
-              <span className="font-mono font-bold text-amber-400">
-                +{rewards.creditsEarned} CR
+              <span className="font-mono font-bold text-amber-300">
+                +{((rewards as any).coinsEarned ?? rewards.creditsEarned).toLocaleString()} 🪙
               </span>
             </div>
 

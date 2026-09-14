@@ -35,7 +35,8 @@ import {
   equipItem,
   getCarMastery,
   getCarUpgradeCost,
-  upgradeCarMastery
+  upgradeCarMastery,
+  claimDailyBonus
 } from "../customization/customizationStorage";
 import {
   drawCarDecal,
@@ -244,41 +245,59 @@ export const GarageModal: React.FC<GarageModalProps> = ({
     }
   };
 
+  const handleClaimBonus = () => {
+    const res = claimDailyBonus();
+    setInventory(getPlayerInventory());
+    setUpgradeMsg(res.message);
+  };
+
   const upgradeCost = getCarUpgradeCost(carMastery.level);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-2 sm:p-4 animate-fade-in font-sans select-none">
-      <div className="bg-slate-950/95 border border-slate-700/80 rounded-3xl w-full max-w-5xl h-[92vh] max-h-[820px] shadow-2xl flex flex-col overflow-hidden text-slate-100">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-1.5 sm:p-4 animate-fade-in font-sans select-none">
+      <div className="bg-slate-950/95 border border-slate-700/80 rounded-2xl sm:rounded-3xl w-full max-w-5xl h-[94dvh] sm:h-[92vh] max-h-[840px] shadow-2xl flex flex-col overflow-hidden text-slate-100">
         {/* Header Bar */}
-        <div className="p-4 sm:px-6 py-3.5 border-b border-slate-800 flex items-center justify-between bg-slate-900/60 shrink-0">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-sky-500/20 text-sky-400 border border-sky-500/30">
-              <Car className="w-5 h-5" />
+        <div className="p-3 sm:px-6 py-2.5 sm:py-3.5 border-b border-slate-800 flex items-center justify-between bg-slate-900/60 shrink-0 gap-2">
+          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+            <div className="p-1.5 sm:p-2 rounded-xl bg-sky-500/20 text-sky-400 border border-sky-500/30 shrink-0">
+              <Car className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div>
-              <h2 className="text-lg sm:text-xl font-gaming font-black tracking-wide text-white">
+            <div className="min-w-0">
+              <h2 className="text-sm sm:text-xl font-gaming font-black tracking-wide text-white truncate">
                 GARAGE & WORKSHOP
               </h2>
-              <p className="text-xs text-slate-400 flex items-center gap-1.5">
-                <span>Active Title:</span>
-                <span className="text-amber-400 font-bold">{equippedTitle.name}</span>
+              <p className="text-[10px] sm:text-xs text-slate-400 flex items-center gap-1.5 truncate">
+                <span>Title:</span>
+                <span className="text-amber-400 font-bold truncate">{equippedTitle.name}</span>
               </p>
             </div>
           </div>
 
           {/* Economy & Crates Bar */}
-          <div className="flex items-center gap-2 sm:gap-4">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-mono font-bold text-amber-400">
-              <Coins className="w-4 h-4 text-amber-400" />
-              <span>{inventory.credits.toLocaleString()} CR</span>
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+            {/* Coins Balance */}
+            <div className="flex items-center gap-1 sm:gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs font-mono font-bold text-amber-300">
+              <Coins className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400" />
+              <span>{inventory.coins.toLocaleString()} <span className="hidden sm:inline">Coins</span></span>
             </div>
 
+            {/* Daily Bonus Button */}
+            <button
+              onClick={handleClaimBonus}
+              className="flex items-center gap-1 px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-yellow-500/20 hover:from-amber-500/30 text-amber-300 border border-amber-500/40 text-[11px] font-gaming font-bold transition cursor-pointer active:scale-95"
+              title="Claim daily bonus +500 Coins"
+            >
+              <Sparkles className="w-3 h-3 text-amber-400" />
+              <span>+500 🪙</span>
+            </button>
+
+            {/* Crates Button */}
             <button
               onClick={onOpenCrates}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-gaming font-bold text-xs shadow-lg shadow-purple-600/30 transition cursor-pointer active:scale-95"
+              className="flex items-center gap-1 sm:gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 text-white font-gaming font-bold text-xs shadow-md transition cursor-pointer active:scale-95"
             >
-              <Package className="w-4 h-4 text-amber-300" />
-              <span className="hidden sm:inline">Open Crates</span>
+              <Package className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-300" />
+              <span className="hidden md:inline">Crates</span>
               {totalCratesCount > 0 && (
                 <span className="px-1.5 py-0.2 rounded-full bg-amber-400 text-slate-950 font-black text-[10px]">
                   {totalCratesCount}
@@ -288,9 +307,9 @@ export const GarageModal: React.FC<GarageModalProps> = ({
 
             <button
               onClick={onClose}
-              className="p-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800 transition cursor-pointer"
+              className="p-1 sm:p-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800 transition cursor-pointer"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
           </div>
         </div>
@@ -442,22 +461,22 @@ export const GarageModal: React.FC<GarageModalProps> = ({
                       <div className="text-xs text-slate-300">
                         Next Level: <span className="font-bold text-amber-400">Level {carMastery.level + 1}</span>
                       </div>
-                      <div className="text-[11px] text-slate-500 font-mono">
-                        Cost: {upgradeCost} Credits (You have {inventory.credits})
+                      <div className="text-[11px] text-slate-400 font-mono">
+                        Cost: <span className="text-amber-400 font-bold">{upgradeCost.toLocaleString()} Coins</span> (You have {inventory.coins.toLocaleString()})
                       </div>
                     </div>
 
                     <button
                       onClick={handleUpgradeClick}
-                      disabled={inventory.credits < upgradeCost}
+                      disabled={inventory.coins < upgradeCost && carMastery.level < 50}
                       className={`px-5 py-2.5 rounded-xl font-gaming font-bold text-xs uppercase transition shadow-lg flex items-center gap-2 cursor-pointer ${
-                        inventory.credits >= upgradeCost
+                        inventory.coins >= upgradeCost || carMastery.level >= 50
                           ? "bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 shadow-amber-500/25 active:scale-95"
                           : "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700"
                       }`}
                     >
                       <ArrowUpCircle className="w-4 h-4" />
-                      <span>Upgrade Mastery</span>
+                      <span>{carMastery.level >= 50 ? "Prestige Reset (Free)" : `Upgrade (${upgradeCost.toLocaleString()} 🪙)`}</span>
                     </button>
                   </div>
 

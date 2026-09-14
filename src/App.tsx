@@ -59,7 +59,8 @@ import {
   Share2,
   Menu,
   Smartphone,
-  RotateCw
+  RotateCw,
+  Coins
 } from "lucide-react";
 import { exportClipAsVideo, exportClipAsGif, downloadBlob } from "./utils/clipExporter";
 import {
@@ -8839,6 +8840,7 @@ const a2 = ({
   onOpenRanked,
   onOpenMatchSetup,
   unopenedCratesCount = 0,
+  coinsCount = 1500,
   currentRankLabel = "Ranked",
   currentMmr = 600
 }: any) => {
@@ -8991,6 +8993,15 @@ const a2 = ({
         d.jsxs("div", {
           className: "flex items-center gap-1.5 flex-1 min-w-0 justify-end",
           children: [
+            !isMobileDevice && d.jsxs("button", {
+              onClick: onOpenGarage,
+              className: "flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/40 text-amber-300 font-mono font-bold text-xs shadow-lg transition cursor-pointer active:scale-95 shrink-0",
+              title: "Your Gold Coins balance (Click to open Garage)",
+              children: [
+                d.jsx(Coins, { className: "w-3.5 h-3.5 text-amber-400" }),
+                d.jsx("span", { children: `${(coinsCount ?? 1500).toLocaleString()} 🪙` })
+              ]
+            }),
             onOpenGarage && d.jsxs("button", {
               onClick: onOpenGarage,
               className: "flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-sky-600/30 to-blue-600/30 hover:from-sky-600/50 hover:to-blue-600/50 border border-sky-500/50 hover:border-sky-400/80 text-white font-gaming font-bold text-xs shadow-lg transition cursor-pointer active:scale-95 shrink-0",
@@ -12174,26 +12185,6 @@ function r2(){
       return "Player";
     }
   })();
-  if (peerNetwork.isConnected && peerNetwork.roomState && peerNetwork.roomState.status === "in_game") {
-    const room = peerNetwork.roomState;
-    const occupiedSlots = room.slots.filter((s: any) => s.isOccupied);
-    if (occupiedSlots.length > 0) {
-      const w: any[] = [];
-      for (const slot of occupiedSlots) {
-        const isBot = !!slot.isBot;
-        const carId = slot.peerId || slot.id;
-        const isMySlot = slot.peerId === peerNetwork.myPeerId;
-        const pName = isMySlot ? (currentPilotName || slot.playerName || "Player") : (slot.playerName || (isBot ? "Bot" : "Player"));
-        const team = slot.team;
-        const diff = slot.botDifficulty || room.settings.botDifficulty || "ssl";
-        const carModel = slot.carModel || "octane";
-        w.push(ut(carId, pName, team, isBot, diff, carModel));
-      }
-      return w;
-    }
-  }
-  const w = [];
-  const pCar = playerCarModel || "octane";
   const inv = getPlayerInventory();
   const activeLoadout = inv.loadout;
   const pDecal = ITEM_CATALOG[activeLoadout.decal];
@@ -12201,6 +12192,30 @@ function r2(){
   const pBoost = ITEM_CATALOG[activeLoadout.boost];
   const pTopper = ITEM_CATALOG[activeLoadout.topper];
   const pLoadout = { decal: pDecal, wheels: pWheels, boost: pBoost, topper: pTopper };
+
+  if (peerNetwork.isConnected && peerNetwork.roomState && peerNetwork.roomState.status === "in_game") {
+    const room = peerNetwork.roomState;
+    const occupiedSlots = room.slots.filter((s: any) => s.isOccupied);
+    if (occupiedSlots.length > 0) {
+      const w: any[] = [];
+      for (const slot of occupiedSlots) {
+        const isBot = !!slot.isBot || slot.pilotMode === "bot";
+        const carId = slot.peerId || slot.id;
+        const isMySlot = slot.peerId === peerNetwork.myPeerId;
+        const pName = isMySlot
+          ? (slot.pilotMode === "bot" ? `🤖 ${currentPilotName} (Bot)` : (currentPilotName || slot.playerName || "Player"))
+          : (slot.pilotMode === "bot" ? `🤖 ${slot.playerName} (Bot)` : (slot.playerName || (isBot ? "Bot" : "Player")));
+        const team = slot.team;
+        const diff = slot.botDifficulty || room.settings.botDifficulty || "ssl";
+        const carModel = slot.carModel || "octane";
+        const carLoadout = isMySlot ? pLoadout : undefined;
+        w.push(ut(carId, pName, team, isBot, diff, carModel, carLoadout));
+      }
+      return w;
+    }
+  }
+  const w = [];
+  const pCar = playerCarModel || "octane";
   const isP1Bot = pMode === "place_bot";
 
   if (H === "1v1") {
@@ -12346,7 +12361,7 @@ st.useEffect(()=>{
         car = Gt.current.find((c: any) => c.id === slot.id || c.name === slot.playerName);
       }
     }
-    if (car) {
+    if (car && !car.isBot) {
       car.input = {
         steerLeft: !!input.steerLeft,
         steerRight: !!input.steerRight,
@@ -12866,10 +12881,10 @@ onCeilingSetup=()=>{
   ht.current.vx=isB?(isLegacy?360:300):-(isLegacy?360:300);
   ht.current.vy=isLegacy?-60:-40;
   ht.current.spin=0;
-};const isSpectator = f.mode === "bot_vs_bot" || f.mode.startsWith("spectator");const isMobileDevice = showMobileControls || isTouchDevice;return d.jsx("main",{ref:containerRef,className:"fixed inset-0 w-full h-full min-h-[100dvh] max-h-[100dvh] bg-slate-950 overflow-hidden flex items-center justify-center font-sans select-none",children:d.jsxs("div",{className:"relative w-full h-full overflow-hidden",children:[d.jsx("canvas",{ref:u,className:"absolute inset-0 w-full h-full block"}),d.jsx(a2,{blueScore:C,orangeScore:N,timeLeft:X,isOvertime:I,matchState:p,gameMode:f.mode,botDifficulty:f.botDifficulty,physicsMode:f.physicsMode,currentMap:f.selectedMap||"standard",isPaused:m,onTogglePause:()=>g(H=>!H),onOpenSettings:()=>y(!0),onResetMatch:ie,isFullscreen:isFullscreen,onToggleFullscreen:toggleFullscreen,onOpenControls:()=>setIsControlsOpen(!0),onOpenReplayStudio:handleOpenStudioFromAnywhere,autoCam:f.autoCam!==false,onToggleAutoCam:toggleAutoCam,steeringControl:f.steeringControl||"keyboard",onToggleSteeringControl:toggleSteeringControl,onOpenScoreboard:()=>setIsScoreboardOpen(prev=>!prev),onOpenMatchHistory:()=>setIsMatchHistoryOpen(true),isMultiplayerActive:peerNetwork.isConnected&&peerNetwork.roomState?.status==="in_game",multiplayerRoomCode:peerNetwork.roomState?.roomCode||null,multiplayerPing:multiplayerPing,onOpenMultiplayer:()=>setIsMultiplayerOpen(true),onLeaveMultiplayer:()=>{peerNetwork.disconnect();setIsMultiplayerOpen(false);ie();},onOpenQuickMenu:()=>setIsQuickMenuOpen(true),isMobileDevice:isMobileDevice,onOpenGarage:()=>setIsGarageOpen(true),onOpenCrates:()=>setIsCratesOpen(true),onOpenRanked:()=>setIsRankedModalOpen(true),onOpenMatchSetup:()=>setIsMatchSetupOpen(true),unopenedCratesCount:Object.values(getPlayerInventory().unopenedCrates||{}).reduce((acc:number,v:any)=>acc+v,0),currentRankLabel:calculateRankDetails(getRankedProfile().mmr).label,currentMmr:getRankedProfile().mmr}),
+};const isSpectator = f.mode === "bot_vs_bot" || f.mode.startsWith("spectator");const isMobileDevice = showMobileControls || isTouchDevice;return d.jsx("main",{ref:containerRef,className:"fixed inset-0 w-full h-full min-h-[100dvh] max-h-[100dvh] bg-slate-950 overflow-hidden flex items-center justify-center font-sans select-none",children:d.jsxs("div",{className:"relative w-full h-full overflow-hidden",children:[d.jsx("canvas",{ref:u,className:"absolute inset-0 w-full h-full block"}),d.jsx(a2,{blueScore:C,orangeScore:N,timeLeft:X,isOvertime:I,matchState:p,gameMode:f.mode,botDifficulty:f.botDifficulty,physicsMode:f.physicsMode,currentMap:f.selectedMap||"standard",isPaused:m,onTogglePause:()=>g(H=>!H),onOpenSettings:()=>y(!0),onResetMatch:ie,isFullscreen:isFullscreen,onToggleFullscreen:toggleFullscreen,onOpenControls:()=>setIsControlsOpen(!0),onOpenReplayStudio:handleOpenStudioFromAnywhere,autoCam:f.autoCam!==false,onToggleAutoCam:toggleAutoCam,steeringControl:f.steeringControl||"keyboard",onToggleSteeringControl:toggleSteeringControl,onOpenScoreboard:()=>setIsScoreboardOpen(prev=>!prev),onOpenMatchHistory:()=>setIsMatchHistoryOpen(true),isMultiplayerActive:peerNetwork.isConnected&&peerNetwork.roomState?.status==="in_game",multiplayerRoomCode:peerNetwork.roomState?.roomCode||null,multiplayerPing:multiplayerPing,onOpenMultiplayer:()=>setIsMultiplayerOpen(true),onLeaveMultiplayer:()=>{peerNetwork.disconnect();setIsMultiplayerOpen(false);ie();},onOpenQuickMenu:()=>setIsQuickMenuOpen(true),isMobileDevice:isMobileDevice,onOpenGarage:()=>setIsGarageOpen(true),onOpenCrates:()=>setIsCratesOpen(true),onOpenRanked:()=>setIsRankedModalOpen(true),onOpenMatchSetup:()=>setIsMatchSetupOpen(true),coinsCount:getPlayerInventory().coins,unopenedCratesCount:Object.values(getPlayerInventory().unopenedCrates||{}).reduce((acc:number,v:any)=>acc+v,0),currentRankLabel:calculateRankDetails(getRankedProfile().mmr).label,currentMmr:getRankedProfile().mmr}),
 isPortrait&&isTouchDevice&&!dismissPortrait&&d.jsxs("div",{className:"absolute top-16 left-1/2 -translate-x-1/2 z-45 w-[92%] max-w-sm px-3.5 py-2.5 rounded-2xl bg-slate-900/95 border border-amber-500/60 shadow-2xl backdrop-blur-md flex items-center justify-between gap-2.5 text-amber-200 animate-fade-in pointer-events-auto",children:[d.jsxs("div",{className:"flex items-center gap-2",children:[d.jsx(RotateCw,{className:"w-4 h-4 text-amber-400 shrink-0 animate-spin-slow"}),d.jsxs("span",{className:"text-xs font-sans font-medium text-amber-100",children:["Rotate device to ",d.jsx("strong",{className:"text-amber-300",children:"Landscape"})," for best view!"]})]}),d.jsx("button",{onClick:()=>setDismissPortrait(true),className:"px-2 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold text-[11px] shrink-0 cursor-pointer",children:"Got it"})]}),
 showMobileControls&&d.jsx(MobileControlsOverlay,{onInputChange:handleTouchInputChange,activeBoost:B?.boost??100,hasFlipReset:!!B?.hasFlipReset,isAirRollInverted:!!B?.airRollInverted,isGrounded:!!B?.isGrounded,isSpectator:isSpectator,visible:!m&&p!=="ended"&&!goalReplayUI?.active&&!dvr.active}),
-d.jsx(MobileQuickMenu,{isOpen:isQuickMenuOpen,onClose:()=>setIsQuickMenuOpen(false),isPaused:m,onTogglePause:()=>g(H=>!H),onResetMatch:ie,isFullscreen:isFullscreen,onToggleFullscreen:toggleFullscreen,isAudioMuted:!f.soundEnabled,onToggleAudioMute:()=>handleUpdateSettings({...f,soundEnabled:!f.soundEnabled}),autoCam:f.autoCam!==false,onToggleAutoCam:toggleAutoCam,steeringControl:f.steeringControl||"keyboard",onToggleSteeringControl:toggleSteeringControl,onOpenMultiplayer:()=>setIsMultiplayerOpen(true),onOpenSettings:()=>y(!0),onOpenControls:()=>setIsControlsOpen(!0),onOpenMatchHistory:()=>setIsMatchHistoryOpen(true),onOpenReplayStudio:handleOpenStudioFromAnywhere,isSpectator:isSpectator,isMultiplayerActive:peerNetwork.isConnected&&peerNetwork.roomState?.status==="in_game",multiplayerRoomCode:peerNetwork.roomState?.roomCode||null}),
+d.jsx(MobileQuickMenu,{isOpen:isQuickMenuOpen,onClose:()=>setIsQuickMenuOpen(false),isPaused:m,onTogglePause:()=>g(H=>!H),onResetMatch:ie,isFullscreen:isFullscreen,onToggleFullscreen:toggleFullscreen,isAudioMuted:!f.soundEnabled,onToggleAudioMute:()=>handleUpdateSettings({...f,soundEnabled:!f.soundEnabled}),autoCam:f.autoCam!==false,onToggleAutoCam:toggleAutoCam,steeringControl:f.steeringControl||"keyboard",onToggleSteeringControl:toggleSteeringControl,onOpenMultiplayer:()=>setIsMultiplayerOpen(true),onOpenSettings:()=>y(!0),onOpenControls:()=>setIsControlsOpen(!0),onOpenMatchHistory:()=>setIsMatchHistoryOpen(true),onOpenReplayStudio:handleOpenStudioFromAnywhere,isSpectator:isSpectator,isMultiplayerActive:peerNetwork.isConnected&&peerNetwork.roomState?.status==="in_game",multiplayerRoomCode:peerNetwork.roomState?.roomCode||null,onOpenGarage:()=>setIsGarageOpen(true),onOpenCrates:()=>setIsCratesOpen(true),onOpenRanked:()=>setIsRankedModalOpen(true),onOpenMatchSetup:()=>setIsMatchSetupOpen(true),coinsCount:getPlayerInventory().coins,unopenedCratesCount:Object.values(getPlayerInventory().unopenedCrates||{}).reduce((acc:number,v:any)=>acc+v,0),currentRankLabel:calculateRankDetails(getRankedProfile().mmr).label}),
 d.jsx(u2,{messages:J,onSendMessage:H=>x(H,pilotName,"blue")}),d.jsx(s2,{jumpKey:f.jumpKey,isOpen:isControlsOpen,onClose:()=>setIsControlsOpen(!1)}),
 d.jsx(ScoreboardModal,{isOpen:isScoreboardOpen,onClose:()=>setIsScoreboardOpen(false),cars:Gt.current,blueScore:C,orangeScore:N,gameMode:f.mode,arenaName:(activeMapDef||MAP_DEFINITIONS[f.selectedMap||"standard"]||MAP_DEFINITIONS.standard).name}),
 d.jsx(MatchHistoryModal,{isOpen:isMatchHistoryOpen,onClose:()=>setIsMatchHistoryOpen(false),onWatchReplay:handleWatchPastReplay}),

@@ -804,12 +804,44 @@ export const MultiplayerModal: React.FC<MultiplayerModalProps> = ({
                                       {isMe && <span className="text-[10px] text-sky-400 font-normal">(You)</span>}
                                     </span>
                                     <span className="text-[10px] text-slate-400">
-                                      {slot.isBot ? `AI • ${slot.botDifficulty?.toUpperCase()}` : slot.carModel.toUpperCase()}
+                                      {slot.isBot
+                                        ? `AI Bot • ${slot.botDifficulty?.toUpperCase()}`
+                                        : slot.pilotMode === "bot"
+                                        ? `🤖 Personal Bot • ${slot.carModel.toUpperCase()}`
+                                        : `🎮 Human • ${slot.carModel.toUpperCase()}`}
                                     </span>
                                   </div>
                                 </div>
 
-                                <div className="flex items-center gap-2 shrink-0">
+                                <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+                                  {!slot.isBot && (isMe || isHost) && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        const next = slot.pilotMode === "bot" ? "human" : "bot";
+                                        peerNetwork.requestPilotModeChange(next, slot.id);
+                                      }}
+                                      className={`px-2 py-0.5 rounded-lg text-[10px] font-gaming font-black uppercase transition cursor-pointer flex items-center gap-1 border ${
+                                        slot.pilotMode === "bot"
+                                          ? "bg-amber-500/25 border-amber-500/60 text-amber-300 shadow-sm"
+                                          : "bg-sky-500/20 border-sky-500/50 text-sky-300 hover:bg-sky-500/30"
+                                      }`}
+                                      title="Toggle between playing directly as Human or deploying your personal AI Bot"
+                                    >
+                                      {slot.pilotMode === "bot" ? (
+                                        <>
+                                          <Bot className="w-3 h-3 text-amber-400" />
+                                          <span>My Bot</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Car className="w-3 h-3 text-sky-400" />
+                                          <span>Human</span>
+                                        </>
+                                      )}
+                                    </button>
+                                  )}
                                   {!slot.isBot && slot.ping > 0 && (
                                     <span className="text-[10px] font-mono text-emerald-400">
                                       {slot.ping}ms
@@ -905,12 +937,44 @@ export const MultiplayerModal: React.FC<MultiplayerModalProps> = ({
                                       {isMe && <span className="text-[10px] text-orange-400 font-normal">(You)</span>}
                                     </span>
                                     <span className="text-[10px] text-slate-400">
-                                      {slot.isBot ? `AI • ${slot.botDifficulty?.toUpperCase()}` : slot.carModel.toUpperCase()}
+                                      {slot.isBot
+                                        ? `AI Bot • ${slot.botDifficulty?.toUpperCase()}`
+                                        : slot.pilotMode === "bot"
+                                        ? `🤖 Personal Bot • ${slot.carModel.toUpperCase()}`
+                                        : `🎮 Human • ${slot.carModel.toUpperCase()}`}
                                     </span>
                                   </div>
                                 </div>
 
-                                <div className="flex items-center gap-2 shrink-0">
+                                <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+                                  {!slot.isBot && (isMe || isHost) && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        const next = slot.pilotMode === "bot" ? "human" : "bot";
+                                        peerNetwork.requestPilotModeChange(next, slot.id);
+                                      }}
+                                      className={`px-2 py-0.5 rounded-lg text-[10px] font-gaming font-black uppercase transition cursor-pointer flex items-center gap-1 border ${
+                                        slot.pilotMode === "bot"
+                                          ? "bg-amber-500/25 border-amber-500/60 text-amber-300 shadow-sm"
+                                          : "bg-orange-500/20 border-orange-500/50 text-orange-300 hover:bg-orange-500/30"
+                                      }`}
+                                      title="Toggle between playing directly as Human or deploying your personal AI Bot"
+                                    >
+                                      {slot.pilotMode === "bot" ? (
+                                        <>
+                                          <Bot className="w-3 h-3 text-amber-400" />
+                                          <span>My Bot</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Car className="w-3 h-3 text-orange-400" />
+                                          <span>Human</span>
+                                        </>
+                                      )}
+                                    </button>
+                                  )}
                                   {!slot.isBot && slot.ping > 0 && (
                                     <span className="text-[10px] font-mono text-emerald-400">
                                       {slot.ping}ms
