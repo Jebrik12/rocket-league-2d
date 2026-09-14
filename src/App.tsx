@@ -75,6 +75,28 @@ import { peerNetwork } from "./network/peerManager";
 import { MatchSnapshot } from "./network/multiplayerTypes";
 import { MobileControlsOverlay, TouchInputState } from "./components/MobileControlsOverlay";
 import { MobileQuickMenu } from "./components/MobileQuickMenu";
+import { GarageModal } from "./components/GarageModal";
+import { CrateOpeningModal } from "./components/CrateOpeningModal";
+import { MatchSetupModal, MatchSetupConfig, PilotMode } from "./components/MatchSetupModal";
+import { RankedMatchmakingModal } from "./components/RankedMatchmakingModal";
+import { RankProgressionOverlay } from "./components/RankProgressionOverlay";
+import {
+  getPlayerInventory,
+  recordMatchMastery
+} from "./customization/customizationStorage";
+import { ITEM_CATALOG } from "./customization/customizationData";
+import {
+  drawCarDecal,
+  drawCustomWheel,
+  drawCarTopper
+} from "./customization/customizationRenderer";
+import {
+  getRankedProfile,
+  processRankedMatchEnd,
+  calculateRankDetails,
+  RANK_TIERS
+} from "./ranked/rankedStorage";
+import { RankedBotProfile } from "./ranked/rankedTypes";
 
 
 
@@ -8012,6 +8034,11 @@ function eg(u: any, f: any, m: any = {}) {
     drawOctaneBody(u, f, r, s, nearWheelY, rearWheelX, frontWheelX, wheelRadius, primaryBright, primaryMid, primaryDark, accentColor, chassisDark, metalSilver, metalDark);
   }
 
+  // 4.5. Custom Decal / Livery
+  if (f.customDecal) {
+    drawCarDecal(u, f, r, s, f.customDecal);
+  }
+
   // 5. Headlight beam forward
   const beamGrad = u.createLinearGradient(r + 2, -1, r + 130, -1);
   beamGrad.addColorStop(0, "rgba(254, 240, 138, 0.35)");
@@ -8025,8 +8052,18 @@ function eg(u: any, f: any, m: any = {}) {
   u.fill();
 
   // 6. Foreground wheels
-  drawWheel(rearWheelX, nearWheelY, wheelRadius, false);
-  drawWheel(frontWheelX, nearWheelY, wheelRadius, false);
+  if (f.customWheels) {
+    drawCustomWheel(u, rearWheelX, nearWheelY, wheelRadius, f.customWheels, f.angle || 0);
+    drawCustomWheel(u, frontWheelX, nearWheelY, wheelRadius, f.customWheels, f.angle || 0);
+  } else {
+    drawWheel(rearWheelX, nearWheelY, wheelRadius, false);
+    drawWheel(frontWheelX, nearWheelY, wheelRadius, false);
+  }
+
+  // 6.5. Custom Roof Topper
+  if (f.customTopper) {
+    drawCarTopper(u, f, r, s, f.customTopper);
+  }
 
   // 7. Hitbox Visualizer Overlay (when setting is active)
   if (m.showHitbox || f.showHitbox) {
@@ -8796,7 +8833,14 @@ const a2 = ({
   onOpenMultiplayer,
   onLeaveMultiplayer,
   onOpenQuickMenu,
-  isMobileDevice = false
+  isMobileDevice = false,
+  onOpenGarage,
+  onOpenCrates,
+  onOpenRanked,
+  onOpenMatchSetup,
+  unopenedCratesCount = 0,
+  currentRankLabel = "Ranked",
+  currentMmr = 600
 }: any) => {
   const N = Math.floor(Math.max(0, r) / 60);
   const D = Math.floor(Math.max(0, r) % 60);
@@ -8831,11 +8875,33 @@ const a2 = ({
         d.jsxs("div", {
           className: "flex items-center gap-1.5 flex-1 min-w-0 justify-start overflow-hidden",
           children: [
-            d.jsxs("div", {
-              className: "flex items-center gap-1.5 bg-slate-900/90 backdrop-blur-md px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl border border-slate-700/80 shadow-lg text-[11px] sm:text-xs font-gaming font-bold text-slate-200 shrink-0",
+            onOpenMatchSetup ? (
+              d.jsxs("button", {
+                onClick: onOpenMatchSetup,
+                className: "flex items-center gap-1.5 bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl shadow-lg text-[11px] sm:text-xs font-gaming font-bold text-slate-200 transition cursor-pointer shrink-0 active:scale-95",
+                title: "Match Setup / Select Pilot Mode: Human, Place Bot, or Just Bots",
+                children: [
+                  d.jsx(Hg, { className: "w-3 h-3 sm:w-3.5 sm:h-3.5 text-sky-400" }),
+                  d.jsx("span", { children: modeLabels[m] || m })
+                ]
+              })
+            ) : (
+              d.jsxs("div", {
+                className: "flex items-center gap-1.5 bg-slate-900/90 backdrop-blur-md px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl border border-slate-700/80 shadow-lg text-[11px] sm:text-xs font-gaming font-bold text-slate-200 shrink-0",
+                children: [
+                  d.jsx(Is, { className: "w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-400" }),
+                  d.jsx("span", { children: modeLabels[m] || m })
+                ]
+              })
+            ),
+            onOpenRanked && d.jsxs("button", {
+              onClick: onOpenRanked,
+              className: "flex items-center gap-1 px-2 py-1 sm:py-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-purple-500/20 hover:from-amber-500/30 hover:to-purple-500/30 border border-amber-500/50 text-amber-300 font-gaming font-bold text-[10px] sm:text-[11px] shadow-lg transition cursor-pointer shrink-0 active:scale-95",
+              title: "Competitive Ranked Play, MMR & Divisions",
               children: [
-                d.jsx(Is, { className: "w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-400" }),
-                d.jsx("span", { children: modeLabels[m] || m })
+                d.jsx(Is, { className: "w-3 h-3 text-amber-400" }),
+                d.jsx("span", { className: "hidden md:inline", children: currentRankLabel }),
+                d.jsxs("span", { className: "font-mono font-black text-[9px] px-1 py-0.2 rounded bg-black/40 text-amber-300", children: [currentMmr, " MMR"] })
               ]
             }),
             d.jsxs("button", {
@@ -8925,6 +8991,28 @@ const a2 = ({
         d.jsxs("div", {
           className: "flex items-center gap-1.5 flex-1 min-w-0 justify-end",
           children: [
+            onOpenGarage && d.jsxs("button", {
+              onClick: onOpenGarage,
+              className: "flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-sky-600/30 to-blue-600/30 hover:from-sky-600/50 hover:to-blue-600/50 border border-sky-500/50 hover:border-sky-400/80 text-white font-gaming font-bold text-xs shadow-lg transition cursor-pointer active:scale-95 shrink-0",
+              title: "Open Garage: Customize Cars, Decals, Wheels, Toppers & Upgrades",
+              children: [
+                d.jsx(Car, { className: "w-3.5 h-3.5 text-sky-400" }),
+                d.jsx("span", { className: "hidden sm:inline", children: "Garage" })
+              ]
+            }),
+            onOpenCrates && d.jsxs("button", {
+              onClick: onOpenCrates,
+              className: "flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-purple-600/30 to-indigo-600/30 hover:from-purple-600/50 hover:to-indigo-600/50 border border-purple-500/50 hover:border-purple-400/80 text-white font-gaming font-bold text-xs shadow-lg transition cursor-pointer active:scale-95 shrink-0 relative",
+              title: "Crate Unboxing: Spin Cases for Exotic Cars & Black Market Items",
+              children: [
+                d.jsx(Box, { className: "w-3.5 h-3.5 text-purple-400" }),
+                d.jsx("span", { className: "hidden sm:inline", children: "Crates" }),
+                unopenedCratesCount > 0 && d.jsx("span", {
+                  className: "px-1.5 py-0.2 rounded-full bg-amber-400 text-slate-950 font-black text-[9px]",
+                  children: unopenedCratesCount
+                })
+              ]
+            }),
             isMultiplayerActive ? (
               d.jsxs("div", {
                 className: "flex items-center gap-1.5 px-2 py-1 rounded-xl bg-slate-900/95 border border-emerald-500/60 shadow-lg text-xs font-gaming shrink-0",
@@ -12003,6 +12091,17 @@ function r2(){
   [isMultiplayerOpen, setIsMultiplayerOpen] = st.useState(!1),
   [multiplayerPing, setMultiplayerPing] = st.useState(0),
   [roomStateVersion, setRoomStateVersion] = st.useState(0);
+  const [isGarageOpen, setIsGarageOpen] = st.useState(false);
+  const [isCratesOpen, setIsCratesOpen] = st.useState(false);
+  const [isMatchSetupOpen, setIsMatchSetupOpen] = st.useState(false);
+  const [isRankedModalOpen, setIsRankedModalOpen] = st.useState(false);
+  const [isRankProgressionOpen, setIsRankProgressionOpen] = st.useState(false);
+  const [rankedMatchResult, setRankedMatchResult] = st.useState<any>(null);
+  const [matchRewards, setMatchRewards] = st.useState<any>(null);
+  const [isCurrentMatchRanked, setIsCurrentMatchRanked] = st.useState(false);
+  const [currentOpponentMmr, setCurrentOpponentMmr] = st.useState<number | undefined>(undefined);
+  const [pilotMode, setPilotMode] = st.useState<PilotMode>("human");
+  const [loadoutVersion, setLoadoutVersion] = st.useState(0);
   const lastSnapshotBroadcastRef = st.useRef(0);
   const hasSavedMatchRef = st.useRef(false);
 
@@ -12066,7 +12165,7 @@ function r2(){
       isPlaying: true,
       speed: 1
     });
-  }, []);function $(){return{x:Kt/2,y:k-Cu,vx:0,vy:0,radius:Cu,spin:0,isGoalScored:!1,lastTouchTeam:null,lastTouchPlayer:null,lastTouchTime:0,touchEffectTimer:0}}function bt(H: string, Z: string, playerCarModel: string = "octane"){
+  }, []);function $(){return{x:Kt/2,y:k-Cu,vx:0,vy:0,radius:Cu,spin:0,isGoalScored:!1,lastTouchTeam:null,lastTouchPlayer:null,lastTouchTime:0,touchEffectTimer:0}}function bt(H: string, Z: string, playerCarModel: string = "octane", pMode: string = "human"){
   clearLobbyNames();
   const currentPilotName = (() => {
     try {
@@ -12095,12 +12194,21 @@ function r2(){
   }
   const w = [];
   const pCar = playerCarModel || "octane";
+  const inv = getPlayerInventory();
+  const activeLoadout = inv.loadout;
+  const pDecal = ITEM_CATALOG[activeLoadout.decal];
+  const pWheels = ITEM_CATALOG[activeLoadout.wheels];
+  const pBoost = ITEM_CATALOG[activeLoadout.boost];
+  const pTopper = ITEM_CATALOG[activeLoadout.topper];
+  const pLoadout = { decal: pDecal, wheels: pWheels, boost: pBoost, topper: pTopper };
+  const isP1Bot = pMode === "place_bot";
+
   if (H === "1v1") {
-    w.push(ut("p1", currentPilotName, "blue", !1, "ssl", pCar));
+    w.push(ut("p1", currentPilotName, "blue", isP1Bot, isP1Bot ? Z : "ssl", pCar, pLoadout));
     const q = Z === "unfair" ? getRandomMemeName("☠️") : Z === "ssl" ? getRandomMemeName("🔥") : getRandomMemeName();
     w.push(ut("b1", q, "orange", !0, Z, getBotCarModel(q)));
   } else if (H === "2v2") {
-    w.push(ut("p1", currentPilotName, "blue", !1, "ssl", pCar));
+    w.push(ut("p1", currentPilotName, "blue", isP1Bot, isP1Bot ? Z : "ssl", pCar, pLoadout));
     const tm = getRandomMemeName("🤝");
     w.push(ut("tm", tm, "blue", !0, Z, getBotCarModel(tm)));
     const q = Z === "unfair" ? getRandomMemeName("☠️") : Z === "ssl" ? getRandomMemeName("👾") : getRandomMemeName(),
@@ -12108,7 +12216,7 @@ function r2(){
     w.push(ut("b1", q, "orange", !0, Z, getBotCarModel(q)));
     w.push(ut("b2", Wt, "orange", !0, Z, getBotCarModel(Wt)));
   } else if (H === "3v3") {
-    w.push(ut("p1", currentPilotName, "blue", !1, "ssl", pCar));
+    w.push(ut("p1", currentPilotName, "blue", isP1Bot, isP1Bot ? Z : "ssl", pCar, pLoadout));
     const tm1 = getRandomMemeName("🤝");
     const tm2 = getRandomMemeName("⚡");
     w.push(ut("tm1", tm1, "blue", !0, Z, getBotCarModel(tm1)));
@@ -12120,7 +12228,7 @@ function r2(){
     w.push(ut("o2", o2, "orange", !0, Z, getBotCarModel(o2)));
     w.push(ut("o3", o3, "orange", !0, Z, getBotCarModel(o3)));
   } else if (H === "training") {
-    w.push(ut("p1", "Player", "blue", !1, "ssl", pCar));
+    w.push(ut("p1", "Player", "blue", !1, "ssl", pCar, pLoadout));
   } else if (H === "bot_vs_bot") {
     const b1 = getRandomMemeName("🔵"), b2 = getRandomMemeName("🟠");
     w.push(ut("b1", b1, "blue", !0, "ssl", getBotCarModel(b1)));
@@ -12143,7 +12251,7 @@ function r2(){
     w.push(ut("o3", o3, "orange", !0, "ssl", getBotCarModel(o3)));
   }
   return w;
-}function ut(H: string, Z: string, w: string, q: boolean, Wt: string = "ssl", carModelId: string = "octane"){const il=w==="blue",xt=il?At+280:Mt-280;const def=CAR_DEFINITIONS[carModelId]||CAR_DEFINITIONS.octane;const carWidth=def.width,carHeight=def.height;return{id:H,name:Z,team:w,isBot:q,botDifficulty:Wt,carModel:carModelId,hitboxClass:def.hitboxClass,wheelbase:def.wheelbase,wheelRadius:def.wheelRadius,x:xt,y:k-carHeight/2,vx:0,vy:0,angle:il?0:Math.PI,facing:il?1:-1,airRollInverted:!1,angularVel:0,width:carWidth,height:carHeight,isGrounded:!0,surfaceNormal:{x:0,y:-1},surfaceType:"floor",boost:33,isBoosting:!1,isSupersonic:!1,supersonicTimer:0,canJump:!0,jumpCount:0,jumpHoldTimer:0,flipWindowTimer:0,isFlipping:!1,flipDirection:{x:0,y:0},flipTimer:0,isDemoed:!1,demoRespawnTimer:0,score:0,goals:0,saves:0,shots:0,demos:0,input:{steerLeft:!1,steerRight:!1,throttleForward:!1,throttleReverse:!1,pitchUp:!1,pitchDown:!1,jump:!1,boost:!1,handbrake:!1}}}const be=st.useCallback(()=>{
+}function ut(H: string, Z: string, w: string, q: boolean, Wt: string = "ssl", carModelId: string = "octane", customLoadout?: any){const il=w==="blue",xt=il?At+280:Mt-280;const def=CAR_DEFINITIONS[carModelId]||CAR_DEFINITIONS.octane;const carWidth=def.width,carHeight=def.height;return{id:H,name:Z,team:w,isBot:q,botDifficulty:Wt,carModel:carModelId,hitboxClass:def.hitboxClass,wheelbase:def.wheelbase,wheelRadius:def.wheelRadius,customDecal:customLoadout?.decal,customWheels:customLoadout?.wheels,customBoost:customLoadout?.boost,customTopper:customLoadout?.topper,x:xt,y:k-carHeight/2,vx:0,vy:0,angle:il?0:Math.PI,facing:il?1:-1,airRollInverted:!1,angularVel:0,width:carWidth,height:carHeight,isGrounded:!0,surfaceNormal:{x:0,y:-1},surfaceType:"floor",boost:33,isBoosting:!1,isSupersonic:!1,supersonicTimer:0,canJump:!0,jumpCount:0,jumpHoldTimer:0,flipWindowTimer:0,isFlipping:!1,flipDirection:{x:0,y:0},flipTimer:0,isDemoed:!1,demoRespawnTimer:0,score:0,goals:0,saves:0,shots:0,demos:0,input:{steerLeft:!1,steerRight:!1,throttleForward:!1,throttleReverse:!1,pitchUp:!1,pitchDown:!1,jump:!1,boost:!1,handbrake:!1}}}const be=st.useCallback(()=>{
     ht.current=$(),Yt.current=[],Xt.current=0,ot(null),resetAutoCam(Kt/2,(Qt+k)/2);
     if(ne.current){
       ne.current.forEach((p:any)=>{p.active=!0;p.cooldownTimer=0;});
@@ -12211,7 +12319,7 @@ function r2(){
     const targetPhysics = isMulti ? (peerNetwork.roomState?.settings.physicsMode || f.physicsMode || "rocket_league") : (f.physicsMode || "rocket_league");
     syncMapGlobals(targetMap);
     syncPhysicsGlobals(targetPhysics);
-    Gt.current = bt(f.mode, f.botDifficulty, f.selectedCar || "octane");
+    Gt.current = bt(f.mode, f.botDifficulty, f.selectedCar || "octane", pilotMode);
     ne.current = Yh(targetMap);
     z(0);
     D(0);
@@ -12226,7 +12334,7 @@ function r2(){
     setGoalReplayUI(null);
     setDvr({ active: !1, offsetSec: 0, isPlaying: !1, speed: 1 });
     be();
-  },[f.mode,f.botDifficulty,f.matchDuration,f.selectedCar,f.selectedMap,f.physicsMode,be]);
+  },[f.mode,f.botDifficulty,f.matchDuration,f.selectedCar,f.selectedMap,f.physicsMode,pilotMode,loadoutVersion,be]);
 const getAvailableDvrSeconds=st.useCallback(()=>{const hist=replayHistoryRef.current;if(hist.length<2)return 0;return Math.max(0,(hist[hist.length-1].time-hist[0].time)/1000);},[]),skipGoalReplay=st.useCallback(()=>{goalReplayRef.current=null,setGoalReplayUI(null),setActiveReplayBadge(null),replayAudioTimeRef.current=null,I?A("ended"):(X<=0&&f.matchDuration<9e3?(C===N?(U(!0),tt(0),be()):A("ended")):be())},[I,X,f.matchDuration,be,C,N]),handleGoalReplayTogglePause=st.useCallback(()=>{if(!goalReplayRef.current)return;goalReplayRef.current.isPaused=!goalReplayRef.current.isPaused,setGoalReplayUI((prev:any)=>prev?{...prev,isPaused:goalReplayRef.current.isPaused}:null)},[]),handleGoalReplayScrub=st.useCallback((prog:number)=>{if(!goalReplayRef.current)return;const targetSec=Math.max(0,Math.min(goalReplayRef.current.durationSec,prog*goalReplayRef.current.durationSec));goalReplayRef.current.currentSec=targetSec;replayAudioTimeRef.current=goalReplayRef.current.startTime+targetSec*1000;setGoalReplayUI((prev:any)=>prev?{...prev,progress:prog,currentSec:targetSec.toFixed(1)}:null)},[]),handleGoalReplayStep=st.useCallback((deltaSec:number)=>{if(!goalReplayRef.current)return;const nextSec=Math.max(0,Math.min(goalReplayRef.current.durationSec,goalReplayRef.current.currentSec+deltaSec));goalReplayRef.current.currentSec=nextSec,goalReplayRef.current.isPaused=!0;replayAudioTimeRef.current=goalReplayRef.current.startTime+nextSec*1000;setGoalReplayUI((prev:any)=>prev?{...prev,isPaused:!0,currentSec:nextSec.toFixed(1),progress:goalReplayRef.current.durationSec>0?nextSec/goalReplayRef.current.durationSec:0}:null)},[]),handleGoalReplayRestart=st.useCallback(()=>{if(!goalReplayRef.current)return;goalReplayRef.current.currentSec=0;replayAudioTimeRef.current=goalReplayRef.current.startTime;setGoalReplayUI((prev:any)=>prev?{...prev,progress:0,currentSec:"0.0"}:null)},[]),handleGoalReplaySpeed=st.useCallback((sp:number)=>{if(!goalReplayRef.current)return;goalReplayRef.current.speed=sp,goalReplayRef.current.isManualSpeed=!0,setGoalReplayUI((prev:any)=>prev?{...prev,speed:sp}:null)},[]),handleDvrScrub=st.useCallback((offsetSec:number)=>{const maxSec=Math.max(1,getAvailableDvrSeconds()),clamped=Math.max(0,Math.min(maxSec,offsetSec));const hist=replayHistoryRef.current;if(hist.length>0){replayAudioTimeRef.current=hist[hist.length-1].time-clamped*1000;}setDvr(prev=>({...prev,active:clamped>0.05,offsetSec:clamped,isPlaying:!1}))},[getAvailableDvrSeconds]),handleDvrJump=st.useCallback((secondsAgo:number)=>{const maxSec=Math.max(1,getAvailableDvrSeconds()),target=Math.min(maxSec,secondsAgo);const hist=replayHistoryRef.current;if(hist.length>0){replayAudioTimeRef.current=hist[hist.length-1].time-target*1000;}setDvr(prev=>({...prev,active:!0,offsetSec:target,isPlaying:!0}))},[getAvailableDvrSeconds]),handleDvrStep=st.useCallback((deltaSec:number)=>{const maxSec=Math.max(1,getAvailableDvrSeconds());setDvr(prev=>{const nextOffset=Math.max(0,Math.min(maxSec,prev.offsetSec+deltaSec));const hist=replayHistoryRef.current;if(hist.length>0){replayAudioTimeRef.current=hist[hist.length-1].time-nextOffset*1000;}return{...prev,active:nextOffset>0.05,offsetSec:nextOffset,isPlaying:!1}})},[getAvailableDvrSeconds]),handleDvrTogglePlay=st.useCallback(()=>{setDvr(prev=>{if(!prev.active||prev.offsetSec<=0.05){const maxSec=Math.max(1,getAvailableDvrSeconds());return{...prev,active:!0,offsetSec:Math.min(10,maxSec),isPlaying:!0}}return{...prev,isPlaying:!prev.isPlaying}})},[getAvailableDvrSeconds]),handleDvrGoLive=st.useCallback(()=>{setDvr({active:!1,offsetSec:0,isPlaying:!1,speed:1}),replayAudioTimeRef.current=null,m&&g(!1)},[m]),handleDvrSpeedChange=st.useCallback((speed:number)=>{setDvr(prev=>({...prev,speed}))},[]),handleSeekToTime=st.useCallback((targetTime:number)=>{const hist=replayHistoryRef.current;if(!hist||hist.length===0)return;const lastTime=hist[hist.length-1].time,maxSec=Math.max(1,(lastTime-hist[0].time)/1000),offset=Math.max(0,Math.min(maxSec,(lastTime-targetTime)/1000));replayAudioTimeRef.current=targetTime;setDvr(prev=>({...prev,active:!0,offsetSec:offset,isPlaying:!0}))},[]),handleSetClipIn=st.useCallback(()=>{const totalSec=Math.max(1,getAvailableDvrSeconds()),currentElapsed=Math.max(0,totalSec-dvrRef.current.offsetSec);setClipRange(prev=>({...prev,inSec:parseFloat(currentElapsed.toFixed(1))}))},[getAvailableDvrSeconds]),handleSetClipOut=st.useCallback(()=>{const totalSec=Math.max(1,getAvailableDvrSeconds()),currentElapsed=Math.max(0,totalSec-dvrRef.current.offsetSec);setClipRange(prev=>({...prev,outSec:parseFloat(currentElapsed.toFixed(1))}))},[getAvailableDvrSeconds]),handleQuickClip=st.useCallback((seconds:number)=>{const totalSec=Math.max(1,getAvailableDvrSeconds()),currentElapsed=Math.max(0,totalSec-dvrRef.current.offsetSec);setClipRange({inSec:Math.max(0,parseFloat((currentElapsed-seconds).toFixed(1))),outSec:parseFloat(currentElapsed.toFixed(1))})},[getAvailableDvrSeconds]),handleExportClip=st.useCallback(async(format:"mp4"|"gif",customInSec?:number,customOutSec?:number)=>{const hist=replayHistoryRef.current;if(!hist||hist.length<3){alert("No replay frames recorded yet.");return;}const totalSec=Math.max(1,(hist[hist.length-1].time-hist[0].time)/1000);let startSec=customInSec!==undefined?customInSec:clipRange.inSec,endSec=customOutSec!==undefined?customOutSec:clipRange.outSec;if(Math.abs(endSec-startSec)<0.4){startSec=Math.max(0,endSec-5);}const minSec=Math.min(startSec,endSec),maxSec=Math.min(totalSec,Math.max(startSec,endSec)),startTime=hist[0].time+minSec*1000,endTime=hist[0].time+maxSec*1000,slice=hist.filter((s:any)=>s.time>=startTime&&s.time<=endTime);if(slice.length<3){alert("Please select a range with at least 1 second of replay.");return;}const abortController=new AbortController();exportAbortRef.current=abortController;setExportModal({isOpen:!0,format,progress:0,statusText:"Preparing frames...",error:null});try{const renderFrame=(ctx:CanvasRenderingContext2D,snap:any)=>{kv(ctx,snap.cars,snap.ball,snap.boostPads||ne.current,snap.particles||[],{showTrajectory:!1,arenaTheme:f.arenaTheme,showMechanicAlerts:f.showMechanicAlerts!==false,showHitbox:f.showHitbox,isReplay:!0,replayTime:snap.time,matchEvents:matchEventsRef.current})};if(format==="mp4"){await exportClipAsVideo({snapshots:slice,renderFrame,width:1280,height:704,fps:30,signal:abortController.signal,onProgress:(pct,statusText)=>{setExportModal(prev=>({...prev,progress:pct,statusText}))}})}else{await exportClipAsGif({snapshots:slice,renderFrame,width:640,height:352,fps:20,signal:abortController.signal,onProgress:(pct,statusText)=>{setExportModal(prev=>({...prev,progress:pct,statusText}))}})}setExportModal(prev=>({...prev,progress:100,statusText:"Export complete! File downloaded."}));setTimeout(()=>{setExportModal(prev=>({...prev,isOpen:!1}))},1500);}catch(err:any){if(abortController.signal.aborted){setExportModal(prev=>({...prev,isOpen:!1}))}else{setExportModal(prev=>({...prev,error:err.message||"Export failed."}))}}},[clipRange,f.arenaTheme,f.showMechanicAlerts,f.showHitbox]),handleExportGoalClip=st.useCallback((format:"mp4"|"gif")=>{if(!goalReplayRef.current||!goalReplayRef.current.frames)return;const frames=goalReplayRef.current.frames,hist=replayHistoryRef.current;if(frames.length<3||hist.length<2)return;const inSec=Math.max(0,(frames[0].time-hist[0].time)/1000),outSec=Math.max(0,(frames[frames.length-1].time-hist[0].time)/1000);handleExportClip(format,inSec,outSec);},[handleExportClip]),handleCancelExport=st.useCallback(()=>{if(exportAbortRef.current){exportAbortRef.current.abort();}setExportModal(prev=>({...prev,isOpen:!1}))},[]),handleOpenStudioFromGoalReplay=st.useCallback(()=>{const gr=goalReplayRef.current,hist=replayHistoryRef.current;if(hist.length>0){const lastTime=hist[hist.length-1].time,targetTime=gr?(gr.startTime+(gr.currentSec||0)*1000):lastTime,offset=Math.max(0,(lastTime-targetTime)/1000);setDvr({active:!0,offsetSec:offset,isPlaying:!1,speed:1});}goalReplayRef.current=null,setGoalReplayUI(null);},[]),handleOpenStudioFromAnywhere=st.useCallback(()=>{const maxSec=Math.max(1,getAvailableDvrSeconds());setIsDvrCollapsed(false);setDvr({active:!0,offsetSec:Math.min(15,maxSec),isPlaying:!0,speed:1});},[getAvailableDvrSeconds]);
 st.useEffect(()=>{ie()},[ie]);
 st.useEffect(()=>{
@@ -12424,10 +12532,27 @@ st.useEffect(()=>{
       };
 
       saveMatchToHistory(matchMeta, replayHistoryRef.current, matchEventsRef.current);
+
+      const p1Car = currentCars.find((c: any) => c.id === "p1" || !c.isBot) || currentCars[0];
+      const isPlayerWin = (p1Car?.team === "blue" && C > N) || (p1Car?.team === "orange" && N > C);
+      const masteryRewards = recordMatchMastery(p1Car?.carModel || f.selectedCar || "octane", {
+        goals: p1Car?.goals || 0,
+        saves: p1Car?.saves || 0,
+        shots: p1Car?.shots || 0,
+        isWin: isPlayerWin,
+        isMvp: mvp.name === p1Car?.name
+      });
+      setMatchRewards(masteryRewards);
+
+      if (isCurrentMatchRanked) {
+        const rResult = processRankedMatchEnd(isPlayerWin, currentOpponentMmr);
+        setRankedMatchResult(rResult);
+        setIsRankProgressionOpen(true);
+      }
     } else if (p === "kickoff" || p === "playing") {
       hasSavedMatchRef.current = false;
     }
-  }, [p, C, N, I, f.mode, f.selectedMap, f.matchDuration, X]),st.useEffect(()=>{Me.setMuted(!f.soundEnabled),Me.setVolume(f.soundVolume)},[f.soundEnabled,f.soundVolume]);const Se=st.useRef({});st.useEffect(()=>{const H=xt=>{if(xt.target.tagName==="INPUT")return;const et=xt.code.toLowerCase(),Et=xt.key.toLowerCase();if(et==="keyf"||Et==="f"||Et==="а"){if(p!=="goal_replay"&&!m){xt.preventDefault(),toggleFullscreen();return}}if(et==="keym"||Et==="m"||Et==="ь"){xt.preventDefault(),toggleSteeringControl();return}if(et==="tab"||Et==="tab"){xt.preventDefault();setIsScoreboardOpen(prev=>!prev);return;}if(et==="keyh"||Et==="h"||Et==="р"){xt.preventDefault(),toggleHitbox();return}
+  }, [p, C, N, I, f.mode, f.selectedMap, f.matchDuration, f.selectedCar, X, isCurrentMatchRanked, currentOpponentMmr]),st.useEffect(()=>{Me.setMuted(!f.soundEnabled),Me.setVolume(f.soundVolume)},[f.soundEnabled,f.soundVolume]);const Se=st.useRef({});st.useEffect(()=>{const H=xt=>{if(xt.target.tagName==="INPUT")return;const et=xt.code.toLowerCase(),Et=xt.key.toLowerCase();if(et==="keyf"||Et==="f"||Et==="а"){if(p!=="goal_replay"&&!m){xt.preventDefault(),toggleFullscreen();return}}if(et==="keym"||Et==="m"||Et==="ь"){xt.preventDefault(),toggleSteeringControl();return}if(et==="tab"||Et==="tab"){xt.preventDefault();setIsScoreboardOpen(prev=>!prev);return;}if(et==="keyh"||Et==="h"||Et==="р"){xt.preventDefault(),toggleHitbox();return}
       if(et==="keyc"||Et==="c"||Et==="с"){xt.preventDefault(),toggleAutoCam();return}
       if(et==="keyy"||Et==="y"||Et==="н"){xt.preventDefault(),toggleTrajectory();return}(["space","arrowup","arrowdown","arrowleft","arrowright"].includes(et)||[" ","arrowup","arrowdown","arrowleft","arrowright"].includes(Et))&&xt.preventDefault(),Se.current[et]=!0,Se.current[Et]=!0;if((p==="goal_replay"||goalReplayRef.current)){if(et==="space"||Et===" "||Et==="escape"){xt.preventDefault(),skipGoalReplay();return}if(xt.key==="ArrowLeft"||xt.key==="["){xt.preventDefault(),handleGoalReplayStep(-0.5);return}if(xt.key==="ArrowRight"||xt.key==="]"){xt.preventDefault(),handleGoalReplayStep(0.5);return}if(et==="keyp"||Et==="p"||Et==="з"){xt.preventDefault(),handleGoalReplayTogglePause();return}if(et==="keyr"||Et==="r"||Et==="к"){xt.preventDefault(),handleGoalReplayRestart();return}}      const isSpectatorMode = f.mode === "bot_vs_bot" || f.mode.startsWith("spectator");
       if(isSpectatorMode||m||dvrRef.current.active){
@@ -12741,18 +12866,24 @@ onCeilingSetup=()=>{
   ht.current.vx=isB?(isLegacy?360:300):-(isLegacy?360:300);
   ht.current.vy=isLegacy?-60:-40;
   ht.current.spin=0;
-};const isSpectator = f.mode === "bot_vs_bot" || f.mode.startsWith("spectator");const isMobileDevice = showMobileControls || isTouchDevice;return d.jsx("main",{ref:containerRef,className:"fixed inset-0 w-full h-full min-h-[100dvh] max-h-[100dvh] bg-slate-950 overflow-hidden flex items-center justify-center font-sans select-none",children:d.jsxs("div",{className:"relative w-full h-full overflow-hidden",children:[d.jsx("canvas",{ref:u,className:"absolute inset-0 w-full h-full block"}),d.jsx(a2,{blueScore:C,orangeScore:N,timeLeft:X,isOvertime:I,matchState:p,gameMode:f.mode,botDifficulty:f.botDifficulty,physicsMode:f.physicsMode,currentMap:f.selectedMap||"standard",isPaused:m,onTogglePause:()=>g(H=>!H),onOpenSettings:()=>y(!0),onResetMatch:ie,isFullscreen:isFullscreen,onToggleFullscreen:toggleFullscreen,onOpenControls:()=>setIsControlsOpen(!0),onOpenReplayStudio:handleOpenStudioFromAnywhere,autoCam:f.autoCam!==false,onToggleAutoCam:toggleAutoCam,steeringControl:f.steeringControl||"keyboard",onToggleSteeringControl:toggleSteeringControl,onOpenScoreboard:()=>setIsScoreboardOpen(prev=>!prev),onOpenMatchHistory:()=>setIsMatchHistoryOpen(true),isMultiplayerActive:peerNetwork.isConnected&&peerNetwork.roomState?.status==="in_game",multiplayerRoomCode:peerNetwork.roomState?.roomCode||null,multiplayerPing:multiplayerPing,onOpenMultiplayer:()=>setIsMultiplayerOpen(true),onLeaveMultiplayer:()=>{peerNetwork.disconnect();setIsMultiplayerOpen(false);ie();},onOpenQuickMenu:()=>setIsQuickMenuOpen(true),isMobileDevice:isMobileDevice}),
+};const isSpectator = f.mode === "bot_vs_bot" || f.mode.startsWith("spectator");const isMobileDevice = showMobileControls || isTouchDevice;return d.jsx("main",{ref:containerRef,className:"fixed inset-0 w-full h-full min-h-[100dvh] max-h-[100dvh] bg-slate-950 overflow-hidden flex items-center justify-center font-sans select-none",children:d.jsxs("div",{className:"relative w-full h-full overflow-hidden",children:[d.jsx("canvas",{ref:u,className:"absolute inset-0 w-full h-full block"}),d.jsx(a2,{blueScore:C,orangeScore:N,timeLeft:X,isOvertime:I,matchState:p,gameMode:f.mode,botDifficulty:f.botDifficulty,physicsMode:f.physicsMode,currentMap:f.selectedMap||"standard",isPaused:m,onTogglePause:()=>g(H=>!H),onOpenSettings:()=>y(!0),onResetMatch:ie,isFullscreen:isFullscreen,onToggleFullscreen:toggleFullscreen,onOpenControls:()=>setIsControlsOpen(!0),onOpenReplayStudio:handleOpenStudioFromAnywhere,autoCam:f.autoCam!==false,onToggleAutoCam:toggleAutoCam,steeringControl:f.steeringControl||"keyboard",onToggleSteeringControl:toggleSteeringControl,onOpenScoreboard:()=>setIsScoreboardOpen(prev=>!prev),onOpenMatchHistory:()=>setIsMatchHistoryOpen(true),isMultiplayerActive:peerNetwork.isConnected&&peerNetwork.roomState?.status==="in_game",multiplayerRoomCode:peerNetwork.roomState?.roomCode||null,multiplayerPing:multiplayerPing,onOpenMultiplayer:()=>setIsMultiplayerOpen(true),onLeaveMultiplayer:()=>{peerNetwork.disconnect();setIsMultiplayerOpen(false);ie();},onOpenQuickMenu:()=>setIsQuickMenuOpen(true),isMobileDevice:isMobileDevice,onOpenGarage:()=>setIsGarageOpen(true),onOpenCrates:()=>setIsCratesOpen(true),onOpenRanked:()=>setIsRankedModalOpen(true),onOpenMatchSetup:()=>setIsMatchSetupOpen(true),unopenedCratesCount:Object.values(getPlayerInventory().unopenedCrates||{}).reduce((acc:number,v:any)=>acc+v,0),currentRankLabel:calculateRankDetails(getRankedProfile().mmr).label,currentMmr:getRankedProfile().mmr}),
 isPortrait&&isTouchDevice&&!dismissPortrait&&d.jsxs("div",{className:"absolute top-16 left-1/2 -translate-x-1/2 z-45 w-[92%] max-w-sm px-3.5 py-2.5 rounded-2xl bg-slate-900/95 border border-amber-500/60 shadow-2xl backdrop-blur-md flex items-center justify-between gap-2.5 text-amber-200 animate-fade-in pointer-events-auto",children:[d.jsxs("div",{className:"flex items-center gap-2",children:[d.jsx(RotateCw,{className:"w-4 h-4 text-amber-400 shrink-0 animate-spin-slow"}),d.jsxs("span",{className:"text-xs font-sans font-medium text-amber-100",children:["Rotate device to ",d.jsx("strong",{className:"text-amber-300",children:"Landscape"})," for best view!"]})]}),d.jsx("button",{onClick:()=>setDismissPortrait(true),className:"px-2 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold text-[11px] shrink-0 cursor-pointer",children:"Got it"})]}),
 showMobileControls&&d.jsx(MobileControlsOverlay,{onInputChange:handleTouchInputChange,activeBoost:B?.boost??100,hasFlipReset:!!B?.hasFlipReset,isAirRollInverted:!!B?.airRollInverted,isGrounded:!!B?.isGrounded,isSpectator:isSpectator,visible:!m&&p!=="ended"&&!goalReplayUI?.active&&!dvr.active}),
 d.jsx(MobileQuickMenu,{isOpen:isQuickMenuOpen,onClose:()=>setIsQuickMenuOpen(false),isPaused:m,onTogglePause:()=>g(H=>!H),onResetMatch:ie,isFullscreen:isFullscreen,onToggleFullscreen:toggleFullscreen,isAudioMuted:!f.soundEnabled,onToggleAudioMute:()=>handleUpdateSettings({...f,soundEnabled:!f.soundEnabled}),autoCam:f.autoCam!==false,onToggleAutoCam:toggleAutoCam,steeringControl:f.steeringControl||"keyboard",onToggleSteeringControl:toggleSteeringControl,onOpenMultiplayer:()=>setIsMultiplayerOpen(true),onOpenSettings:()=>y(!0),onOpenControls:()=>setIsControlsOpen(!0),onOpenMatchHistory:()=>setIsMatchHistoryOpen(true),onOpenReplayStudio:handleOpenStudioFromAnywhere,isSpectator:isSpectator,isMultiplayerActive:peerNetwork.isConnected&&peerNetwork.roomState?.status==="in_game",multiplayerRoomCode:peerNetwork.roomState?.roomCode||null}),
 d.jsx(u2,{messages:J,onSendMessage:H=>x(H,pilotName,"blue")}),d.jsx(s2,{jumpKey:f.jumpKey,isOpen:isControlsOpen,onClose:()=>setIsControlsOpen(!1)}),
 d.jsx(ScoreboardModal,{isOpen:isScoreboardOpen,onClose:()=>setIsScoreboardOpen(false),cars:Gt.current,blueScore:C,orangeScore:N,gameMode:f.mode,arenaName:(activeMapDef||MAP_DEFINITIONS[f.selectedMap||"standard"]||MAP_DEFINITIONS.standard).name}),
 d.jsx(MatchHistoryModal,{isOpen:isMatchHistoryOpen,onClose:()=>setIsMatchHistoryOpen(false),onWatchReplay:handleWatchPastReplay}),
-d.jsx(MultiplayerModal,{isOpen:isMultiplayerOpen,onClose:()=>setIsMultiplayerOpen(false),onStartMatch:()=>{setIsMultiplayerOpen(false);ie();},playerCarModel:f.selectedCar||"octane",onSelectCarModel:(cm:string)=>handleUpdateSettings({...f,selectedCar:cm}),currentMap:f.selectedMap||"standard",onPlayerNameChange:handleUpdatePilotName}),!isSpectator&&!isMobileDevice&&d.jsxs("div",{className:"absolute bottom-3 left-4 z-20 pointer-events-none hidden md:flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-slate-950/70 border border-slate-800/80 text-[11px] font-medium text-slate-300 backdrop-blur-sm shadow-md",children:[d.jsxs("div",{className:"flex items-center gap-1",children:[d.jsx("kbd",{className:"px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-sky-300 font-bold text-[10px]",children:"W A S D"}),d.jsx("span",{children:"Drive"})]}),d.jsx("span",{className:"text-slate-600",children:"•"}),d.jsxs("div",{className:"flex items-center gap-1",children:[d.jsx("kbd",{className:"px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-amber-300 font-bold text-[10px]",children:"Q / E"}),d.jsx("span",{children:"Air Roll (180° Flip)"})]}),d.jsx("span",{className:"text-slate-600",children:"•"}),d.jsxs("div",{className:"flex items-center gap-1",children:[d.jsx("kbd",{className:"px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-sky-300 font-bold text-[10px]",children:f.jumpKey==="rmb"?"RMB / Space":"Space"}),d.jsx("span",{children:"Jump"})]}),d.jsx("span",{className:"text-slate-600",children:"•"}),d.jsxs("div",{className:"flex items-center gap-1",children:[d.jsx("kbd",{className:"px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-amber-300 font-bold text-[10px]",children:"Shift / LMB"}),d.jsx("span",{children:"Boost"})]}),d.jsx("span",{className:"text-slate-600",children:"•"}),d.jsxs("div",{className:"flex items-center gap-1",children:[d.jsx("kbd",{className:"px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-amber-300 font-bold text-[10px]",children:"H"}),d.jsx("span",{children:"Hitbox"})]}),d.jsx("span",{className:"text-slate-600",children:"•"}),d.jsxs("div",{className:"flex items-center gap-1",children:[d.jsx("kbd",{className:"px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-purple-300 font-bold text-[10px]",children:"C"}),d.jsx("span",{children:"Auto Cam"})]}),d.jsx("span",{className:"text-slate-600",children:"•"}),d.jsxs("div",{className:"flex items-center gap-1 cursor-pointer",onClick:()=>setIsScoreboardOpen(prev=>!prev),children:[d.jsx("kbd",{className:"px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-amber-300 font-bold text-[10px]",children:"Tab"}),d.jsx("span",{children:"Scoreboard"})]}),
+d.jsx(MultiplayerModal,{isOpen:isMultiplayerOpen,onClose:()=>setIsMultiplayerOpen(false),onStartMatch:()=>{setIsMultiplayerOpen(false);ie();},playerCarModel:f.selectedCar||"octane",onSelectCarModel:(cm:string)=>handleUpdateSettings({...f,selectedCar:cm}),currentMap:f.selectedMap||"standard",onPlayerNameChange:handleUpdatePilotName}),
+d.jsx(GarageModal,{isOpen:isGarageOpen,onClose:()=>setIsGarageOpen(false),onOpenCrates:()=>{setIsGarageOpen(false);setIsCratesOpen(true);},onLoadoutChange:()=>{setLoadoutVersion(v=>v+1);const inv=getPlayerInventory();const p1=Gt.current.find((c:any)=>c.id==="p1"||!c.isBot);if(p1){p1.customDecal=ITEM_CATALOG[inv.loadout.decal];p1.customWheels=ITEM_CATALOG[inv.loadout.wheels];p1.customBoost=ITEM_CATALOG[inv.loadout.boost];p1.customTopper=ITEM_CATALOG[inv.loadout.topper];const bodyItem=ITEM_CATALOG[inv.loadout.body];if(bodyItem?.visualData?.modelId){p1.carModel=bodyItem.visualData.modelId;}}}}),
+d.jsx(CrateOpeningModal,{isOpen:isCratesOpen,onClose:()=>setIsCratesOpen(false),onOpenGarage:()=>{setIsCratesOpen(false);setIsGarageOpen(true);},onItemEquipped:()=>{setLoadoutVersion(v=>v+1);}}),
+d.jsx(MatchSetupModal,{isOpen:isMatchSetupOpen,onClose:()=>setIsMatchSetupOpen(false),currentSettings:f,onStartMatch:(cfg:MatchSetupConfig)=>{setPilotMode(cfg.pilotMode);setIsCurrentMatchRanked(false);handleUpdateSettings({...f,mode:cfg.pilotMode==="just_bots"?(cfg.teamFormat==="1v1"?"bot_vs_bot":cfg.teamFormat==="2v2"?"spectator_2v2":"spectator_3v3"):cfg.teamFormat,botDifficulty:cfg.botDifficulty,selectedMap:cfg.selectedMap,matchDuration:cfg.matchDuration});setTimeout(()=>ie(),50);}}),
+d.jsx(RankedMatchmakingModal,{isOpen:isRankedModalOpen,onClose:()=>setIsRankedModalOpen(false),onStartRankedMatch:(playlist,opp)=>{setIsCurrentMatchRanked(true);setCurrentOpponentMmr(opp.mmr);setPilotMode("human");handleUpdateSettings({...f,mode:playlist,botDifficulty:opp.difficulty});setTimeout(()=>ie(),50);}}),
+d.jsx(RankProgressionOverlay,{isOpen:isRankProgressionOpen,onClose:()=>setIsRankProgressionOpen(false),result:rankedMatchResult,rewards:matchRewards,onOpenCrate:()=>{setIsRankProgressionOpen(false);setIsCratesOpen(true);},onOpenGarage:()=>{setIsRankProgressionOpen(false);setIsGarageOpen(true);}}),
+!isSpectator&&!isMobileDevice&&d.jsxs("div",{className:"absolute bottom-3 left-4 z-20 pointer-events-none hidden md:flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-slate-950/70 border border-slate-800/80 text-[11px] font-medium text-slate-300 backdrop-blur-sm shadow-md",children:[d.jsxs("div",{className:"flex items-center gap-1",children:[d.jsx("kbd",{className:"px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-sky-300 font-bold text-[10px]",children:"W A S D"}),d.jsx("span",{children:"Drive"})]}),d.jsx("span",{className:"text-slate-600",children:"•"}),d.jsxs("div",{className:"flex items-center gap-1",children:[d.jsx("kbd",{className:"px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-amber-300 font-bold text-[10px]",children:"Q / E"}),d.jsx("span",{children:"Air Roll (180° Flip)"})]}),d.jsx("span",{className:"text-slate-600",children:"•"}),d.jsxs("div",{className:"flex items-center gap-1",children:[d.jsx("kbd",{className:"px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-sky-300 font-bold text-[10px]",children:f.jumpKey==="rmb"?"RMB / Space":"Space"}),d.jsx("span",{children:"Jump"})]}),d.jsx("span",{className:"text-slate-600",children:"•"}),d.jsxs("div",{className:"flex items-center gap-1",children:[d.jsx("kbd",{className:"px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-amber-300 font-bold text-[10px]",children:"Shift / LMB"}),d.jsx("span",{children:"Boost"})]}),d.jsx("span",{className:"text-slate-600",children:"•"}),d.jsxs("div",{className:"flex items-center gap-1",children:[d.jsx("kbd",{className:"px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-amber-300 font-bold text-[10px]",children:"H"}),d.jsx("span",{children:"Hitbox"})]}),d.jsx("span",{className:"text-slate-600",children:"•"}),d.jsxs("div",{className:"flex items-center gap-1",children:[d.jsx("kbd",{className:"px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-purple-300 font-bold text-[10px]",children:"C"}),d.jsx("span",{children:"Auto Cam"})]}),d.jsx("span",{className:"text-slate-600",children:"•"}),d.jsxs("div",{className:"flex items-center gap-1 cursor-pointer",onClick:()=>setIsScoreboardOpen(prev=>!prev),children:[d.jsx("kbd",{className:"px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-amber-300 font-bold text-[10px]",children:"Tab"}),d.jsx("span",{children:"Scoreboard"})]}),
 d.jsx("span",{className:"text-slate-600",children:"•"}),
 d.jsxs("div",{className:"flex items-center gap-1",children:[
 d.jsx("kbd",{className:`px-1.5 py-0.5 rounded border font-mono text-[10px] ${f.steeringControl === "mouse" ? "bg-emerald-950 border-emerald-500 text-emerald-300 font-bold" : "bg-slate-800 border-slate-700 text-slate-300"}`,children:"M"}),
-d.jsx("span",{className:f.steeringControl === "mouse" ? "text-emerald-300 font-bold" : "",children:f.steeringControl === "mouse" ? "Mouse Aim [ON]" : "Mouse Aim"})]})]}),!isMobileDevice&&d.jsx(n2,{playerCar:B}),f.mode==="training"&&d.jsx(c2,{onResetBall:R,onDribbleSetup:V,onPassToMe:Q,onHighAerialSetup:vt,onMustySetup:onMustySetup,onFlipResetSetup:onFlipResetSetup,onPinchSetup:onPinchSetup,onDoubleTapSetup:onDoubleTapSetup,onPsychoSetup:onPsychoSetup,onCeilingSetup:onCeilingSetup,infiniteBoost:Lt,onToggleInfiniteBoost:()=>Ft(H=>!H),showHitbox:f.showHitbox,onToggleHitbox:toggleHitbox,onOpenReplayStudio:handleOpenStudioFromAnywhere}),d.jsx(v2,{alerts:mechAlerts}),d.jsx(i2,{playerCar:Gt.current.find(H=>!H.isBot)||null}),d.jsx(o2,{goalInfo:Ht,kickoffCountdown:Tt}),d.jsx(GoalReplayOverlay,{replayUI:goalReplayUI,onSkip:skipGoalReplay,onSpeedToggle:handleGoalReplaySpeed,onTogglePause:handleGoalReplayTogglePause,onScrub:handleGoalReplayScrub,onStep:handleGoalReplayStep,onRestart:handleGoalReplayRestart,onOpenStudio:handleOpenStudioFromGoalReplay,onExportClip:handleExportGoalClip,isAudioMuted:isReplayAudioMuted,onToggleAudioMute:()=>setIsReplayAudioMuted(prev=>!prev),activeBadge:activeReplayBadge}),(isSpectator||dvr.active)&&!goalReplayUI?.active&&d.jsx(MatchDvrStudio,{isSpectator:isSpectator,dvrState:dvr,onTogglePlay:handleDvrTogglePlay,onScrub:handleDvrScrub,onStep:handleDvrStep,onJump:handleDvrJump,onGoLive:handleDvrGoLive,onSpeedChange:handleDvrSpeedChange,onClose:()=>setDvr({active:!1,offsetSec:0,isPlaying:!1,speed:1}),availableSeconds:getAvailableDvrSeconds(),matchEvents:matchEventsRef.current,onSeekToTime:handleSeekToTime,matchStartTime:matchStartTimeRef.current,clipRange:clipRange,onSetClipIn:handleSetClipIn,onSetClipOut:handleSetClipOut,onQuickClip:handleQuickClip,onExportClip:(format:any)=>handleExportClip(format),isAudioMuted:isReplayAudioMuted,onToggleAudioMute:()=>setIsReplayAudioMuted(prev=>!prev),activeBadge:activeReplayBadge,isCollapsed:isDvrCollapsed,onToggleCollapse:()=>setIsDvrCollapsed(prev=>!prev),autoCam:f.autoCam!==false,onToggleAutoCam:toggleAutoCam,steeringControl:f.steeringControl||"keyboard",onToggleSteeringControl:toggleSteeringControl,onOpenScoreboard:()=>setIsScoreboardOpen(prev=>!prev),onOpenMatchHistory:()=>setIsMatchHistoryOpen(true)}),d.jsx(ExportProgressModal,{exportModal:exportModal,onCancel:handleCancelExport}),m&&d.jsx("div",{className:`absolute inset-0 z-35 flex flex-col items-center justify-center ${dvr.active?"bg-black/35 pointer-events-none":"bg-black/70 backdrop-blur-sm"}`,children:d.jsxs("div",{className:`bg-slate-900/95 border border-slate-700 p-6 rounded-2xl shadow-2xl flex flex-col items-center gap-3 text-center pointer-events-auto ${dvr.active?"opacity-95 scale-95 transition":null}`,children:[d.jsx("h3",{className:"text-2xl md:text-3xl font-black text-white uppercase tracking-wider",children:"MATCH PAUSED"}),d.jsxs("p",{className:"text-xs md:text-sm text-slate-300",children:["Press ",d.jsx("kbd",{className:"px-2 py-0.5 bg-slate-800 rounded border border-slate-600 font-mono text-white",children:"P"})," to resume match or open full-match replay studio"]}),d.jsxs("div",{className:"flex gap-2.5 mt-2 flex-wrap justify-center",children:[d.jsx("button",{onClick:()=>{g(!1),setDvr({active:!1,offsetSec:0,isPlaying:!1,speed:1})},className:"px-5 py-2.5 bg-sky-600 hover:bg-sky-500 text-white font-bold text-sm rounded-xl transition shadow-lg cursor-pointer",children:"Resume Match"}),d.jsxs("button",{onClick:()=>{const maxSec=Math.max(1,getAvailableDvrSeconds());setDvr({active:!0,offsetSec:Math.min(15,maxSec),isPlaying:!0,speed:1})},className:"px-4 py-2.5 bg-gradient-to-r from-amber-500/20 to-sky-500/20 hover:from-amber-500/30 hover:to-sky-500/30 text-amber-300 font-bold text-sm rounded-xl transition border border-amber-500/50 flex items-center gap-2 cursor-pointer shadow-md",children:[d.jsx(Film,{className:"w-4 h-4 text-amber-400"}),d.jsx("span",{children:"🎬 Replay & Clip Studio"})]}),d.jsx("button",{onClick:ie,className:"px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-sm rounded-xl transition border border-slate-700 cursor-pointer",children:"Restart Match"})]})]})}),p==="ended"&&!dvr.active&&!isMatchHistoryOpen&&d.jsx("div",{className:"absolute inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-2 sm:p-4 overflow-y-auto",children:d.jsxs("div",{className:"bg-slate-950/95 border border-slate-700 sm:border-2 rounded-2xl sm:rounded-3xl p-3 sm:p-5 md:p-7 max-w-xs sm:max-w-md w-full shadow-2xl flex flex-col items-center text-center animate-fade-in text-slate-100 max-h-[96vh] overflow-y-auto",children:[d.jsx(Is,{className:"w-8 h-8 sm:w-12 sm:h-12 md:w-14 md:h-14 text-amber-400 mb-0.5 sm:mb-1.5 drop-shadow-[0_0_15px_rgba(251,191,36,0.6)]"}),d.jsx("h2",{className:"text-lg sm:text-2xl md:text-3xl font-black uppercase tracking-tight text-white mb-0.5 sm:mb-1",children:C>N?"BLUE WINS!":N>C?"ORANGE WINS!":"OVERTIME DRAW!"}),d.jsxs("div",{className:"my-1.5 sm:my-3 flex items-center justify-center gap-4 sm:gap-6 px-3.5 py-1 sm:px-6 sm:py-2 rounded-xl sm:rounded-2xl bg-slate-900/90 border border-slate-800",children:[d.jsxs("div",{className:"flex flex-col items-center",children:[d.jsx("span",{className:"text-[10px] sm:text-xs font-bold text-sky-400 uppercase tracking-wider",children:"Blue Team"}),d.jsx("span",{className:"text-2xl sm:text-3xl md:text-4xl font-mono font-black text-white",children:C})]}),d.jsx("span",{className:"text-lg sm:text-2xl font-bold text-slate-500",children:":"}),d.jsxs("div",{className:"flex flex-col items-center",children:[d.jsx("span",{className:"text-[10px] sm:text-xs font-bold text-orange-400 uppercase tracking-wider",children:"Orange Team"}),d.jsx("span",{className:"text-2xl sm:text-3xl md:text-4xl font-mono font-black text-white",children:N})]})]}),d.jsxs("div",{className:"flex flex-col gap-1.5 sm:gap-2.5 w-full mt-1",children:[d.jsxs("button",{onClick:()=>{const totalSec=Math.max(1,getAvailableDvrSeconds());setDvr({active:!0,offsetSec:totalSec,isPlaying:!0,speed:1});A("playing");},className:"w-full py-2 sm:py-2.5 md:py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-black text-xs sm:text-sm uppercase rounded-lg sm:rounded-xl shadow-md transition flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer",children:[d.jsx(Film,{className:"w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-950"}),d.jsx("span",{children:"🎬 Review Full Match & Export Clips"})]}),d.jsxs("button",{onClick:()=>setIsMatchHistoryOpen(true),className:"w-full py-1.5 sm:py-2 md:py-2.5 bg-slate-900 hover:bg-slate-800 text-sky-300 font-bold text-[11px] sm:text-xs uppercase rounded-lg sm:rounded-xl border border-sky-500/40 transition flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer",children:[d.jsx(Clock,{className:"w-3.5 h-3.5 sm:w-4 sm:h-4 text-sky-400"}),d.jsx("span",{children:"📜 Match History & Past Replays"})]}),d.jsxs("div",{className:"flex gap-2 sm:gap-3 w-full",children:[
+d.jsx("span",{className:f.steeringControl === "mouse" ? "text-emerald-300 font-bold" : "",children:f.steeringControl === "mouse" ? "Mouse Aim [ON]" : "Mouse Aim"})]})]}),!isMobileDevice&&d.jsx(n2,{playerCar:B}),f.mode==="training"&&d.jsx(c2,{onResetBall:R,onDribbleSetup:V,onPassToMe:Q,onHighAerialSetup:vt,onMustySetup:onMustySetup,onFlipResetSetup:onFlipResetSetup,onPinchSetup:onPinchSetup,onDoubleTapSetup:onDoubleTapSetup,onPsychoSetup:onPsychoSetup,onCeilingSetup:onCeilingSetup,infiniteBoost:Lt,onToggleInfiniteBoost:()=>Ft(H=>!H),showHitbox:f.showHitbox,onToggleHitbox:toggleHitbox,onOpenReplayStudio:handleOpenStudioFromAnywhere}),d.jsx(v2,{alerts:mechAlerts}),d.jsx(i2,{playerCar:Gt.current.find(H=>!H.isBot)||null}),d.jsx(o2,{goalInfo:Ht,kickoffCountdown:Tt}),d.jsx(GoalReplayOverlay,{replayUI:goalReplayUI,onSkip:skipGoalReplay,onSpeedToggle:handleGoalReplaySpeed,onTogglePause:handleGoalReplayTogglePause,onScrub:handleGoalReplayScrub,onStep:handleGoalReplayStep,onRestart:handleGoalReplayRestart,onOpenStudio:handleOpenStudioFromGoalReplay,onExportClip:handleExportGoalClip,isAudioMuted:isReplayAudioMuted,onToggleAudioMute:()=>setIsReplayAudioMuted(prev=>!prev),activeBadge:activeReplayBadge}),(isSpectator||dvr.active)&&!goalReplayUI?.active&&d.jsx(MatchDvrStudio,{isSpectator:isSpectator,dvrState:dvr,onTogglePlay:handleDvrTogglePlay,onScrub:handleDvrScrub,onStep:handleDvrStep,onJump:handleDvrJump,onGoLive:handleDvrGoLive,onSpeedChange:handleDvrSpeedChange,onClose:()=>setDvr({active:!1,offsetSec:0,isPlaying:!1,speed:1}),availableSeconds:getAvailableDvrSeconds(),matchEvents:matchEventsRef.current,onSeekToTime:handleSeekToTime,matchStartTime:matchStartTimeRef.current,clipRange:clipRange,onSetClipIn:handleSetClipIn,onSetClipOut:handleSetClipOut,onQuickClip:handleQuickClip,onExportClip:(format:any)=>handleExportClip(format),isAudioMuted:isReplayAudioMuted,onToggleAudioMute:()=>setIsReplayAudioMuted(prev=>!prev),activeBadge:activeReplayBadge,isCollapsed:isDvrCollapsed,onToggleCollapse:()=>setIsDvrCollapsed(prev=>!prev),autoCam:f.autoCam!==false,onToggleAutoCam:toggleAutoCam,steeringControl:f.steeringControl||"keyboard",onToggleSteeringControl:toggleSteeringControl,onOpenScoreboard:()=>setIsScoreboardOpen(prev=>!prev),onOpenMatchHistory:()=>setIsMatchHistoryOpen(true)}),d.jsx(ExportProgressModal,{exportModal:exportModal,onCancel:handleCancelExport}),m&&d.jsx("div",{className:`absolute inset-0 z-35 flex flex-col items-center justify-center ${dvr.active?"bg-black/35 pointer-events-none":"bg-black/70 backdrop-blur-sm"}`,children:d.jsxs("div",{className:`bg-slate-900/95 border border-slate-700 p-6 rounded-2xl shadow-2xl flex flex-col items-center gap-3 text-center pointer-events-auto ${dvr.active?"opacity-95 scale-95 transition":null}`,children:[d.jsx("h3",{className:"text-2xl md:text-3xl font-black text-white uppercase tracking-wider",children:"MATCH PAUSED"}),d.jsxs("p",{className:"text-xs md:text-sm text-slate-300",children:["Press ",d.jsx("kbd",{className:"px-2 py-0.5 bg-slate-800 rounded border border-slate-600 font-mono text-white",children:"P"})," to resume match or open full-match replay studio"]}),d.jsxs("div",{className:"flex gap-2.5 mt-2 flex-wrap justify-center",children:[d.jsx("button",{onClick:()=>{g(!1),setDvr({active:!1,offsetSec:0,isPlaying:!1,speed:1})},className:"px-5 py-2.5 bg-sky-600 hover:bg-sky-500 text-white font-bold text-sm rounded-xl transition shadow-lg cursor-pointer",children:"Resume Match"}),d.jsxs("button",{onClick:()=>{const maxSec=Math.max(1,getAvailableDvrSeconds());setDvr({active:!0,offsetSec:Math.min(15,maxSec),isPlaying:!0,speed:1})},className:"px-4 py-2.5 bg-gradient-to-r from-amber-500/20 to-sky-500/20 hover:from-amber-500/30 hover:to-sky-500/30 text-amber-300 font-bold text-sm rounded-xl transition border border-amber-500/50 flex items-center gap-2 cursor-pointer shadow-md",children:[d.jsx(Film,{className:"w-4 h-4 text-amber-400"}),d.jsx("span",{children:"🎬 Replay & Clip Studio"})]}),d.jsx("button",{onClick:ie,className:"px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-sm rounded-xl transition border border-slate-700 cursor-pointer",children:"Restart Match"})]})]})}),p==="ended"&&!dvr.active&&!isMatchHistoryOpen&&d.jsx("div",{className:"absolute inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-2 sm:p-4 overflow-y-auto",children:d.jsxs("div",{className:"bg-slate-950/95 border border-slate-700 sm:border-2 rounded-2xl sm:rounded-3xl p-3 sm:p-5 md:p-7 max-w-xs sm:max-w-md w-full shadow-2xl flex flex-col items-center text-center animate-fade-in text-slate-100 max-h-[96vh] overflow-y-auto",children:[d.jsx(Is,{className:"w-8 h-8 sm:w-12 sm:h-12 md:w-14 md:h-14 text-amber-400 mb-0.5 sm:mb-1.5 drop-shadow-[0_0_15px_rgba(251,191,36,0.6)]"}),d.jsx("h2",{className:"text-lg sm:text-2xl md:text-3xl font-black uppercase tracking-tight text-white mb-0.5 sm:mb-1",children:C>N?"BLUE WINS!":N>C?"ORANGE WINS!":"OVERTIME DRAW!"}),d.jsxs("div",{className:"my-1.5 sm:my-3 flex items-center justify-center gap-4 sm:gap-6 px-3.5 py-1 sm:px-6 sm:py-2 rounded-xl sm:rounded-2xl bg-slate-900/90 border border-slate-800",children:[d.jsxs("div",{className:"flex flex-col items-center",children:[d.jsx("span",{className:"text-[10px] sm:text-xs font-bold text-sky-400 uppercase tracking-wider",children:"Blue Team"}),d.jsx("span",{className:"text-2xl sm:text-3xl md:text-4xl font-mono font-black text-white",children:C})]}),d.jsx("span",{className:"text-lg sm:text-2xl font-bold text-slate-500",children:":"}),d.jsxs("div",{className:"flex flex-col items-center",children:[d.jsx("span",{className:"text-[10px] sm:text-xs font-bold text-orange-400 uppercase tracking-wider",children:"Orange Team"}),d.jsx("span",{className:"text-2xl sm:text-3xl md:text-4xl font-mono font-black text-white",children:N})]})]}),d.jsxs("div",{className:"flex flex-col gap-1.5 sm:gap-2.5 w-full mt-1",children:[d.jsxs("button",{onClick:()=>{const totalSec=Math.max(1,getAvailableDvrSeconds());setDvr({active:!0,offsetSec:totalSec,isPlaying:!0,speed:1});A("playing");},className:"w-full py-2 sm:py-2.5 md:py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-black text-xs sm:text-sm uppercase rounded-lg sm:rounded-xl shadow-md transition flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer",children:[d.jsx(Film,{className:"w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-950"}),d.jsx("span",{children:"🎬 Review Full Match & Export Clips"})]}),d.jsxs("button",{onClick:()=>setIsMatchHistoryOpen(true),className:"w-full py-1.5 sm:py-2 md:py-2.5 bg-slate-900 hover:bg-slate-800 text-sky-300 font-bold text-[11px] sm:text-xs uppercase rounded-lg sm:rounded-xl border border-sky-500/40 transition flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer",children:[d.jsx(Clock,{className:"w-3.5 h-3.5 sm:w-4 sm:h-4 text-sky-400"}),d.jsx("span",{children:"📜 Match History & Past Replays"})]}),(isCurrentMatchRanked||matchRewards)&&d.jsxs("button",{onClick:()=>setIsRankProgressionOpen(true),className:"w-full py-1.5 sm:py-2 md:py-2.5 bg-gradient-to-r from-purple-900/60 to-indigo-900/60 hover:from-purple-800/80 hover:to-indigo-800/80 text-purple-200 font-bold text-[11px] sm:text-xs uppercase rounded-lg sm:rounded-xl border border-purple-500/40 transition flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer",children:[d.jsx(Is,{className:"w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400"}),d.jsx("span",{children:"🏆 View Rank & Rewards"})]}),d.jsxs("div",{className:"flex gap-2 sm:gap-3 w-full",children:[
   peerNetwork.isConnected&&peerNetwork.roomState?.status==="in_game"?(
     peerNetwork.role==="host"?(
       d.jsxs(st.Fragment,{children:[
