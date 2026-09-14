@@ -5390,14 +5390,10 @@ function kv(u: any, f: any, r: any, s: any, y: any, m: any = {}) {
   const isTouchScreen = typeof window !== "undefined" && (("ontouchstart" in window) || (navigator.maxTouchPoints > 0) || (window.matchMedia && window.matchMedia("(pointer: coarse)").matches));
   const isLandscapeMobile = isTouchScreen && displayH < 560;
 
-  // Frame the pitch cleanly with breathing room on mobile landscape
-  const padX = isLandscapeMobile ? Math.max(16, Math.min(60, displayW * 0.04)) : 0;
-  const padY = isLandscapeMobile ? Math.max(20, Math.min(48, displayH * 0.09)) : 0;
-  const availW = displayW - padX * 2;
-  const availH = displayH - padY * 2;
-  const baseScale = Math.min(availW / ARENA_W, availH / ARENA_H);
+  // Base scale: scale arena to cleanly fit screen height/width without artificial shrinking
+  const baseScale = Math.min(displayW / ARENA_W, displayH / ARENA_H);
 
-  const isAutoCamEnabled = m.autoCam === true;
+  const isAutoCamEnabled = m.autoCam !== false;
 
   let targetX = ARENA_W / 2;
   let targetY = ARENA_H / 2;
@@ -5440,10 +5436,11 @@ function kv(u: any, f: any, r: any, s: any, y: any, m: any = {}) {
     const ballSpeed = Math.hypot(ballVx, ballVy);
     const separation = primaryCar ? Math.hypot(ball.x - primaryCar.x, ball.y - primaryCar.y) : 500;
 
+    const isMobile = isLandscapeMobile || (displayH < 600);
     const isHugeMap = ARENA_W >= 3400;
     const isLargeMap = ARENA_W >= 2600;
-    const maxZoom = isLandscapeMobile ? 1.08 : (isHugeMap ? 1.68 : isLargeMap ? 1.58 : 1.48);
-    const minZoom = isLandscapeMobile ? 1.00 : (isHugeMap ? 1.08 : isLargeMap ? 1.04 : 1.00);
+    const maxZoom = isMobile ? 1.62 : (isHugeMap ? 1.68 : isLargeMap ? 1.58 : 1.48);
+    const minZoom = isMobile ? 1.22 : (isHugeMap ? 1.08 : isLargeMap ? 1.04 : 1.00);
 
     const speedRatio = Math.min(1, ballSpeed / 1600);
     const sepRatio = Math.min(1, separation / 900);
@@ -5452,7 +5449,7 @@ function kv(u: any, f: any, r: any, s: any, y: any, m: any = {}) {
     targetZoom = maxZoom - zoomReduction;
 
     if (ball.isGoalScored) {
-      targetZoom = Math.min(maxZoom, 1.42);
+      targetZoom = Math.min(maxZoom, 1.55);
     }
   }
 
@@ -5463,8 +5460,8 @@ function kv(u: any, f: any, r: any, s: any, y: any, m: any = {}) {
     autoCamState.zoom = targetZoom;
     autoCamState.initialized = true;
   } else {
-    const panLerp = 0.072;
-    const zoomLerp = 0.042;
+    const panLerp = 0.08;
+    const zoomLerp = 0.045;
     autoCamState.x += (targetX - autoCamState.x) * panLerp;
     autoCamState.y += (targetY - autoCamState.y) * panLerp;
     autoCamState.zoom += (targetZoom - autoCamState.zoom) * zoomLerp;
@@ -5480,8 +5477,8 @@ function kv(u: any, f: any, r: any, s: any, y: any, m: any = {}) {
   if (viewW >= ARENA_W) {
     clampedCamX = ARENA_W / 2;
   } else {
-    const minX = viewW / 2 + 15;
-    const maxX = ARENA_W - viewW / 2 - 15;
+    const minX = viewW / 2;
+    const maxX = ARENA_W - viewW / 2;
     if (minX <= maxX) {
       clampedCamX = Math.max(minX, Math.min(maxX, clampedCamX));
     } else {
@@ -5492,8 +5489,8 @@ function kv(u: any, f: any, r: any, s: any, y: any, m: any = {}) {
   if (viewH >= ARENA_H) {
     clampedCamY = ARENA_H / 2;
   } else {
-    const minY = viewH / 2 + 10;
-    const maxY = ARENA_H - viewH / 2 - 10;
+    const minY = viewH / 2;
+    const maxY = ARENA_H - viewH / 2;
     if (minY <= maxY) {
       clampedCamY = Math.max(minY, Math.min(maxY, clampedCamY));
     } else {
@@ -5502,7 +5499,7 @@ function kv(u: any, f: any, r: any, s: any, y: any, m: any = {}) {
   }
 
   const offsetX = Math.round(displayW / 2 - clampedCamX * currentScale);
-  const offsetY = Math.round(displayH / 2 - clampedCamY * currentScale + (isLandscapeMobile ? 10 : 0));
+  const offsetY = Math.round(displayH / 2 - clampedCamY * currentScale);
 
   activeCameraTransform.offsetX = offsetX;
   activeCameraTransform.offsetY = offsetY;
@@ -8949,13 +8946,31 @@ const a2 = ({
               })
             ),
             (isMobileDevice && onOpenQuickMenu) ? (
-              d.jsxs("button", {
-                onClick: onOpenQuickMenu,
-                className: "flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-900/95 border border-sky-500/60 hover:bg-slate-800 text-sky-400 font-gaming font-bold text-xs shadow-lg transition active:scale-95 shrink-0 cursor-pointer",
-                title: "Open Mobile Menu",
+              d.jsxs("div", {
+                className: "flex items-center gap-1.5",
                 children: [
-                  d.jsx(Menu, { className: "w-4 h-4 text-sky-400" }),
-                  d.jsx("span", { className: "text-white text-[11px]", children: "Menu" })
+                  onToggleAutoCam && d.jsxs("button", {
+                    onClick: onToggleAutoCam,
+                    className: `flex items-center gap-1 px-2 py-1.5 rounded-xl border text-[11px] font-gaming font-bold backdrop-blur-md shadow-lg transition active:scale-95 cursor-pointer shrink-0 ${
+                      autoCam
+                        ? "text-purple-300 border-purple-400/70 bg-purple-950/80 shadow-[0_0_12px_rgba(168,85,247,0.4)]"
+                        : "text-slate-400 border-slate-700/60 bg-slate-900/80 hover:text-slate-200"
+                    }`,
+                    title: autoCam ? "Auto Dynamic Camera: ON (Tap to switch to Fixed view)" : "Fixed Camera: ON (Tap to switch to Auto Tracking Cam)",
+                    children: [
+                      d.jsx(Camera, { className: "w-3.5 h-3.5 text-purple-400" }),
+                      d.jsx("span", { children: autoCam ? "Cam: Auto" : "Cam: Fixed" })
+                    ]
+                  }),
+                  d.jsxs("button", {
+                    onClick: onOpenQuickMenu,
+                    className: "flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-900/95 border border-sky-500/60 hover:bg-slate-800 text-sky-400 font-gaming font-bold text-xs shadow-lg transition active:scale-95 shrink-0 cursor-pointer",
+                    title: "Open Mobile Menu",
+                    children: [
+                      d.jsx(Menu, { className: "w-4 h-4 text-sky-400" }),
+                      d.jsx("span", { className: "text-white text-[11px]", children: "Menu" })
+                    ]
+                  })
                 ]
               })
             ) : (
@@ -11734,7 +11749,7 @@ function r2(){
   const [activeReplayBadge, setActiveReplayBadge] = st.useState<any>(null);
   const [isReplayAudioMuted, setIsReplayAudioMuted] = st.useState<boolean>(false);
   const [clipRange, setClipRange] = st.useState<{ inSec: number; outSec: number }>({ inSec: 0, outSec: 5 });
-  const [isDvrCollapsed, setIsDvrCollapsed] = st.useState<boolean>(false);
+  const [isDvrCollapsed, setIsDvrCollapsed] = st.useState<boolean>(true);
   const [exportModal, setExportModal] = st.useState<{
     isOpen: boolean;
     format: "mp4" | "gif";
@@ -11753,15 +11768,21 @@ function r2(){
   const toggleFullscreen=st.useCallback(()=>{if(!document.fullscreenElement){const el=containerRef.current||document.documentElement;el.requestFullscreen?el.requestFullscreen():(el as any).webkitRequestFullscreen&& (el as any).webkitRequestFullscreen();}else{document.exitFullscreen?document.exitFullscreen():(document as any).webkitExitFullscreen&&(document as any).webkitExitFullscreen();}},[]);
   st.useEffect(()=>{const onFullChange=()=>setIsFullscreen(!!document.fullscreenElement);document.addEventListener("fullscreenchange",onFullChange);document.addEventListener("webkitfullscreenchange",onFullChange);return()=>{document.removeEventListener("fullscreenchange",onFullChange);document.removeEventListener("webkitfullscreenchange",onFullChange);};},[]);
   const getInitialSettings = () => {
+    let savedMode = "1v1";
     let savedPhysics = "rocket_league";
     let savedCar = "octane";
     let savedShowHitbox = false;
     let savedMap = "standard";
-    let savedAutoCam = false;
+    let savedAutoCam = true;
     let savedTrajectory = false;
     let savedSteeringControl = "keyboard";
     let savedMobileControls = "auto";
     try {
+      const gm = localStorage.getItem("rl_game_mode");
+      if (gm && ["1v1", "2v2", "3v3", "training", "bot_vs_bot", "spectator_2v2", "spectator_3v3"].includes(gm)) savedMode = gm;
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlMode = urlParams.get("mode");
+      if (urlMode && ["1v1", "2v2", "3v3", "training", "bot_vs_bot", "spectator_2v2", "spectator_3v3"].includes(urlMode)) savedMode = urlMode;
       const p = localStorage.getItem("rl_physics_mode");
       if (p === "legacy" || p === "rocket_league") savedPhysics = p;
       const c = localStorage.getItem("rl_selected_car");
@@ -11770,8 +11791,12 @@ function r2(){
       if (hb === "true") savedShowHitbox = true;
       const sm = localStorage.getItem("rl_selected_map");
       if (sm && MAP_DEFINITIONS[sm]) savedMap = sm;
-      const ac = localStorage.getItem("rl_auto_cam");
-      if (ac !== null) savedAutoCam = ac === "true";
+      const ac = localStorage.getItem("rl_auto_cam_v2");
+      if (ac !== null) {
+        savedAutoCam = ac === "true";
+      } else {
+        savedAutoCam = true;
+      }
       const tr = localStorage.getItem("rl_show_trajectory");
       if (tr === "true") savedTrajectory = true;
       const sc = localStorage.getItem("rl_steering_control");
@@ -11781,7 +11806,7 @@ function r2(){
     } catch (e) {}
     syncMapGlobals(savedMap);
     return {
-      mode: "1v1",
+      mode: savedMode,
       botDifficulty: "unfair",
       matchDuration: 180,
       arenaTheme: "classic",
@@ -11852,7 +11877,7 @@ function r2(){
           localStorage.setItem("rl_show_hitbox", String(newSettings.showHitbox));
         }
         if (typeof newSettings.autoCam === "boolean") {
-          localStorage.setItem("rl_auto_cam", String(newSettings.autoCam));
+          localStorage.setItem("rl_auto_cam_v2", String(newSettings.autoCam));
         }
         if (typeof newSettings.showTrajectory === "boolean") {
           localStorage.setItem("rl_show_trajectory", String(newSettings.showTrajectory));
@@ -11889,7 +11914,7 @@ function r2(){
     r((prev: any) => {
       const nextCam = prev.autoCam === false;
       try {
-        localStorage.setItem("rl_auto_cam", String(nextCam));
+        localStorage.setItem("rl_auto_cam_v2", String(nextCam));
       } catch (e) {}
       return { ...prev, autoCam: nextCam };
     });
@@ -12511,7 +12536,7 @@ if(peerNetwork.isConnected&&peerNetwork.role==="host"&&peerNetwork.roomState?.st
 }
 const myIdCar=peerNetwork.isConnected?peerNetwork.myPeerId:null;
 const de=(myIdCar?xt.find(nt=>nt.id===myIdCar):null)||xt.find(nt=>!nt.isBot)||xt[0];
-W(de?{...de}:null)}Wt&&kv(Wt,Gt.current,ht.current,ne.current,Yt.current,{showTrajectory:f.showTrajectory,arenaTheme:f.arenaTheme,showMechanicAlerts:f.showMechanicAlerts!==false,showHitbox:f.showHitbox,autoCam:f.autoCam===true,physicsMode:f.physicsMode||activePhysicsMode,steeringControl:f.steeringControl||"keyboard"}),H=requestAnimationFrame(Z)};return H=requestAnimationFrame(Z),()=>cancelAnimationFrame(H)},[m,p,Tt,I,X,f,C,N,be]);const x=(H:string,Z:string=pilotName,w:string="blue")=>{const foundCar=Gt.current?.find(c=>c.name===Z);const actualTeam=foundCar?foundCar.team:w;const q={id:Math.random().toString(),sender:Z,team:actualTeam,text:H,timestamp:Date.now()};dt(Wt=>[...Wt.slice(-6),q]);if(peerNetwork.isConnected){peerNetwork.sendChat(H,Z,actualTeam);}},R=()=>{ht.current.x=Kt/2,ht.current.y=k-Cu,ht.current.vx=0,ht.current.vy=0},
+W(de?{...de}:null)}Wt&&kv(Wt,Gt.current,ht.current,ne.current,Yt.current,{showTrajectory:f.showTrajectory,arenaTheme:f.arenaTheme,showMechanicAlerts:f.showMechanicAlerts!==false,showHitbox:f.showHitbox,autoCam:f.autoCam!==false,physicsMode:f.physicsMode||activePhysicsMode,steeringControl:f.steeringControl||"keyboard"}),H=requestAnimationFrame(Z)};return H=requestAnimationFrame(Z),()=>cancelAnimationFrame(H)},[m,p,Tt,I,X,f,C,N,be]);const x=(H:string,Z:string=pilotName,w:string="blue")=>{const foundCar=Gt.current?.find(c=>c.name===Z);const actualTeam=foundCar?foundCar.team:w;const q={id:Math.random().toString(),sender:Z,team:actualTeam,text:H,timestamp:Date.now()};dt(Wt=>[...Wt.slice(-6),q]);if(peerNetwork.isConnected){peerNetwork.sendChat(H,Z,actualTeam);}},R=()=>{ht.current.x=Kt/2,ht.current.y=k-Cu,ht.current.vx=0,ht.current.vy=0},
 V=()=>{
   const H=Gt.current.find(Z=>!Z.isBot);
   if(!H)return;
@@ -12653,10 +12678,10 @@ onCeilingSetup=()=>{
   ht.current.vx=isB?(isLegacy?360:300):-(isLegacy?360:300);
   ht.current.vy=isLegacy?-60:-40;
   ht.current.spin=0;
-};const isSpectator = f.mode === "bot_vs_bot" || f.mode.startsWith("spectator");const isMobileDevice = showMobileControls || isTouchDevice;return d.jsx("main",{ref:containerRef,className:"fixed inset-0 w-full h-full min-h-[100dvh] max-h-[100dvh] bg-slate-950 overflow-hidden flex items-center justify-center font-sans select-none",children:d.jsxs("div",{className:"relative w-full h-full overflow-hidden",children:[d.jsx("canvas",{ref:u,className:"absolute inset-0 w-full h-full block"}),d.jsx(a2,{blueScore:C,orangeScore:N,timeLeft:X,isOvertime:I,matchState:p,gameMode:f.mode,botDifficulty:f.botDifficulty,physicsMode:f.physicsMode,currentMap:f.selectedMap||"standard",isPaused:m,onTogglePause:()=>g(H=>!H),onOpenSettings:()=>y(!0),onResetMatch:ie,isFullscreen:isFullscreen,onToggleFullscreen:toggleFullscreen,onOpenControls:()=>setIsControlsOpen(!0),onOpenReplayStudio:handleOpenStudioFromAnywhere,autoCam:f.autoCam===true,onToggleAutoCam:toggleAutoCam,steeringControl:f.steeringControl||"keyboard",onToggleSteeringControl:toggleSteeringControl,onOpenScoreboard:()=>setIsScoreboardOpen(prev=>!prev),onOpenMatchHistory:()=>setIsMatchHistoryOpen(true),isMultiplayerActive:peerNetwork.isConnected&&peerNetwork.roomState?.status==="in_game",multiplayerRoomCode:peerNetwork.roomState?.roomCode||null,multiplayerPing:multiplayerPing,onOpenMultiplayer:()=>setIsMultiplayerOpen(true),onLeaveMultiplayer:()=>{peerNetwork.disconnect();setIsMultiplayerOpen(false);ie();},onOpenQuickMenu:()=>setIsQuickMenuOpen(true),isMobileDevice:isMobileDevice}),
+};const isSpectator = f.mode === "bot_vs_bot" || f.mode.startsWith("spectator");const isMobileDevice = showMobileControls || isTouchDevice;return d.jsx("main",{ref:containerRef,className:"fixed inset-0 w-full h-full min-h-[100dvh] max-h-[100dvh] bg-slate-950 overflow-hidden flex items-center justify-center font-sans select-none",children:d.jsxs("div",{className:"relative w-full h-full overflow-hidden",children:[d.jsx("canvas",{ref:u,className:"absolute inset-0 w-full h-full block"}),d.jsx(a2,{blueScore:C,orangeScore:N,timeLeft:X,isOvertime:I,matchState:p,gameMode:f.mode,botDifficulty:f.botDifficulty,physicsMode:f.physicsMode,currentMap:f.selectedMap||"standard",isPaused:m,onTogglePause:()=>g(H=>!H),onOpenSettings:()=>y(!0),onResetMatch:ie,isFullscreen:isFullscreen,onToggleFullscreen:toggleFullscreen,onOpenControls:()=>setIsControlsOpen(!0),onOpenReplayStudio:handleOpenStudioFromAnywhere,autoCam:f.autoCam!==false,onToggleAutoCam:toggleAutoCam,steeringControl:f.steeringControl||"keyboard",onToggleSteeringControl:toggleSteeringControl,onOpenScoreboard:()=>setIsScoreboardOpen(prev=>!prev),onOpenMatchHistory:()=>setIsMatchHistoryOpen(true),isMultiplayerActive:peerNetwork.isConnected&&peerNetwork.roomState?.status==="in_game",multiplayerRoomCode:peerNetwork.roomState?.roomCode||null,multiplayerPing:multiplayerPing,onOpenMultiplayer:()=>setIsMultiplayerOpen(true),onLeaveMultiplayer:()=>{peerNetwork.disconnect();setIsMultiplayerOpen(false);ie();},onOpenQuickMenu:()=>setIsQuickMenuOpen(true),isMobileDevice:isMobileDevice}),
 isPortrait&&isTouchDevice&&!dismissPortrait&&d.jsxs("div",{className:"absolute top-16 left-1/2 -translate-x-1/2 z-45 w-[92%] max-w-sm px-3.5 py-2.5 rounded-2xl bg-slate-900/95 border border-amber-500/60 shadow-2xl backdrop-blur-md flex items-center justify-between gap-2.5 text-amber-200 animate-fade-in pointer-events-auto",children:[d.jsxs("div",{className:"flex items-center gap-2",children:[d.jsx(RotateCw,{className:"w-4 h-4 text-amber-400 shrink-0 animate-spin-slow"}),d.jsxs("span",{className:"text-xs font-sans font-medium text-amber-100",children:["Rotate device to ",d.jsx("strong",{className:"text-amber-300",children:"Landscape"})," for best view!"]})]}),d.jsx("button",{onClick:()=>setDismissPortrait(true),className:"px-2 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold text-[11px] shrink-0 cursor-pointer",children:"Got it"})]}),
 showMobileControls&&d.jsx(MobileControlsOverlay,{onInputChange:handleTouchInputChange,activeBoost:B?.boost??100,hasFlipReset:!!B?.hasFlipReset,isGrounded:!!B?.isGrounded,isSpectator:isSpectator,visible:!m&&p!=="ended"&&!goalReplayUI?.active&&!dvr.active}),
-d.jsx(MobileQuickMenu,{isOpen:isQuickMenuOpen,onClose:()=>setIsQuickMenuOpen(false),isPaused:m,onTogglePause:()=>g(H=>!H),onResetMatch:ie,isFullscreen:isFullscreen,onToggleFullscreen:toggleFullscreen,isAudioMuted:!f.soundEnabled,onToggleAudioMute:()=>handleUpdateSettings({...f,soundEnabled:!f.soundEnabled}),autoCam:f.autoCam===true,onToggleAutoCam:toggleAutoCam,steeringControl:f.steeringControl||"keyboard",onToggleSteeringControl:toggleSteeringControl,onOpenMultiplayer:()=>setIsMultiplayerOpen(true),onOpenSettings:()=>y(!0),onOpenControls:()=>setIsControlsOpen(!0),onOpenMatchHistory:()=>setIsMatchHistoryOpen(true),onOpenReplayStudio:handleOpenStudioFromAnywhere,isSpectator:isSpectator,isMultiplayerActive:peerNetwork.isConnected&&peerNetwork.roomState?.status==="in_game",multiplayerRoomCode:peerNetwork.roomState?.roomCode||null}),
+d.jsx(MobileQuickMenu,{isOpen:isQuickMenuOpen,onClose:()=>setIsQuickMenuOpen(false),isPaused:m,onTogglePause:()=>g(H=>!H),onResetMatch:ie,isFullscreen:isFullscreen,onToggleFullscreen:toggleFullscreen,isAudioMuted:!f.soundEnabled,onToggleAudioMute:()=>handleUpdateSettings({...f,soundEnabled:!f.soundEnabled}),autoCam:f.autoCam!==false,onToggleAutoCam:toggleAutoCam,steeringControl:f.steeringControl||"keyboard",onToggleSteeringControl:toggleSteeringControl,onOpenMultiplayer:()=>setIsMultiplayerOpen(true),onOpenSettings:()=>y(!0),onOpenControls:()=>setIsControlsOpen(!0),onOpenMatchHistory:()=>setIsMatchHistoryOpen(true),onOpenReplayStudio:handleOpenStudioFromAnywhere,isSpectator:isSpectator,isMultiplayerActive:peerNetwork.isConnected&&peerNetwork.roomState?.status==="in_game",multiplayerRoomCode:peerNetwork.roomState?.roomCode||null}),
 d.jsx(u2,{messages:J,onSendMessage:H=>x(H,pilotName,"blue")}),d.jsx(s2,{jumpKey:f.jumpKey,isOpen:isControlsOpen,onClose:()=>setIsControlsOpen(!1)}),
 d.jsx(ScoreboardModal,{isOpen:isScoreboardOpen,onClose:()=>setIsScoreboardOpen(false),cars:Gt.current,blueScore:C,orangeScore:N,gameMode:f.mode,arenaName:(activeMapDef||MAP_DEFINITIONS[f.selectedMap||"standard"]||MAP_DEFINITIONS.standard).name}),
 d.jsx(MatchHistoryModal,{isOpen:isMatchHistoryOpen,onClose:()=>setIsMatchHistoryOpen(false),onWatchReplay:handleWatchPastReplay}),
@@ -12664,7 +12689,7 @@ d.jsx(MultiplayerModal,{isOpen:isMultiplayerOpen,onClose:()=>setIsMultiplayerOpe
 d.jsx("span",{className:"text-slate-600",children:"•"}),
 d.jsxs("div",{className:"flex items-center gap-1",children:[
 d.jsx("kbd",{className:`px-1.5 py-0.5 rounded border font-mono text-[10px] ${f.steeringControl === "mouse" ? "bg-emerald-950 border-emerald-500 text-emerald-300 font-bold" : "bg-slate-800 border-slate-700 text-slate-300"}`,children:"M"}),
-d.jsx("span",{className:f.steeringControl === "mouse" ? "text-emerald-300 font-bold" : "",children:f.steeringControl === "mouse" ? "Mouse Aim [ON]" : "Mouse Aim"})]})]}),!isMobileDevice&&d.jsx(n2,{playerCar:B}),f.mode==="training"&&d.jsx(c2,{onResetBall:R,onDribbleSetup:V,onPassToMe:Q,onHighAerialSetup:vt,onMustySetup:onMustySetup,onFlipResetSetup:onFlipResetSetup,onPinchSetup:onPinchSetup,onDoubleTapSetup:onDoubleTapSetup,onPsychoSetup:onPsychoSetup,onCeilingSetup:onCeilingSetup,infiniteBoost:Lt,onToggleInfiniteBoost:()=>Ft(H=>!H),showHitbox:f.showHitbox,onToggleHitbox:toggleHitbox,onOpenReplayStudio:handleOpenStudioFromAnywhere}),d.jsx(v2,{alerts:mechAlerts}),d.jsx(i2,{playerCar:Gt.current.find(H=>!H.isBot)||null}),d.jsx(o2,{goalInfo:Ht,kickoffCountdown:Tt}),d.jsx(GoalReplayOverlay,{replayUI:goalReplayUI,onSkip:skipGoalReplay,onSpeedToggle:handleGoalReplaySpeed,onTogglePause:handleGoalReplayTogglePause,onScrub:handleGoalReplayScrub,onStep:handleGoalReplayStep,onRestart:handleGoalReplayRestart,onOpenStudio:handleOpenStudioFromGoalReplay,onExportClip:handleExportGoalClip,isAudioMuted:isReplayAudioMuted,onToggleAudioMute:()=>setIsReplayAudioMuted(prev=>!prev),activeBadge:activeReplayBadge}),(isSpectator||dvr.active)&&!goalReplayUI?.active&&d.jsx(MatchDvrStudio,{isSpectator:isSpectator,dvrState:dvr,onTogglePlay:handleDvrTogglePlay,onScrub:handleDvrScrub,onStep:handleDvrStep,onJump:handleDvrJump,onGoLive:handleDvrGoLive,onSpeedChange:handleDvrSpeedChange,onClose:()=>setDvr({active:!1,offsetSec:0,isPlaying:!1,speed:1}),availableSeconds:getAvailableDvrSeconds(),matchEvents:matchEventsRef.current,onSeekToTime:handleSeekToTime,matchStartTime:matchStartTimeRef.current,clipRange:clipRange,onSetClipIn:handleSetClipIn,onSetClipOut:handleSetClipOut,onQuickClip:handleQuickClip,onExportClip:(format:any)=>handleExportClip(format),isAudioMuted:isReplayAudioMuted,onToggleAudioMute:()=>setIsReplayAudioMuted(prev=>!prev),activeBadge:activeReplayBadge,isCollapsed:isDvrCollapsed,onToggleCollapse:()=>setIsDvrCollapsed(prev=>!prev),autoCam:f.autoCam===true,onToggleAutoCam:toggleAutoCam,steeringControl:f.steeringControl||"keyboard",onToggleSteeringControl:toggleSteeringControl,onOpenScoreboard:()=>setIsScoreboardOpen(prev=>!prev),onOpenMatchHistory:()=>setIsMatchHistoryOpen(true)}),d.jsx(ExportProgressModal,{exportModal:exportModal,onCancel:handleCancelExport}),m&&d.jsx("div",{className:`absolute inset-0 z-35 flex flex-col items-center justify-center ${dvr.active?"bg-black/35 pointer-events-none":"bg-black/70 backdrop-blur-sm"}`,children:d.jsxs("div",{className:`bg-slate-900/95 border border-slate-700 p-6 rounded-2xl shadow-2xl flex flex-col items-center gap-3 text-center pointer-events-auto ${dvr.active?"opacity-95 scale-95 transition":null}`,children:[d.jsx("h3",{className:"text-2xl md:text-3xl font-black text-white uppercase tracking-wider",children:"MATCH PAUSED"}),d.jsxs("p",{className:"text-xs md:text-sm text-slate-300",children:["Press ",d.jsx("kbd",{className:"px-2 py-0.5 bg-slate-800 rounded border border-slate-600 font-mono text-white",children:"P"})," to resume match or open full-match replay studio"]}),d.jsxs("div",{className:"flex gap-2.5 mt-2 flex-wrap justify-center",children:[d.jsx("button",{onClick:()=>{g(!1),setDvr({active:!1,offsetSec:0,isPlaying:!1,speed:1})},className:"px-5 py-2.5 bg-sky-600 hover:bg-sky-500 text-white font-bold text-sm rounded-xl transition shadow-lg cursor-pointer",children:"Resume Match"}),d.jsxs("button",{onClick:()=>{const maxSec=Math.max(1,getAvailableDvrSeconds());setDvr({active:!0,offsetSec:Math.min(15,maxSec),isPlaying:!0,speed:1})},className:"px-4 py-2.5 bg-gradient-to-r from-amber-500/20 to-sky-500/20 hover:from-amber-500/30 hover:to-sky-500/30 text-amber-300 font-bold text-sm rounded-xl transition border border-amber-500/50 flex items-center gap-2 cursor-pointer shadow-md",children:[d.jsx(Film,{className:"w-4 h-4 text-amber-400"}),d.jsx("span",{children:"🎬 Replay & Clip Studio"})]}),d.jsx("button",{onClick:ie,className:"px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-sm rounded-xl transition border border-slate-700 cursor-pointer",children:"Restart Match"})]})]})}),p==="ended"&&!dvr.active&&!isMatchHistoryOpen&&d.jsx("div",{className:"absolute inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4",children:d.jsxs("div",{className:"bg-slate-950 border-2 border-slate-700 rounded-3xl p-8 max-w-md w-full shadow-2xl flex flex-col items-center text-center animate-fade-in text-slate-100",children:[d.jsx(Is,{className:"w-16 h-16 text-amber-400 mb-2 drop-shadow-[0_0_20px_rgba(251,191,36,0.6)]"}),d.jsx("h2",{className:"text-3xl font-black uppercase tracking-tight text-white mb-1",children:C>N?"BLUE WINS!":N>C?"ORANGE WINS!":"OVERTIME DRAW!"}),d.jsxs("div",{className:"my-5 flex items-center justify-center gap-6 px-6 py-3 rounded-2xl bg-slate-900 border border-slate-800",children:[d.jsxs("div",{className:"flex flex-col items-center",children:[d.jsx("span",{className:"text-xs font-bold text-sky-400 uppercase",children:"Blue Team"}),d.jsx("span",{className:"text-4xl font-mono font-black text-white",children:C})]}),d.jsx("span",{className:"text-2xl font-bold text-slate-500",children:":"}),d.jsxs("div",{className:"flex flex-col items-center",children:[d.jsx("span",{className:"text-xs font-bold text-orange-400 uppercase",children:"Orange Team"}),d.jsx("span",{className:"text-4xl font-mono font-black text-white",children:N})]})]}),d.jsxs("div",{className:"flex flex-col gap-2.5 w-full mt-2",children:[d.jsxs("button",{onClick:()=>{const totalSec=Math.max(1,getAvailableDvrSeconds());setDvr({active:!0,offsetSec:totalSec,isPlaying:!0,speed:1});A("playing");},className:"w-full py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-black text-sm uppercase rounded-xl shadow-lg shadow-amber-500/25 transition flex items-center justify-center gap-2 cursor-pointer",children:[d.jsx(Film,{className:"w-4 h-4 text-slate-950"}),d.jsx("span",{children:"🎬 Review Full Match & Export Clips"})]}),d.jsxs("button",{onClick:()=>setIsMatchHistoryOpen(true),className:"w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-sky-300 font-bold text-xs uppercase rounded-xl border border-sky-500/40 transition flex items-center justify-center gap-2 cursor-pointer",children:[d.jsx(Clock,{className:"w-4 h-4 text-sky-400"}),d.jsx("span",{children:"📜 Match History & Past Replays"})]}),d.jsxs("div",{className:"flex gap-3 w-full",children:[
+d.jsx("span",{className:f.steeringControl === "mouse" ? "text-emerald-300 font-bold" : "",children:f.steeringControl === "mouse" ? "Mouse Aim [ON]" : "Mouse Aim"})]})]}),!isMobileDevice&&d.jsx(n2,{playerCar:B}),f.mode==="training"&&d.jsx(c2,{onResetBall:R,onDribbleSetup:V,onPassToMe:Q,onHighAerialSetup:vt,onMustySetup:onMustySetup,onFlipResetSetup:onFlipResetSetup,onPinchSetup:onPinchSetup,onDoubleTapSetup:onDoubleTapSetup,onPsychoSetup:onPsychoSetup,onCeilingSetup:onCeilingSetup,infiniteBoost:Lt,onToggleInfiniteBoost:()=>Ft(H=>!H),showHitbox:f.showHitbox,onToggleHitbox:toggleHitbox,onOpenReplayStudio:handleOpenStudioFromAnywhere}),d.jsx(v2,{alerts:mechAlerts}),d.jsx(i2,{playerCar:Gt.current.find(H=>!H.isBot)||null}),d.jsx(o2,{goalInfo:Ht,kickoffCountdown:Tt}),d.jsx(GoalReplayOverlay,{replayUI:goalReplayUI,onSkip:skipGoalReplay,onSpeedToggle:handleGoalReplaySpeed,onTogglePause:handleGoalReplayTogglePause,onScrub:handleGoalReplayScrub,onStep:handleGoalReplayStep,onRestart:handleGoalReplayRestart,onOpenStudio:handleOpenStudioFromGoalReplay,onExportClip:handleExportGoalClip,isAudioMuted:isReplayAudioMuted,onToggleAudioMute:()=>setIsReplayAudioMuted(prev=>!prev),activeBadge:activeReplayBadge}),(isSpectator||dvr.active)&&!goalReplayUI?.active&&d.jsx(MatchDvrStudio,{isSpectator:isSpectator,dvrState:dvr,onTogglePlay:handleDvrTogglePlay,onScrub:handleDvrScrub,onStep:handleDvrStep,onJump:handleDvrJump,onGoLive:handleDvrGoLive,onSpeedChange:handleDvrSpeedChange,onClose:()=>setDvr({active:!1,offsetSec:0,isPlaying:!1,speed:1}),availableSeconds:getAvailableDvrSeconds(),matchEvents:matchEventsRef.current,onSeekToTime:handleSeekToTime,matchStartTime:matchStartTimeRef.current,clipRange:clipRange,onSetClipIn:handleSetClipIn,onSetClipOut:handleSetClipOut,onQuickClip:handleQuickClip,onExportClip:(format:any)=>handleExportClip(format),isAudioMuted:isReplayAudioMuted,onToggleAudioMute:()=>setIsReplayAudioMuted(prev=>!prev),activeBadge:activeReplayBadge,isCollapsed:isDvrCollapsed,onToggleCollapse:()=>setIsDvrCollapsed(prev=>!prev),autoCam:f.autoCam!==false,onToggleAutoCam:toggleAutoCam,steeringControl:f.steeringControl||"keyboard",onToggleSteeringControl:toggleSteeringControl,onOpenScoreboard:()=>setIsScoreboardOpen(prev=>!prev),onOpenMatchHistory:()=>setIsMatchHistoryOpen(true)}),d.jsx(ExportProgressModal,{exportModal:exportModal,onCancel:handleCancelExport}),m&&d.jsx("div",{className:`absolute inset-0 z-35 flex flex-col items-center justify-center ${dvr.active?"bg-black/35 pointer-events-none":"bg-black/70 backdrop-blur-sm"}`,children:d.jsxs("div",{className:`bg-slate-900/95 border border-slate-700 p-6 rounded-2xl shadow-2xl flex flex-col items-center gap-3 text-center pointer-events-auto ${dvr.active?"opacity-95 scale-95 transition":null}`,children:[d.jsx("h3",{className:"text-2xl md:text-3xl font-black text-white uppercase tracking-wider",children:"MATCH PAUSED"}),d.jsxs("p",{className:"text-xs md:text-sm text-slate-300",children:["Press ",d.jsx("kbd",{className:"px-2 py-0.5 bg-slate-800 rounded border border-slate-600 font-mono text-white",children:"P"})," to resume match or open full-match replay studio"]}),d.jsxs("div",{className:"flex gap-2.5 mt-2 flex-wrap justify-center",children:[d.jsx("button",{onClick:()=>{g(!1),setDvr({active:!1,offsetSec:0,isPlaying:!1,speed:1})},className:"px-5 py-2.5 bg-sky-600 hover:bg-sky-500 text-white font-bold text-sm rounded-xl transition shadow-lg cursor-pointer",children:"Resume Match"}),d.jsxs("button",{onClick:()=>{const maxSec=Math.max(1,getAvailableDvrSeconds());setDvr({active:!0,offsetSec:Math.min(15,maxSec),isPlaying:!0,speed:1})},className:"px-4 py-2.5 bg-gradient-to-r from-amber-500/20 to-sky-500/20 hover:from-amber-500/30 hover:to-sky-500/30 text-amber-300 font-bold text-sm rounded-xl transition border border-amber-500/50 flex items-center gap-2 cursor-pointer shadow-md",children:[d.jsx(Film,{className:"w-4 h-4 text-amber-400"}),d.jsx("span",{children:"🎬 Replay & Clip Studio"})]}),d.jsx("button",{onClick:ie,className:"px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-sm rounded-xl transition border border-slate-700 cursor-pointer",children:"Restart Match"})]})]})}),p==="ended"&&!dvr.active&&!isMatchHistoryOpen&&d.jsx("div",{className:"absolute inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4",children:d.jsxs("div",{className:"bg-slate-950 border-2 border-slate-700 rounded-3xl p-8 max-w-md w-full shadow-2xl flex flex-col items-center text-center animate-fade-in text-slate-100",children:[d.jsx(Is,{className:"w-16 h-16 text-amber-400 mb-2 drop-shadow-[0_0_20px_rgba(251,191,36,0.6)]"}),d.jsx("h2",{className:"text-3xl font-black uppercase tracking-tight text-white mb-1",children:C>N?"BLUE WINS!":N>C?"ORANGE WINS!":"OVERTIME DRAW!"}),d.jsxs("div",{className:"my-5 flex items-center justify-center gap-6 px-6 py-3 rounded-2xl bg-slate-900 border border-slate-800",children:[d.jsxs("div",{className:"flex flex-col items-center",children:[d.jsx("span",{className:"text-xs font-bold text-sky-400 uppercase",children:"Blue Team"}),d.jsx("span",{className:"text-4xl font-mono font-black text-white",children:C})]}),d.jsx("span",{className:"text-2xl font-bold text-slate-500",children:":"}),d.jsxs("div",{className:"flex flex-col items-center",children:[d.jsx("span",{className:"text-xs font-bold text-orange-400 uppercase",children:"Orange Team"}),d.jsx("span",{className:"text-4xl font-mono font-black text-white",children:N})]})]}),d.jsxs("div",{className:"flex flex-col gap-2.5 w-full mt-2",children:[d.jsxs("button",{onClick:()=>{const totalSec=Math.max(1,getAvailableDvrSeconds());setDvr({active:!0,offsetSec:totalSec,isPlaying:!0,speed:1});A("playing");},className:"w-full py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-black text-sm uppercase rounded-xl shadow-lg shadow-amber-500/25 transition flex items-center justify-center gap-2 cursor-pointer",children:[d.jsx(Film,{className:"w-4 h-4 text-slate-950"}),d.jsx("span",{children:"🎬 Review Full Match & Export Clips"})]}),d.jsxs("button",{onClick:()=>setIsMatchHistoryOpen(true),className:"w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-sky-300 font-bold text-xs uppercase rounded-xl border border-sky-500/40 transition flex items-center justify-center gap-2 cursor-pointer",children:[d.jsx(Clock,{className:"w-4 h-4 text-sky-400"}),d.jsx("span",{children:"📜 Match History & Past Replays"})]}),d.jsxs("div",{className:"flex gap-3 w-full",children:[
   peerNetwork.isConnected&&peerNetwork.roomState?.status==="in_game"?(
     peerNetwork.role==="host"?(
       d.jsxs(st.Fragment,{children:[
