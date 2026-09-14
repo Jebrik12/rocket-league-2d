@@ -518,14 +518,15 @@ export function startBotJumpSeq(
   car: any,
   type: "fast_aerial" | "dodge" | "jump_strike" | "speedflip_kickoff" | "wavedash" | "musty_jump",
   dodgeX: number = 0,
-  dodgeY: number = 0
+  dodgeY: number = 0,
+  holdDuration?: number
 ) {
   const bs = car.botState;
   if (!bs.jumpSeq || bs.jumpSeq.stage === "idle") {
     const isAirborne = !car.isGrounded || car.hasFlipReset || car.jumpCount >= 1;
     if (type === "dodge" && isAirborne) {
       // Instant aerial dodge: set frame 0 inputs for immediate execution!
-      bs.jumpSeq = { stage: "press2", timer: 0, type, dodgeX, dodgeY };
+      bs.jumpSeq = { stage: "press2", timer: 0, type, dodgeX, dodgeY, holdDuration };
       car.input.jump = true;
       car.input.throttleForward = false;
       car.input.throttleReverse = false;
@@ -536,7 +537,7 @@ export function startBotJumpSeq(
       car.input.pitchDown = false;
       car.input.pitchUp = false;
     } else if (type === "jump_strike" && isAirborne) {
-      bs.jumpSeq = { stage: "press2", timer: 0, type, dodgeX, dodgeY };
+      bs.jumpSeq = { stage: "press2", timer: 0, type, dodgeX, dodgeY, holdDuration };
       car.input.jump = true;
       car.input.throttleForward = false;
       car.input.throttleReverse = false;
@@ -547,13 +548,13 @@ export function startBotJumpSeq(
       car.input.pitchDown = false;
       car.input.pitchUp = false;
     } else if (type === "fast_aerial") {
-      bs.jumpSeq = { stage: "press1", timer: 0, type, dodgeX, dodgeY };
+      bs.jumpSeq = { stage: "press1", timer: 0, type, dodgeX, dodgeY, holdDuration };
       car.input.jump = true;
       car.input.boost = true;
       car.input.throttleForward = false;
       car.input.throttleReverse = false;
     } else if (type === "musty_jump") {
-      bs.jumpSeq = { stage: isAirborne ? "tilt" : "press1", timer: 0, type, dodgeX, dodgeY };
+      bs.jumpSeq = { stage: isAirborne ? "tilt" : "press1", timer: 0, type, dodgeX, dodgeY, holdDuration };
       if (isAirborne) {
         car.input.jump = false;
         car.input.mouseAim = true;
@@ -563,7 +564,7 @@ export function startBotJumpSeq(
         car.input.throttleForward = true;
       }
     } else {
-      bs.jumpSeq = { stage: "press1", timer: 0, type, dodgeX, dodgeY };
+      bs.jumpSeq = { stage: "press1", timer: 0, type, dodgeX, dodgeY, holdDuration };
       car.input.jump = true;
       car.input.throttleForward = true;
       if (car.boost > 0) car.input.boost = true;
@@ -643,8 +644,9 @@ export function updateBotJumpSeq(car: any, dt: number, env: ArenaEnv): boolean {
       car.input.throttleForward = true;
       if (car.boost > 10) car.input.boost = true;
 
-      // Hold jump for 0.08s to elevate car hitbox cleanly to ball height
-      if (s.timer >= 0.08) {
+      // Dynamic jump hold to elevate car hitbox cleanly to ball height
+      const targetHold = typeof s.holdDuration === "number" ? Math.max(0.04, Math.min(0.20, s.holdDuration)) : 0.08;
+      if (s.timer >= targetHold) {
         s.stage = "release";
         s.timer = 0;
         car.input.jump = false;
@@ -1022,9 +1024,9 @@ export function executeMasterBotBrain(
   const isLeftSolidWall = (ball.y < (env.le.yMin || 380) - 10 || ball.y > (env.le.yMax || 680) + 10);
   const isRightSolidWall = (ball.y < (env.ae.yMin || 380) - 10 || ball.y > (env.ae.yMax || 680) + 10);
 
-  // Kuxir pinch: on own defensive wall, slamming toward wall shoots ball across field into opponent net!
-  const isBlueKuxir = teamDir > 0 && isNearLeftWall && isLeftSolidWall && car.x < env.At + 140;
-  const isOrangeKuxir = teamDir < 0 && isNearRightWall && isRightSolidWall && car.x > env.Mt - 140;
+  // Kuxir pinch: on own high defensive wall strictly above crossbar (y < yMin - 20)
+  const isBlueKuxir = teamDir > 0 && isNearLeftWall && isLeftSolidWall && ball.y < (env.le.yMin || 380) - 20 && car.x < env.At + 140;
+  const isOrangeKuxir = teamDir < 0 && isNearRightWall && isRightSolidWall && ball.y < (env.ae.yMin || 380) - 20 && car.x > env.Mt - 140;
 
   // Offensive corner pinch: in opponent's corner, pinching against wall blasts ball centering across goalmouth
   const isOffensiveWallPinch = (teamDir > 0 && isNearRightWall && isRightSolidWall && car.x > env.Mt - 140) ||
@@ -1042,8 +1044,8 @@ export function executeMasterBotBrain(
   }
 
   if (threat.isThreat === 2) {
-    z.action = "backboard_clear";
-    executeBackboardClear(car, ball, ownGoal, teamDir, env);
+    z.action = "backboard_defense";
+    executeBackboardReboundDefense(car, ball, ownGoal, teamDir, env, threat.interceptTime);
     return;
   }
 
@@ -1222,9 +1224,13 @@ export function executeMasterBotBrain(
     // Drive with true bumper intercept target (NEVER overrides to ball.x!)
     botDriveGround(car, targetX, true, false, env);
 
-    if (intercept.isAerial && ball.y < env.k - 170 && intercept.y < env.k - 170 && car.boost >= 12) {
+    const hClimb = Math.max(0, car.y - targetY);
+    const isApproachingBall = ballRel > 0;
+    const vClose = Math.max(120, (car.vx - ball.vx) * teamDir);
+    const strikeTriggerDist = contactDist + Math.min(55, Math.max(25, vClose * 0.045));
+
+    if (intercept.isAerial && ball.y < env.k - 165 && intercept.y < env.k - 165 && car.boost >= 8) {
       // High Aerial Launch: Only for genuinely elevated balls with adequate boost
-      const hClimb = Math.max(0, car.y - intercept.y);
       const climbSpeed = env.isLegacy ? 840 : 680;
       const climbT = 0.10 + hClimb / climbSpeed;
       const horizDist = Math.abs(car.x - targetX);
@@ -1232,28 +1238,27 @@ export function executeMasterBotBrain(
       if (car.canJump && !car.isFlipping && intercept.t <= climbT + 0.18 && horizDist <= maxLaunchDist) {
         startBotJumpSeq(car, "fast_aerial");
       }
-    } else if (intercept.isFloating || ball.y < env.k - 38) {
-      // Floating / Waist-high bouncing ball: PRECISION JUMP STRIKE (Never whiffs underneath!)
-      const vClose = Math.max(120, (car.vx - ball.vx) * teamDir);
-      const strikeTriggerDist = contactDist + Math.min(55, Math.max(25, vClose * 0.045));
-      const isApproachingBall = ballRel > 0;
-
-      if (isApproachingBall && distToBall <= strikeTriggerDist && car.canJump && !car.isFlipping) {
+    } else if (hClimb > 20 || ball.y < env.k - 38) {
+      // Waist-High & Floating Ball: PRECISION JUMP STRIKE with calibrated elevation (Never whiffs underneath!)
+      const climbT = 0.05 + hClimb / 480;
+      const holdDuration = Math.max(0.04, Math.min(0.20, hClimb / 400));
+      if (isApproachingBall && car.canJump && !car.isFlipping) {
         if (distToBall <= contactDist + 20) {
           // Instant dodge flip directly into the ball
-          startBotJumpSeq(car, "dodge", cosShoot, Math.min(-0.20, sinShoot * 0.85));
-        } else {
-          startBotJumpSeq(car, "jump_strike", cosShoot, Math.min(-0.20, sinShoot * 0.85));
+          startBotJumpSeq(car, "dodge", cosShoot, Math.min(-0.15, sinShoot * 0.85));
+        } else if (intercept.t <= climbT + 0.12 && distToBall <= strikeTriggerDist + 25) {
+          startBotJumpSeq(car, "jump_strike", cosShoot, Math.min(-0.15, sinShoot * 0.85), holdDuration);
         }
       }
     } else {
-      // Flat ground strike: 100% STAY GROUNDED! ZERO JUMP!
-      // Supersonic / High-speed Bumper Blast directly through targetX
-      // Eliminates jumping over ground balls completely
+      // Flat ground strike: 100% STAY GROUNDED on approach, then execute lethal supersonic contact dodge!
       botDriveGround(car, targetX, true, false, env);
       car.input.throttleForward = true;
       if (car.boost > 0 && Math.abs(car.x - targetX) < 320) {
         car.input.boost = true;
+      }
+      if (isApproachingBall && distToBall <= contactDist + 16 && car.canJump && !car.isFlipping) {
+        startBotJumpSeq(car, "dodge", cosShoot, Math.min(-0.06, sinShoot * 0.5));
       }
     }
   } else {
@@ -1326,6 +1331,11 @@ function executeKickoff(car: any, ball: any, teamDir: number, env: ArenaEnv, isU
     if (car.boost > 0) car.input.boost = true;
     car.input.steerRight = s > 0.5;
     car.input.steerLeft = s < -0.5;
+
+    // Clinical 50/50 power dodge directly through the ball at the moment of contact
+    if (dist <= contactDist + 15 && car.canJump && !car.isFlipping) {
+      startBotJumpSeq(car, "dodge", teamDir, -0.06);
+    }
   }
 }
 
@@ -1382,101 +1392,128 @@ function executeGoalkeeperSave(
   const specs = getCarHitboxSpecs(car);
   const contactDist = specs.halfW + (ball.radius || 30);
 
-  // Disciplined crease positioning: anchor between goal and ball
-  const goalGuardX = goalX + teamDir * 115;
-  const creaseLimitX = goalX + teamDir * 230;
+  // Disciplined crease positioning: anchor inside goalmouth crease between post and field
+  const goalGuardX = goalX + teamDir * 85;
+  const creaseLimitX = goalX + teamDir * 200;
 
   const distToGoalieX = Math.abs(ball.x - car.x);
   const relVx = Math.max(80, Math.abs(ball.vx - (car.isGrounded ? car.vx : 0)));
   const tToMeet = Math.max(0.04, Math.min(interceptTime > 0 ? interceptTime : 1.5, distToGoalieX / relVx));
 
   const meetParabolicY = ball.y + ball.vy * tToMeet + 0.5 * env.Ph * tToMeet * tToMeet;
-  const isGroundBouncing = meetParabolicY >= env.k - 45;
-  const goalieInterceptY = isGroundBouncing ? (interceptY > 0 ? interceptY : env.k - 30) : meetParabolicY;
+  const isGroundBouncing = meetParabolicY >= env.k - 38;
+  const goalieInterceptY = isGroundBouncing ? (interceptY > 0 ? interceptY : env.k - 25) : meetParabolicY;
 
   const targetSaveY = isGroundBouncing
-    ? env.k - 30
+    ? env.k - 25
     : Math.max((ownGoal.yMin || 380) + 15, Math.min((ownGoal.yMax || 680) - 15, goalieInterceptY));
 
   const targetSaveX = teamDir > 0
-    ? Math.max(goalGuardX, Math.min(ball.x - 25, creaseLimitX))
-    : Math.min(goalGuardX, Math.max(ball.x + 25, creaseLimitX));
+    ? Math.max(goalGuardX, Math.min(ball.x - 20, creaseLimitX))
+    : Math.min(goalGuardX, Math.max(ball.x + 20, creaseLimitX));
 
   const dist = Math.hypot(ball.x - car.x, ball.y - car.y);
-
   const hClimb = Math.max(0, car.y - targetSaveY);
-  const isHighBall = hClimb > 75 && !isGroundBouncing && ball.y < env.k - 95;
-  const requiresFastAerial = hClimb > 120 && car.boost > 8;
-  const climbT = 0.11 + hClimb / 680;
 
   const isGoalieBehindBall = (ball.x - car.x) * teamDir > 0;
 
   if (!isGoalieBehindBall) {
-    // CAUGHT UPFIELD: Must rotate wide outside to back post WITHOUT steering into own net!
-    const safeBackPostX = goalX + teamDir * 180;
-    botDriveGround(car, safeBackPostX, true, false, env);
+    // CAUGHT UPFIELD: Strictly never steer toward own net into the ball!
+    car.input.boost = false;
+    car.input.steerLeft = false;
+    car.input.steerRight = false;
+    if (car.isGrounded && car.canJump && !car.isFlipping) {
+      // High jump hurdle cleanly over the ball towards goal side
+      startBotJumpSeq(car, "jump_strike", teamDir, -0.4, 0.18);
+    }
     return;
   }
 
   if (car.isGrounded) {
-    const distToCrease = (creaseLimitX - car.x) * teamDir;
+    car.facing = teamDir;
+    car.angle = teamDir > 0 ? 0 : Math.PI;
 
-    if (isHighBall) {
-      if (distToCrease < -40) {
-        botDriveGround(car, goalGuardX, true, false, env);
-      } else {
-        car.facing = teamDir;
-        car.angle = teamDir > 0 ? 0 : Math.PI;
-
-        if (distToCrease > 40) {
-          botDriveGround(car, targetSaveX, true, false, env);
-        } else {
-          car.input.throttleForward = true;
-          car.input.steerLeft = teamDir < 0;
-          car.input.steerRight = teamDir > 0;
-        }
-
-        if (tToMeet <= climbT + 0.25 && distToGoalieX <= 600 && car.canJump && !car.isFlipping) {
-          if (requiresFastAerial) {
-            startBotJumpSeq(car, "fast_aerial", clearDirX, clearDirY);
-          } else {
-            startBotJumpSeq(car, "jump_strike", clearDirX, clearDirY);
-          }
-        }
+    if (hClimb > 130 && car.boost > 8) {
+      // High Aerial Save
+      botDriveGround(car, targetSaveX, true, false, env);
+      const climbSpeed = env.isLegacy ? 840 : 680;
+      const climbT = 0.10 + hClimb / climbSpeed;
+      if (tToMeet <= climbT + 0.22 && car.canJump && !car.isFlipping) {
+        startBotJumpSeq(car, "fast_aerial", clearDirX, clearDirY);
+      }
+    } else if (hClimb > 24 || ball.y < env.k - 38) {
+      // Waist-High & Floating Save (Never Whiffs Underneath!)
+      botDriveGround(car, ball.x + teamDir * 15, true, false, env);
+      const climbT = 0.05 + hClimb / 480;
+      const holdDuration = Math.max(0.04, Math.min(0.20, hClimb / 400));
+      if (dist <= contactDist + 22 && car.canJump && !car.isFlipping) {
+        startBotJumpSeq(car, "dodge", clearDirX, clearDirY);
+      } else if (tToMeet <= climbT + 0.14 && dist <= contactDist + 65 && car.canJump && !car.isFlipping) {
+        startBotJumpSeq(car, "jump_strike", clearDirX, clearDirY, holdDuration);
       }
     } else {
-      botDriveGround(car, ball.x + teamDir * 15, true, false, env);
-      const vClose = Math.max(120, (car.vx - ball.vx) * teamDir);
-      const dodgeDist = contactDist + Math.min(75, Math.max(30, vClose * 0.055));
-      if (dist <= dodgeDist && car.canJump && !car.isFlipping) {
-        startBotJumpSeq(car, "dodge", clearDirX, clearDirY);
+      // Ground Save: Drive through ball and power-clear outward
+      botDriveGround(car, ball.x, true, false, env);
+      if (dist <= contactDist + 20 && car.canJump && !car.isFlipping) {
+        startBotJumpSeq(car, "dodge", clearDirX, -0.15);
       }
     }
   } else {
-    const aimX = teamDir > 0
-      ? Math.max(goalGuardX, Math.min(ball.x - 20, creaseLimitX))
-      : Math.min(goalGuardX, Math.max(ball.x + 20, creaseLimitX));
-    botDriveAir(car, aimX, targetSaveY, env, tToMeet);
+    botDriveAir(car, targetSaveX, targetSaveY, env, tToMeet);
     if (dist <= contactDist + 35 && (car.jumpCount === 1 || car.hasFlipReset || car.canJump)) {
       startBotJumpSeq(car, "dodge", clearDirX, clearDirY);
     }
   }
 }
 
-function executeBackboardClear(car: any, ball: any, ownGoal: GoalDef, teamDir: number, env: ArenaEnv) {
+function executeBackboardReboundDefense(
+  car: any,
+  ball: any,
+  ownGoal: GoalDef,
+  teamDir: number,
+  env: ArenaEnv,
+  interceptTime: number
+) {
   const goalX = ownGoal.x !== undefined ? ownGoal.x : (teamDir > 0 ? env.At : env.Mt);
-  const backboardX = goalX + teamDir * 90;
+  const specs = getCarHitboxSpecs(car);
+  const contactDist = specs.halfW + (ball.radius || 30);
   const dist = Math.hypot(ball.x - car.x, ball.y - car.y);
 
+  // Station goalie at crease line facing out into the pitch
+  const creaseX = goalX + teamDir * 110;
+  const clearDirX = teamDir;
+  const clearDirY = -0.35;
+
+  const isBallReboundingOut = (ball.vx * teamDir > 25);
+  const isBallCloseToWall = Math.abs(ball.x - goalX) < 95;
+
   if (car.isGrounded) {
-    botDriveGround(car, backboardX, true, false, env);
-    if (Math.abs(car.x - backboardX) < 180 && ball.y < env.k - 100 && car.canJump && !car.isFlipping) {
-      startBotJumpSeq(car, "fast_aerial");
+    if (isBallReboundingOut) {
+      // Rebound is coming out: charge into the rebound and blast downfield!
+      botDriveGround(car, ball.x, true, false, env);
+      const hClimb = Math.max(0, car.y - ball.y);
+      if (dist <= contactDist + 28 && car.canJump && !car.isFlipping) {
+        if (hClimb > 30) {
+          startBotJumpSeq(car, "jump_strike", clearDirX, clearDirY, Math.min(0.18, hClimb / 400));
+        } else {
+          startBotJumpSeq(car, "dodge", clearDirX, -0.15);
+        }
+      }
+    } else {
+      // Ball still heading towards backboard: hold crease position, do NOT jump into wall!
+      botDriveGround(car, creaseX, false, false, env);
+      car.facing = teamDir;
+      car.angle = teamDir > 0 ? 0 : Math.PI;
+
+      // Only fly if ball is right above car and ready to be tapped away
+      if (isBallCloseToWall && ball.y < (ownGoal.yMin || 380) && car.boost > 20 && dist < 140 && car.canJump && !car.isFlipping) {
+        startBotJumpSeq(car, "fast_aerial", clearDirX, clearDirY);
+      }
     }
   } else {
-    botDriveAir(car, ball.x, ball.y, env, 0.45);
-    if (dist < 110 && (car.jumpCount === 1 || car.hasFlipReset)) {
-      startBotJumpSeq(car, "dodge", teamDir, -0.35);
+    botDriveAir(car, ball.x, ball.y, env, 0.35);
+    if (dist <= contactDist + 35 && (car.jumpCount === 1 || car.hasFlipReset || car.canJump)) {
+      startBotJumpSeq(car, "dodge", clearDirX, clearDirY);
     }
   }
 }
@@ -1564,17 +1601,25 @@ function executeShadowRecovery(car: any, ball: any, ownGoal: GoalDef, teamDir: n
 
   if (car.isGrounded) {
     if (isUpfieldOfBall) {
-      // Upfield of ball: NEVER boost or steer toward own net when trailing close to ball!
+      // Upfield of ball: STRICTLY NEVER steer toward own net or boost when ball is behind!
       car.input.boost = false;
-      if (Math.abs(car.x - ball.x) < 160) {
-        // Safe hop directly over ball to avoid dragging ball backwards into own net
-        car.input.jump = true;
+      if (teamDir > 0) {
         car.input.steerLeft = false;
+      } else {
         car.input.steerRight = false;
+      }
+
+      if (Math.abs(car.x - ball.x) < 160) {
+        // Safe jump hop directly over ball to get behind ball without dragging it backwards into own net
+        car.input.jump = true;
         car.input.throttleForward = false;
         car.input.throttleReverse = false;
+        car.input.steerLeft = false;
+        car.input.steerRight = false;
       } else {
         botDriveGround(car, safeGoalPostX, false, false, env);
+        if (teamDir > 0) car.input.steerLeft = false;
+        else car.input.steerRight = false;
       }
     } else {
       // Goal-side: face outward into field to challenge attack

@@ -1930,8 +1930,8 @@ function Cv_legacy(u: any, f: number, r: any) {
       u.jumpHoldTimer += f;
       u.vy += -Gh * f;
     }
-    if (u.input.jump && u.canJump && (u.jumpCount === 1 || u.jumpCount === 0) && (u.flipWindowTimer < _v || u.jumpCount === 0)) {
-      u.canJump = !1, u.jumpCount = 2;
+    if (u.input.jump && u.canJump && (u.jumpCount === 1 || u.jumpCount === 0 || u.hasFlipReset) && (u.flipWindowTimer < _v || u.jumpCount === 0 || u.hasFlipReset)) {
+      u.canJump = !1, u.jumpCount = 2, u.hasFlipReset = !1;
       let A = 0, C = 0;
       if (u.input.steerRight) A += 1;
       if (u.input.steerLeft) A -= 1;

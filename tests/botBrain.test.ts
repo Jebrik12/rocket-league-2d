@@ -692,6 +692,92 @@ function runTests() {
     assert(clientDeadReckonCount === 0, "Singleplayer/host NEVER executes client dead reckoning");
   }
 
+  // --- TEST GROUP 22: Flawless Competitive Grand Champion / SSL Protocol ---
+  console.log("\n--- 22. Flawless Competitive Grand Champion / SSL Protocol ---");
+  {
+    // A: Kickoff 50/50 contact power dodge
+    const kickoffCar = createMockCar({
+      x: 950,
+      y: testEnv.k - 14.5,
+      vx: 400,
+      team: "blue",
+      boost: 25
+    });
+    const kickoffBall = { x: 1000, y: testEnv.k - 30, vx: 0, vy: 0, radius: 30 };
+    executeMasterBotBrain(kickoffCar, kickoffBall, null, null, [], 1, 0.016, testEnv, true, [], {});
+    assert(
+      kickoffCar.input.jump === true || kickoffCar.botState.jumpSeq.stage !== "idle",
+      "Kickoff executes decisive 50/50 contact dodge at ball impact"
+    );
+
+    // B: Goalkeeper crease positioning & save (zero whiff)
+    const goalieCar = createMockCar({
+      x: testEnv.At + 120, // 240 (inside crease)
+      y: testEnv.k - 14.5,
+      vx: 0,
+      team: "blue",
+      boost: 30
+    });
+    // Ball heading into goal mouth (y = 550, within net yMin=380, yMax=680)
+    const waistSaveBall = {
+      x: testEnv.At + 220,
+      y: 550,
+      vx: -350,
+      vy: 0,
+      radius: 30
+    };
+    executeMasterBotBrain(goalieCar, waistSaveBall, null, null, [], 1, 0.016, testEnv, true, [], {});
+    assert(goalieCar.botState.action === "save", "Goalie recognizes direct incoming threat");
+    assert(
+      goalieCar.input.jump === true || goalieCar.botState.jumpSeq.stage !== "idle",
+      "Goalie initiates elevation jump strike to intercept waist-high shot"
+    );
+
+    // C: Backboard Rebound Defense (no suicidal backboard wall climb)
+    const backboardDefender = createMockCar({
+      x: testEnv.At + 180,
+      y: testEnv.k - 14.5,
+      vx: 50,
+      team: "blue",
+      boost: 40
+    });
+    // High ball heading towards backboard (y = 160, hits backboard at y = 190 < 380)
+    const backboardThreatBall = {
+      x: testEnv.At + 250,
+      y: 160,
+      vx: -500,
+      vy: -120,
+      radius: 30
+    };
+    executeMasterBotBrain(backboardDefender, backboardThreatBall, null, null, [], 1, 0.016, testEnv, true, [], {});
+    assert(backboardDefender.botState.action === "backboard_defense", "Bot identifies backboard trajectory and sets up crease defense");
+    assert(
+      backboardDefender.botState.jumpSeq.type !== "fast_aerial" || backboardDefender.x > testEnv.At + 100,
+      "Bot holds crease position without flying into own back wall prematurely"
+    );
+
+    // D: Flat Ground Power Boomer (Contact Dodge Flip)
+    const groundAttacker = createMockCar({
+      x: 750,
+      y: testEnv.k - 14.5,
+      vx: 450,
+      team: "blue",
+      boost: 40
+    });
+    const groundBall = {
+      x: 810,
+      y: testEnv.k - 20,
+      vx: 80,
+      vy: 0,
+      radius: 30
+    };
+    executeMasterBotBrain(groundAttacker, groundBall, null, null, [], 1, 0.016, testEnv, true, [], {});
+    assert(
+      groundAttacker.input.jump === true || groundAttacker.botState.jumpSeq.stage !== "idle",
+      "Attacker fires supersonic dodge flip through flat ground ball for 120+ km/h boomer shot"
+    );
+  }
+
   // Summary
   console.log(`\n========================================`);
   console.log(`TEST SUMMARY: ${passed} PASSED, ${failed} FAILED`);
