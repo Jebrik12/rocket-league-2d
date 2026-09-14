@@ -3721,8 +3721,10 @@ function Uv(u:any,f:any,r:number,s:any){
   switch (y) {
     case "rookie": Lv(u, f, r); break;
     case "pro": Vv(u, f, ownGoal.x, oppGoal.x, teamDir, m); break;
-    case "allstar": Qv(u, f, oppCar, ownGoal, oppGoal, teamDir, m, g, tmCar); break;
-    case "ssl": case "unfair":
+    case "allstar":
+    case "ssl":
+    case "unfair":
+    default:
       Zv(u, f, oppCar, ownGoal, oppGoal, teamDir, m, p, y === "unfair", g, tmCar, s);
       break;
   }
@@ -4577,9 +4579,9 @@ function Fs(u:any,f:any,r:any,s:any,y:any,m:any){
 }
 
 function isBallBehindCar(u: any, f: any, teamDir: number): boolean {
-  // True when the ball is between the car and its own net, or car is level with ball
+  // True only when the car has truly overshot the ball towards opponent net
   const ballBehindX = (u.x - f.x) * teamDir;
-  return ballBehindX > -15;
+  return ballBehindX > 35;
 }
 
 function handleWrongSideRecovery(u: any, f: any, ownGoal: any, teamDir: number) {
@@ -4594,7 +4596,8 @@ function handleWrongSideRecovery(u: any, f: any, ownGoal: any, teamDir: number) 
 function Lv(u: any, f: any, r: any) {
   const ownGoal = u.team === "orange" ? ae : le;
   const teamDir = u.team === "orange" ? -1 : 1;
-  if (isBallBehindCar(u, f, teamDir)) {
+  const dist = Math.hypot(f.x - u.x, f.y - u.y);
+  if (isBallBehindCar(u, f, teamDir) && dist > 55) {
     handleWrongSideRecovery(u, f, ownGoal, teamDir);
     return;
   }
@@ -4607,7 +4610,8 @@ function Vv(u: any, f: any, ownGoalX: number, oppGoalX: number, teamDir: number,
   const oppGoal = { x: oppGoalX, yMin: 380, yMax: 680 };
   if (tm(f)) { nm(u, f, teamDir, false, ownGoal, oppGoal); return; }
   if (u.botState) { u.botState.kickoffStrat = null; u.botState.kickoffFlipDone = false; }
-  if (isBallBehindCar(u, f, teamDir)) {
+  const dist = Math.hypot(f.x - u.x, f.y - u.y);
+  if (isBallBehindCar(u, f, teamDir) && dist > 55) {
     handleWrongSideRecovery(u, f, ownGoal, teamDir);
     return;
   }
@@ -4626,7 +4630,8 @@ function Qv(u: any, f: any, oppCar: any, ownGoal: any, oppGoal: any, teamDir: nu
     return;
   }
 
-  if (isBallBehindCar(u, f, teamDir)) {
+  const distToBall = Math.hypot(f.x - u.x, f.y - u.y);
+  if (isBallBehindCar(u, f, teamDir) && distToBall > 55) {
     handleWrongSideRecovery(u, f, ownGoal, teamDir);
     return;
   }
@@ -4643,38 +4648,29 @@ function Qv(u: any, f: any, oppCar: any, ownGoal: any, oppGoal: any, teamDir: nu
     wavedashMinSpeed: activePhysicsMode === "legacy" ? 1280 : (RL_PHYSICS.wavedashMinSpeed || 1280)
   };
   const intercept = solveBestIntercept(u, f, teamDir, botEnv, oppCar, tmCar, false, 1.6);
-  const targetX = intercept.strikeTargetX || intercept.x;
+  const targetX = distToBall < 110 ? f.x + teamDir * 15 : (intercept.strikeTargetX || intercept.x);
   const targetY = intercept.strikeTargetY || intercept.y;
   const shootAngle = Math.atan2(intercept.targetCornerY - f.y, oppGoal.x - f.x);
   const cosShoot = Math.cos(shootAngle), sinShoot = Math.sin(shootAngle);
-  const dist = Math.hypot(f.x - u.x, f.y - u.y);
 
   if (u.isGrounded) {
-    if (!intercept.isSafe || (targetX - u.x) * teamDir < -15) {
-      handleWrongSideRecovery(u, f, ownGoal, teamDir);
-      return;
-    }
     je(u, targetX, true, false);
-    if (intercept.isAerial) {
+    if (intercept.isAerial && f.y < k - 90) {
       const heightClimb = Math.max(0, u.y - intercept.y);
       const climbTime = 0.10 + heightClimb / 580;
       const horizDist = Math.abs(u.x - targetX);
-      const maxLaunchDist = Math.max(85, Math.abs(u.vx) * climbTime + 65);
-      if (u.canJump && !u.isFlipping && u.boost > 8 && intercept.t <= climbTime + 0.14 && horizDist <= maxLaunchDist) {
+      const maxLaunchDist = Math.max(90, Math.abs(u.vx) * climbTime + 75);
+      if (u.canJump && !u.isFlipping && u.boost > 8 && intercept.t <= climbTime + 0.16 && horizDist <= maxLaunchDist) {
         startBotJumpSeq(u, "fast_aerial");
       }
     } else {
-      if (dist <= 65 && Math.abs(u.x - f.x) <= 55 && u.canJump && !u.isFlipping) {
-        startBotJumpSeq(u, "dodge", cosShoot, sinShoot * 0.85);
+      if (distToBall <= 52 && Math.abs(u.x - f.x) <= 44 && u.canJump && !u.isFlipping) {
+        startBotJumpSeq(u, "dodge", cosShoot, Math.min(-0.15, sinShoot * 0.85));
       }
     }
   } else {
-    if (!intercept.isSafe || (targetX - u.x) * teamDir < -15) {
-      handleWrongSideRecovery(u, f, ownGoal, teamDir);
-      return;
-    }
     jn(u, targetX, targetY, 0.45, false, intercept.t);
-    if (dist <= 85 && (u.jumpCount === 1 || u.hasFlipReset)) {
+    if (distToBall <= 85 && (u.jumpCount === 1 || u.hasFlipReset)) {
       startBotJumpSeq(u, "dodge", cosShoot, sinShoot * 0.85);
     }
   }
