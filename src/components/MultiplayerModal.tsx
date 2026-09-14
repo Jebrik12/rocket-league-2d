@@ -107,10 +107,10 @@ export const MultiplayerModal: React.FC<MultiplayerModalProps> = ({
   const [hostBotDiff, setHostBotDiff] = useState<BotDifficulty>("ssl");
   const [hostPhysicsMode, setHostPhysicsMode] = useState<"rocket_league" | "legacy">(() => {
     try {
-      const saved = localStorage.getItem("rl_physics_mode_v2");
-      return saved === "rocket_league" ? "rocket_league" : "legacy";
+      const saved = localStorage.getItem("rl_physics_mode_v3");
+      return saved === "legacy" ? "legacy" : "rocket_league";
     } catch (e) {
-      return "legacy";
+      return "rocket_league";
     }
   });
 
@@ -561,18 +561,18 @@ export const MultiplayerModal: React.FC<MultiplayerModalProps> = ({
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {[
                         {
-                          id: "legacy" as const,
-                          name: "Classic / Arcade",
-                          badge: "Original & Fast",
-                          color: "text-amber-400",
-                          desc: "Original snappy 1050/850 gravity, 1250 boost & extreme bumper pop launches"
-                        },
-                        {
                           id: "rocket_league" as const,
                           name: "Rocket League Pro",
                           badge: "Realistic & Flicks",
                           color: "text-sky-400",
                           desc: "Authentic 720 gravity, ground dribble carry & 45°/Musty flicks"
+                        },
+                        {
+                          id: "legacy" as const,
+                          name: "Classic / Arcade",
+                          badge: "Original & Fast",
+                          color: "text-amber-400",
+                          desc: "Original snappy 1050/850 gravity, 1250 boost & extreme bumper pop launches"
                         }
                       ].map((p) => (
                         <button
