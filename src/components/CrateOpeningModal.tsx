@@ -181,10 +181,12 @@ export const CrateOpeningModal: React.FC<CrateOpeningModalProps> = ({
 
     // Calculate final translateX so the needle aligns with WINNING_INDEX
     // Container center offset
-    const containerWidth = spinnerContainerRef.current?.offsetWidth || 600;
+    const containerWidth = spinnerContainerRef.current
+      ? spinnerContainerRef.current.getBoundingClientRect().width
+      : 600;
     const itemCenter = CARD_WIDTH / 2;
-    // Slight random offset within the winning card (-30px to +30px) for organic feel
-    const randomJitter = (Math.random() * 60) - 30;
+    // Slight organic offset (-12px to +12px) strictly inside the winning card boundaries
+    const randomJitter = (Math.random() * 24) - 12;
     const finalOffset =
       WINNING_INDEX * (CARD_WIDTH + CARD_GAP) + itemCenter - containerWidth / 2 + randomJitter;
 
@@ -215,18 +217,23 @@ export const CrateOpeningModal: React.FC<CrateOpeningModalProps> = ({
       if (progress < 1) {
         requestAnimationFrame(animateSpin);
       } else {
-        // Spin finished! Reveal result
+        // Spin finished! Snap exactly to finalOffset
+        setSpinTranslateX(finalOffset);
         setIsSpinning(false);
         const isHighRarity =
           wonItem.rarity === "import" ||
           wonItem.rarity === "exotic" ||
           wonItem.rarity === "black_market";
         playFanfareSound(isHighRarity);
-        setUnlockedResult({
-          item: wonItem,
-          isDuplicate: result.isDuplicate,
-          creditBonus: result.coinsBonus ?? result.creditBonus
-        });
+
+        // Pause briefly so player sees the needle resting on the glowing winning card
+        setTimeout(() => {
+          setUnlockedResult({
+            item: wonItem,
+            isDuplicate: result.isDuplicate,
+            creditBonus: result.coinsBonus ?? result.creditBonus
+          });
+        }, 850);
       }
     };
 
@@ -345,18 +352,30 @@ export const CrateOpeningModal: React.FC<CrateOpeningModalProps> = ({
             {/* Spinner Items Strip */}
             {spinnerItems.length > 0 ? (
               <div
-                className="flex items-center gap-2.5 px-3 will-change-transform"
+                className="flex items-center will-change-transform"
                 style={{
+                  gap: `${CARD_GAP}px`,
                   transform: `translateX(-${spinTranslateX}px)`
                 }}
               >
                 {spinnerItems.map((item, idx) => {
                   const rarity = RARITY_CONFIG[item.rarity] || RARITY_CONFIG.common;
+                  const isWinningCard = idx === WINNING_INDEX;
                   return (
                     <div
                       key={idx}
-                      style={{ width: `${CARD_WIDTH}px` }}
-                      className={`h-26 sm:h-32 rounded-xl sm:rounded-2xl border-2 p-2 flex flex-col justify-between shrink-0 transition bg-slate-950/90 ${rarity.borderColor}`}
+                      style={{
+                        width: `${CARD_WIDTH}px`,
+                        minWidth: `${CARD_WIDTH}px`,
+                        maxWidth: `${CARD_WIDTH}px`
+                      }}
+                      className={`h-26 sm:h-32 rounded-xl sm:rounded-2xl border-2 p-2 flex flex-col justify-between shrink-0 transition-all duration-300 bg-slate-950/90 ${
+                        rarity.borderColor
+                      } ${
+                        !isSpinning && isWinningCard
+                          ? "ring-2 ring-amber-400 shadow-xl shadow-amber-500/50 scale-[1.03] z-10"
+                          : ""
+                      }`}
                     >
                       <div className="flex items-center justify-between">
                         <span
