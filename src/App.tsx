@@ -3792,13 +3792,15 @@ function Uv(u:any,f:any,r:number,s:any){
 }
 
 function Vh(u:any){
-  u.input={steerLeft:!1,steerRight:!1,throttleForward:!1,throttleReverse:!1,pitchUp:!1,pitchDown:!1,airRollLeft:!1,airRollRight:!1,jump:!1,boost:!1,handbrake:!1};
+  u.input={steerLeft:!1,steerRight:!1,throttleForward:!1,throttleReverse:!1,pitchUp:!1,pitchDown:!1,airRollLeft:!1,airRollRight:!1,jump:!1,boost:!1,handbrake:!1,mouseAim:!1,mouseTargetAngle:undefined};
 }
 
 function Oe(u: any, f: string, r: number = 0, s: number = 0) {
   const typeMap: any = {
     aerial: "fast_aerial",
     fast_aerial: "fast_aerial",
+    jump_strike: "jump_strike",
+    speedflip_kickoff: "speedflip_kickoff",
     dodge: "dodge",
     wavedash: "wavedash",
     musty_jump: "musty_jump"

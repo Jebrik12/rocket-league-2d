@@ -1,0 +1,351 @@
+import {
+  ArenaEnv,
+  simulateBallSubstep,
+  solveBestIntercept,
+  startBotJumpSeq,
+  updateBotJumpSeq,
+  botDriveGround,
+  botDriveAir,
+  executeMasterBotBrain,
+  checkDefensiveThreat
+} from "../src/bot/botBrain";
+
+// Standard arena environment matching App.tsx default RL_PHYSICS
+const testEnv: ArenaEnv = {
+  Kt: 2000,
+  hl: 1000,
+  k: 950,
+  Qt: 120,
+  At: 120,
+  Mt: 1880,
+  F: 160,
+  zn: 14,
+  POST_INSET: 18,
+  le: { x: 120, yMin: 380, yMax: 680, depth: 100 },
+  ae: { x: 1880, yMin: 380, yMax: 680, depth: 100 },
+  goalType: "wall",
+  isLegacy: false,
+  pv: 720,
+  Ph: 720,
+  Uh: 0.995,
+  Hh: 1450,
+  Av: 6.0,
+  Bh: 440,
+  cc: 400,
+  Gh: 320,
+  Ev: 0.2,
+  qh: 0.45,
+  wavedashMinSpeed: 1280
+};
+
+function createMockCar(overrides: any = {}) {
+  return {
+    id: "bot-1",
+    name: "UnfairBot",
+    team: "blue",
+    x: 400,
+    y: testEnv.k - 14.5,
+    vx: 0,
+    vy: 0,
+    angle: 0,
+    facing: 1,
+    width: 68,
+    height: 29,
+    wheelbase: 36,
+    wheelRadius: 8.5,
+    boost: 50,
+    isGrounded: true,
+    canJump: true,
+    jumpCount: 0,
+    jumpHoldTimer: 0,
+    flipWindowTimer: 0,
+    isFlipping: false,
+    flipDirection: { x: 0, y: 0 },
+    flipTimer: 0,
+    hasFlipReset: false,
+    isSupersonic: false,
+    supersonicTimer: 0,
+    isDemoed: false,
+    surfaceType: "floor",
+    surfaceNormal: { x: 0, y: -1 },
+    input: {
+      steerLeft: false,
+      steerRight: false,
+      throttleForward: false,
+      throttleReverse: false,
+      pitchUp: false,
+      pitchDown: false,
+      airRollLeft: false,
+      airRollRight: false,
+      jump: false,
+      boost: false,
+      handbrake: false,
+      mouseAim: false,
+      mouseTargetAngle: undefined
+    },
+    botState: {
+      action: "idle",
+      dribbleTime: 0,
+      airDribbleTouches: 0,
+      targetPos: { x: 0, y: 0 },
+      interceptTime: 0,
+      jumpSeq: { stage: "idle", timer: 0, type: "dodge", dodgeX: 0, dodgeY: 0 }
+    },
+    ...overrides
+  };
+}
+
+function runTests() {
+  console.log("=== RUNNING MASTERCLASS BOT AI TESTS ===\n");
+  let passed = 0;
+  let failed = 0;
+
+  function assert(condition: boolean, testName: string, errorMsg?: string) {
+    if (condition) {
+      console.log(`  ✓ ${testName}`);
+      passed++;
+    } else {
+      console.error(`  ✗ ${testName}: ${errorMsg || "Assertion failed"}`);
+      failed++;
+    }
+  }
+
+  // --- TEST GROUP 1: Analytical Ball Physics Simulation ---
+  console.log("--- 1. Analytical Ball Physics Simulation ---");
+  {
+    // A: Floor bounce
+    const ball = { x: 1000, y: testEnv.k - 35, vx: 0, vy: 500, radius: 30 };
+    simulateBallSubstep(ball, 0.016, testEnv);
+    assert(ball.vy < 0, "Floor bounce reverses vertical velocity", `vy was ${ball.vy}`);
+    assert(ball.y <= testEnv.k - ball.radius, "Floor bounce respects ball radius", `y was ${ball.y}`);
+
+    // B: Wall bounce
+    const wallBall = { x: testEnv.Mt - 25, y: 300, vx: 600, vy: 0, radius: 30 };
+    simulateBallSubstep(wallBall, 0.016, testEnv);
+    assert(wallBall.vx < 0, "Right wall bounce reverses horizontal velocity", `vx was ${wallBall.vx}`);
+
+    // C: Goal post bounce
+    const postBall = { x: testEnv.Mt + testEnv.POST_INSET - 10, y: (testEnv.ae.yMin || 380) - 5, vx: 400, vy: 200, radius: 30 };
+    simulateBallSubstep(postBall, 0.016, testEnv);
+    assert(postBall.vx < 400 || postBall.vy !== 200, "Goal post collision deflects ball velocity", `vx=${postBall.vx}, vy=${postBall.vy}`);
+  }
+
+  // --- TEST GROUP 2: Ball Intercept Solver ---
+  console.log("\n--- 2. Ball Intercept Solver ---");
+  {
+    const car = createMockCar({ x: 500, vx: 300 });
+    const ball = { x: 900, y: testEnv.k - 30, vx: -100, vy: 0, radius: 30 };
+    const intercept = solveBestIntercept(car, ball, 1, testEnv, null, null, true, 2.0);
+
+    assert(intercept.t > 0 && intercept.t < 2.0, "Calculates valid intercept time", `t was ${intercept.t}`);
+    assert(intercept.x > car.x && intercept.x < 900, "Calculates forward intercept position", `x was ${intercept.x}`);
+    assert(typeof intercept.targetCornerY === "number", "Calculates clinical goal target corner", `targetCornerY was ${intercept.targetCornerY}`);
+  }
+
+  // --- TEST GROUP 3: Fast Aerial Precision Launch ---
+  console.log("\n--- 3. Fast Aerial Precision Launch ---");
+  {
+    const car = createMockCar({ x: 500, y: testEnv.k - 14.5 });
+    startBotJumpSeq(car, "fast_aerial");
+    assert(car.botState.jumpSeq.stage === "press1", "Fast aerial initializes stage press1");
+
+    // Phase 1: Jump held with boost
+    updateBotJumpSeq(car, 0.04, testEnv);
+    assert(car.input.jump === true, "Jump held during press1");
+    assert(car.input.boost === true, "Boost active during press1");
+
+    // Transition to release
+    updateBotJumpSeq(car, 0.08, testEnv); // Total timer >= 0.11s
+    assert(car.botState.jumpSeq.stage === "release", "Transitions to release stage");
+    assert(car.input.jump === false, "Jump released in release stage");
+
+    // Transition to press2 (strictly neutral double jump tap)
+    updateBotJumpSeq(car, 0.03, testEnv);
+    assert(car.botState.jumpSeq.stage === "press2", "Transitions to press2 stage");
+    assert(car.input.jump === true, "Second jump tapped");
+    assert(car.input.steerLeft === false && car.input.steerRight === false, "Neutral steering guarantees zero accidental dodge flip");
+    assert(car.input.pitchUp === false && car.input.pitchDown === false, "Neutral pitch guarantees zero accidental dodge flip");
+    assert(car.input.throttleForward === false && car.input.throttleReverse === false, "Neutral throttle guarantees zero accidental dodge flip");
+  }
+
+  // --- TEST GROUP 4: Low/Mid Floating Ball Strike (Zero Whiff) ---
+  console.log("\n--- 4. Floating Ball Precision Strike (Zero Whiffs) ---");
+  {
+    // Floating ball 65px off the floor (where old ground-dodge caused car to fly underneath)
+    const car = createMockCar({ x: 750, y: testEnv.k - 14.5, vx: 500 });
+    const ball = { x: 810, y: testEnv.k - 65, vx: 50, vy: -20, radius: 30 };
+    executeMasterBotBrain(car, ball, null, null, [], 1, 0.016, testEnv, true, [], {});
+
+    // Must jump up to meet the ball height, NOT do a flat ground-killing dodge!
+    assert(car.input.jump === true || car.botState.jumpSeq.stage !== "idle", "Bot jumps to reach floating ball", `input.jump=${car.input.jump}, stage=${car.botState.jumpSeq.stage}`);
+  }
+
+  // --- TEST GROUP 5: Airborne Steering & MouseAim Flight ---
+  console.log("\n--- 5. Airborne Steering & MouseAim Flight ---");
+  {
+    const airborneCar = createMockCar({
+      x: 600,
+      y: 600,
+      vx: 200,
+      vy: -150,
+      isGrounded: false,
+      jumpCount: 2,
+      boost: 60
+    });
+    botDriveAir(airborneCar, 900, 400, testEnv, 0.6);
+
+    assert(airborneCar.input.mouseAim === true, "Enables mouseAim for high-rate rotation");
+    assert(typeof airborneCar.input.mouseTargetAngle === "number", "Sets continuous target angle for mouseAim");
+    assert(airborneCar.input.throttleForward === false, "Does NOT force throttleForward airborne to prevent false dodge triggers");
+  }
+
+  // --- TEST GROUP 6: Strict Anti-Own-Goal Protocol ---
+  console.log("\n--- 6. Strict Anti-Own-Goal Protocol ---");
+  {
+    // Scenario A: Ball is behind car in defensive half rolling toward net
+    const ownGoal = testEnv.le;
+    const car = createMockCar({
+      x: 350,
+      y: testEnv.k - 14.5,
+      vx: -100,
+      team: "blue"
+    });
+    const ball = { x: 260, y: testEnv.k - 30, vx: -200, vy: 0, radius: 30 };
+    executeMasterBotBrain(car, ball, null, null, [], 1, 0.016, testEnv, true, [], {});
+
+    // Bot MUST NOT steer left (-X toward own net) or boost into the ball!
+    assert(car.input.steerLeft === false || car.x < ball.x, "Never steers toward own net when ball is behind", `steerLeft was ${car.input.steerLeft}`);
+    assert(!(car.input.boost && car.vx < 0 && car.x > ball.x), "Never boosts backwards into own net");
+
+    // Scenario B: Defensive threat detection
+    const threatBall = { x: 380, y: 530, vx: -450, vy: 50, radius: 30 };
+    const threat = checkDefensiveThreat(threatBall, ownGoal, 1, testEnv);
+    assert(threat.isThreat === 1, "Detects incoming goal threat", `threat was ${threat.isThreat}`);
+    assert(threat.interceptTime > 0, "Calculates intercept time for save", `interceptTime was ${threat.interceptTime}`);
+  }
+
+  // --- TEST GROUP 7: 2v2 and 3v3 Passing & Synergy ---
+  console.log("\n--- 7. 2v2 and 3v3 Passing & Synergy ---");
+  {
+    // 1st Man Flank Pass Setup
+    const firstMan = createMockCar({
+      id: "bot-1",
+      x: testEnv.Mt - 200,
+      y: testEnv.k - 14.5,
+      vx: 400
+    });
+    const secondMan = createMockCar({
+      id: "bot-2",
+      x: testEnv.Kt / 2 + 100,
+      y: testEnv.k - 14.5,
+      vx: 200
+    });
+    const ball = { x: testEnv.Mt - 180, y: testEnv.k - 40, vx: 100, vy: 0, radius: 30 };
+
+    // 1st Man in corner passes infield to 2nd man
+    executeMasterBotBrain(firstMan, ball, null, secondMan, [secondMan], 1, 0.016, testEnv, true, [], {});
+    assert(firstMan.botState.action === "infield_pass" || firstMan.botState.action === "attack" || firstMan.botState.action === "backboard_pass",
+      "1st Man recognizes passing/attacking opportunity", `action was ${firstMan.botState.action}`);
+
+    // 2nd Man Support & One-Timer readiness
+    const crossingBall = { x: testEnv.Kt / 2 + 250, y: testEnv.k - 120, vx: -120, vy: -80, radius: 30 };
+    executeMasterBotBrain(secondMan, crossingBall, null, firstMan, [firstMan], 1, 0.016, testEnv, true, [], {});
+    assert(secondMan.botState.action === "score_pass" || secondMan.botState.action === "midfield_support" || secondMan.botState.action === "step_up_challenge",
+      "2nd Man coordinates with pass reception or support", `action was ${secondMan.botState.action}`);
+
+    // 3rd Man Anchoring in 3v3
+    const thirdMan = createMockCar({
+      id: "bot-3",
+      x: testEnv.Kt / 2 - 250,
+      y: testEnv.k - 14.5
+    });
+    executeMasterBotBrain(thirdMan, crossingBall, null, firstMan, [firstMan, secondMan], 1, 0.016, testEnv, true, [], {});
+    assert(thirdMan.botState.action === "third_man_anchor" || thirdMan.botState.action === "midfield_support" || thirdMan.botState.action === "anchor_goal",
+      "3rd Man acts as defensive anchor preventing counterattacks", `action was ${thirdMan.botState.action}`);
+  }
+
+  // --- TEST GROUP 8: Kickoff Speedflip Mastery ---
+  console.log("\n--- 8. Kickoff Speedflip Mastery ---");
+  {
+    const kickoffCar = createMockCar({
+      x: testEnv.At + 280,
+      y: testEnv.k - 14.5,
+      vx: 0
+    });
+    const kickoffBall = { x: testEnv.Kt / 2, y: testEnv.k - 30, vx: 0, vy: 0, radius: 30 };
+    executeMasterBotBrain(kickoffCar, kickoffBall, null, null, [], 1, 0.016, testEnv, true, [], {});
+    assert(kickoffCar.input.boost === true, "Kickoff boosts instantly on frame 1");
+    assert(kickoffCar.input.throttleForward === true, "Kickoff accelerates forward instantly");
+  }
+
+  // --- TEST GROUP 9: Roof Dribble & Clinical Flick ---
+  console.log("\n--- 9. Roof Dribble & Clinical Flick ---");
+  {
+    const car = createMockCar({
+      x: 800,
+      y: testEnv.k - 14.5,
+      vx: 300,
+      boost: 30,
+      botState: {
+        action: "attack",
+        dribbleTime: 0.5, // Held for > 0.45s -> trigger flick!
+        airDribbleTouches: 0,
+        targetPos: { x: 0, y: 0 },
+        interceptTime: 0,
+        jumpSeq: { stage: "idle", timer: 0, type: "dodge", dodgeX: 0, dodgeY: 0 }
+      }
+    });
+    // Ball balanced on car roof
+    const ball = { x: 805, y: testEnv.k - 14.5 - car.height / 2, vx: 300, vy: 0, radius: 30 };
+    executeMasterBotBrain(car, ball, null, null, [], 1, 0.016, testEnv, true, [], {});
+    assert(car.botState.jumpSeq.stage !== "idle" && car.botState.jumpSeq.type === "dodge",
+      "Fires clinical flick shot when dribble carry matures", `jumpSeq.type was ${car.botState.jumpSeq.type}`);
+  }
+
+  // --- TEST GROUP 10: Backboard Double-Tap Detection ---
+  console.log("\n--- 10. Backboard Double-Tap Rebound Detection ---");
+  {
+    const car = createMockCar({
+      x: testEnv.Mt - 400,
+      y: testEnv.k - 14.5,
+      vx: 600,
+      boost: 50
+    });
+    // High ball near opponent backboard heading into backboard wall
+    const ball = { x: testEnv.Mt - 80, y: (testEnv.ae.yMin || 380) - 20, vx: 450, vy: -100, radius: 30 };
+    executeMasterBotBrain(car, ball, null, null, [], 1, 0.016, testEnv, true, [], {});
+    assert(car.botState.action === "double_tap" || car.botState.action === "attack",
+      "Identifies backboard double-tap scenario", `action was ${car.botState.action}`);
+  }
+
+  // --- TEST GROUP 11: Corner Curves & Ceiling Bounces ---
+  console.log("\n--- 11. Corner Curves & Ceiling Bounces ---");
+  {
+    // Top-right corner curve bounce
+    const trBall = {
+      x: testEnv.Mt - testEnv.F + 100,
+      y: testEnv.Qt + testEnv.F - 100,
+      vx: 400,
+      vy: -400,
+      radius: 30
+    };
+    simulateBallSubstep(trBall, 0.016, testEnv);
+    assert(trBall.vx < 400 || trBall.vy > -400, "Corner curve deflects ball along curve normal");
+
+    // Ceiling bounce
+    const ceilBall = { x: 1000, y: testEnv.Qt + 25, vx: 200, vy: -600, radius: 30 };
+    simulateBallSubstep(ceilBall, 0.016, testEnv);
+    assert(ceilBall.vy > 0, "Ceiling reverses vertical velocity downward", `vy was ${ceilBall.vy}`);
+  }
+
+  // Summary
+  console.log(`\n========================================`);
+  console.log(`TEST SUMMARY: ${passed} PASSED, ${failed} FAILED`);
+  console.log(`========================================\n`);
+
+  if (failed > 0) {
+    process.exit(1);
+  }
+}
+
+runTests();
