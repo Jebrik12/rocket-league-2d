@@ -1882,8 +1882,10 @@ function Cv_legacy(u: any, f: number, r: any) {
 
   if (u.isFlipping && (u.flipTimer += f, u.angle += (u.flipDirection.x >= 0 ? 1 : -1) * (Math.PI * 2 / qh) * f, u.flipTimer >= qh && (u.isFlipping = !1, u.flipTimer = 0)), u.jumpCount === 1 && !u.isGrounded && !u.hasFlipReset && (u.flipWindowTimer += f), Rv(u), u.isGrounded) {
     if (u.isFlipping && u.flipTimer < .3) {
-      u.isFlipping = !1, u.flipTimer = 0, u.angle = 0;
-      const _dashDir = u.flipDirection.x >= 0 ? 1 : -1;
+      u.isFlipping = !1, u.flipTimer = 0;
+      const _dashDir = u.flipDirection && u.flipDirection.x !== undefined ? (u.flipDirection.x >= 0 ? 1 : -1) : (u.facing || (Math.cos(u.angle) >= 0 ? 1 : -1));
+      u.angle = _dashDir >= 0 ? 0 : Math.PI;
+      u.facing = _dashDir;
       u.vx = _dashDir * Math.max(Math.abs(u.vx), 1280), u.isSupersonic = !0, u.supersonicTimer = 1.2, Me.playWavedash(), emitMechanicEvent(r, u, { type: "wavedash", text: "⚡ WAVEDASH", color: "#38bdf8" });
       for (let _k = 0; _k < 8; _k++)r.newParticles.push({ id: ++On, x: u.x + (Math.random() - .5) * u.width, y: u.y + u.height / 2, vx: -_dashDir * 200 + (Math.random() - .5) * 80, vy: -50 - Math.random() * 80, life: .25, maxLife: .25, color: "#fbbf24", size: 3, type: "spark" });
     }
@@ -1930,8 +1932,11 @@ function Cv_legacy(u: any, f: number, r: any) {
     if (u.input.jump && u.canJump && (u.jumpCount === 1 || u.jumpCount === 0) && (u.flipWindowTimer < _v || u.jumpCount === 0)) {
       u.canJump = !1, u.jumpCount = 2;
       let A = 0, C = 0;
-      if (u.input.steerRight || u.input.throttleForward) A += 1;
-      if (u.input.steerLeft || u.input.throttleReverse) A -= 1;
+      if (u.input.steerRight) A += 1;
+      if (u.input.steerLeft) A -= 1;
+      const fwdDir = u.facing || (Math.cos(u.angle) >= 0 ? 1 : -1);
+      if (u.input.throttleForward) A += fwdDir;
+      if (u.input.throttleReverse) A -= fwdDir;
       if (u.input.pitchUp) C -= 1;
       if (u.input.pitchDown) C += 1;
       if (A === 0 && C === 0 && u.input.mouseAim && typeof u.input.mouseTargetAngle === "number") {
@@ -2412,8 +2417,10 @@ function jv(u: any, f: any, r: any, s: any, y = !1, physicsMode = "rocket_league
 function Cv(u: any, f: number, r: any) {
   if (u.isFlipping && (u.flipTimer += f, u.angle += (u.flipDirection.x >= 0 ? 1 : -1) * (Math.PI * 2 / qh) * f, u.flipTimer >= qh && (u.isFlipping = !1, u.flipTimer = 0)), u.jumpCount === 1 && !u.isGrounded && !u.hasFlipReset && (u.flipWindowTimer += f), Rv(u), u.isGrounded) {
     if (u.isFlipping && u.flipTimer < .3) {
-      u.isFlipping = !1, u.flipTimer = 0, u.angle = 0;
-      const _dashDir = u.flipDirection.x >= 0 ? 1 : -1;
+      u.isFlipping = !1, u.flipTimer = 0;
+      const _dashDir = u.flipDirection && u.flipDirection.x !== undefined ? (u.flipDirection.x >= 0 ? 1 : -1) : (u.facing || (Math.cos(u.angle) >= 0 ? 1 : -1));
+      u.angle = _dashDir >= 0 ? 0 : Math.PI;
+      u.facing = _dashDir;
       const _minSpeed = activePhysicsMode === 'legacy' ? 1280 : (RL_PHYSICS.wavedashMinSpeed || 1280);
       u.vx = _dashDir * Math.max(Math.abs(u.vx), _minSpeed), u.isSupersonic = !0, u.supersonicTimer = 1.2, Me.playWavedash(), emitMechanicEvent(r, u, { type: 'wavedash', text: '⚡ WAVEDASH', color: '#38bdf8' });
       for (let _k = 0; _k < 8; _k++)r.newParticles.push({ id: ++On, x: u.x + (Math.random() - .5) * u.width, y: u.y + u.height / 2, vx: -_dashDir * 200 + (Math.random() - .5) * 80, vy: -50 - Math.random() * 80, life: .25, maxLife: .25, color: '#fbbf24', size: 3, type: 'spark' });
@@ -2462,8 +2469,11 @@ function Cv(u: any, f: number, r: any) {
     if (u.input.jump && u.canJump && (u.jumpCount === 1 || u.jumpCount === 0 || u.hasFlipReset) && (u.flipWindowTimer < _v || u.jumpCount === 0 || u.hasFlipReset)) {
       u.canJump = !1, u.jumpCount = 2, u.hasFlipReset = !1;
       let A = 0, C = 0;
-      if (u.input.steerRight || u.input.throttleForward) A += 1;
-      if (u.input.steerLeft || u.input.throttleReverse) A -= 1;
+      if (u.input.steerRight) A += 1;
+      if (u.input.steerLeft) A -= 1;
+      const fwdDir = u.facing || (Math.cos(u.angle) >= 0 ? 1 : -1);
+      if (u.input.throttleForward) A += fwdDir;
+      if (u.input.throttleReverse) A -= fwdDir;
       if (u.input.pitchUp) C -= 1;
       if (u.input.pitchDown) C += 1;
       if (A === 0 && C === 0 && u.input.mouseAim && typeof u.input.mouseTargetAngle === "number") {
@@ -7554,8 +7564,14 @@ function eg(u: any, f: any, m: any = {}) {
     fwdX = Math.cos(f.angle);
     fwdY = Math.sin(f.angle);
     const rollMult = f.airRollInverted ? -1 : 1;
-    downX = -fwdY * rollMult;
-    downY = fwdX * rollMult;
+    const isFacingLeft = f.facing === -1 || (f.facing === undefined && Math.cos(f.angle) < -0.1);
+    if (isFacingLeft) {
+      downX = fwdY * rollMult;
+      downY = -fwdX * rollMult;
+    } else {
+      downX = -fwdY * rollMult;
+      downY = fwdX * rollMult;
+    }
   }
 
   // Set the 2D coordinate space for the car
@@ -12096,7 +12112,7 @@ function r2(){
     setDvr({ active: !1, offsetSec: 0, isPlaying: !1, speed: 1 });
     be();
   },[f.mode,f.botDifficulty,f.matchDuration,f.selectedCar,f.selectedMap,f.physicsMode,pilotMode,loadoutVersion,be]);
-const getAvailableDvrSeconds=st.useCallback(()=>{const hist=replayHistoryRef.current;if(hist.length<2)return 0;return Math.max(0,(hist[hist.length-1].time-hist[0].time)/1000);},[]),skipGoalReplay=st.useCallback(()=>{goalReplayRef.current=null,setGoalReplayUI(null),setActiveReplayBadge(null),replayAudioTimeRef.current=null,I?A("ended"):(X<=0&&f.matchDuration<9e3?(C===N?(U(!0),tt(0),be()):A("ended")):be())},[I,X,f.matchDuration,be,C,N]),handleGoalReplayTogglePause=st.useCallback(()=>{if(!goalReplayRef.current)return;goalReplayRef.current.isPaused=!goalReplayRef.current.isPaused,setGoalReplayUI((prev:any)=>prev?{...prev,isPaused:goalReplayRef.current.isPaused}:null)},[]),handleGoalReplayScrub=st.useCallback((prog:number)=>{if(!goalReplayRef.current)return;const targetSec=Math.max(0,Math.min(goalReplayRef.current.durationSec,prog*goalReplayRef.current.durationSec));goalReplayRef.current.currentSec=targetSec;replayAudioTimeRef.current=goalReplayRef.current.startTime+targetSec*1000;setGoalReplayUI((prev:any)=>prev?{...prev,progress:prog,currentSec:targetSec.toFixed(1)}:null)},[]),handleGoalReplayStep=st.useCallback((deltaSec:number)=>{if(!goalReplayRef.current)return;const nextSec=Math.max(0,Math.min(goalReplayRef.current.durationSec,goalReplayRef.current.currentSec+deltaSec));goalReplayRef.current.currentSec=nextSec,goalReplayRef.current.isPaused=!0;replayAudioTimeRef.current=goalReplayRef.current.startTime+nextSec*1000;setGoalReplayUI((prev:any)=>prev?{...prev,isPaused:!0,currentSec:nextSec.toFixed(1),progress:goalReplayRef.current.durationSec>0?nextSec/goalReplayRef.current.durationSec:0}:null)},[]),handleGoalReplayRestart=st.useCallback(()=>{if(!goalReplayRef.current)return;goalReplayRef.current.currentSec=0;replayAudioTimeRef.current=goalReplayRef.current.startTime;setGoalReplayUI((prev:any)=>prev?{...prev,progress:0,currentSec:"0.0"}:null)},[]),handleGoalReplaySpeed=st.useCallback((sp:number)=>{if(!goalReplayRef.current)return;goalReplayRef.current.speed=sp,goalReplayRef.current.isManualSpeed=!0,setGoalReplayUI((prev:any)=>prev?{...prev,speed:sp}:null)},[]),handleDvrScrub=st.useCallback((offsetSec:number)=>{const maxSec=Math.max(1,getAvailableDvrSeconds()),clamped=Math.max(0,Math.min(maxSec,offsetSec));const hist=replayHistoryRef.current;if(hist.length>0){replayAudioTimeRef.current=hist[hist.length-1].time-clamped*1000;}setDvr(prev=>({...prev,active:clamped>0.05,offsetSec:clamped,isPlaying:!1}))},[getAvailableDvrSeconds]),handleDvrJump=st.useCallback((secondsAgo:number)=>{const maxSec=Math.max(1,getAvailableDvrSeconds()),target=Math.min(maxSec,secondsAgo);const hist=replayHistoryRef.current;if(hist.length>0){replayAudioTimeRef.current=hist[hist.length-1].time-target*1000;}setDvr(prev=>({...prev,active:!0,offsetSec:target,isPlaying:!0}))},[getAvailableDvrSeconds]),handleDvrStep=st.useCallback((deltaSec:number)=>{const maxSec=Math.max(1,getAvailableDvrSeconds());setDvr(prev=>{const nextOffset=Math.max(0,Math.min(maxSec,prev.offsetSec+deltaSec));const hist=replayHistoryRef.current;if(hist.length>0){replayAudioTimeRef.current=hist[hist.length-1].time-nextOffset*1000;}return{...prev,active:nextOffset>0.05,offsetSec:nextOffset,isPlaying:!1}})},[getAvailableDvrSeconds]),handleDvrTogglePlay=st.useCallback(()=>{setDvr(prev=>{if(!prev.active||prev.offsetSec<=0.05){const maxSec=Math.max(1,getAvailableDvrSeconds());return{...prev,active:!0,offsetSec:Math.min(10,maxSec),isPlaying:!0}}return{...prev,isPlaying:!prev.isPlaying}})},[getAvailableDvrSeconds]),handleDvrGoLive=st.useCallback(()=>{setDvr({active:!1,offsetSec:0,isPlaying:!1,speed:1}),replayAudioTimeRef.current=null,m&&g(!1)},[m]),handleDvrSpeedChange=st.useCallback((speed:number)=>{setDvr(prev=>({...prev,speed}))},[]),handleSeekToTime=st.useCallback((targetTime:number)=>{const hist=replayHistoryRef.current;if(!hist||hist.length===0)return;const lastTime=hist[hist.length-1].time,maxSec=Math.max(1,(lastTime-hist[0].time)/1000),offset=Math.max(0,Math.min(maxSec,(lastTime-targetTime)/1000));replayAudioTimeRef.current=targetTime;setDvr(prev=>({...prev,active:!0,offsetSec:offset,isPlaying:!0}))},[]),handleSetClipIn=st.useCallback(()=>{const totalSec=Math.max(1,getAvailableDvrSeconds()),currentElapsed=Math.max(0,totalSec-dvrRef.current.offsetSec);setClipRange(prev=>({...prev,inSec:parseFloat(currentElapsed.toFixed(1))}))},[getAvailableDvrSeconds]),handleSetClipOut=st.useCallback(()=>{const totalSec=Math.max(1,getAvailableDvrSeconds()),currentElapsed=Math.max(0,totalSec-dvrRef.current.offsetSec);setClipRange(prev=>({...prev,outSec:parseFloat(currentElapsed.toFixed(1))}))},[getAvailableDvrSeconds]),handleQuickClip=st.useCallback((seconds:number)=>{const totalSec=Math.max(1,getAvailableDvrSeconds()),currentElapsed=Math.max(0,totalSec-dvrRef.current.offsetSec);setClipRange({inSec:Math.max(0,parseFloat((currentElapsed-seconds).toFixed(1))),outSec:parseFloat(currentElapsed.toFixed(1))})},[getAvailableDvrSeconds]),handleExportClip=st.useCallback(async(format:"mp4"|"gif",customInSec?:number,customOutSec?:number)=>{const hist=replayHistoryRef.current;if(!hist||hist.length<3){alert("No replay frames recorded yet.");return;}const totalSec=Math.max(1,(hist[hist.length-1].time-hist[0].time)/1000);let startSec=customInSec!==undefined?customInSec:clipRange.inSec,endSec=customOutSec!==undefined?customOutSec:clipRange.outSec;if(Math.abs(endSec-startSec)<0.4){startSec=Math.max(0,endSec-5);}const minSec=Math.min(startSec,endSec),maxSec=Math.min(totalSec,Math.max(startSec,endSec)),startTime=hist[0].time+minSec*1000,endTime=hist[0].time+maxSec*1000,slice=hist.filter((s:any)=>s.time>=startTime&&s.time<=endTime);if(slice.length<3){alert("Please select a range with at least 1 second of replay.");return;}const abortController=new AbortController();exportAbortRef.current=abortController;setExportModal({isOpen:!0,format,progress:0,statusText:"Preparing frames...",error:null});try{const renderFrame=(ctx:CanvasRenderingContext2D,snap:any)=>{kv(ctx,snap.cars,snap.ball,snap.boostPads||ne.current,snap.particles||[],{showTrajectory:!1,arenaTheme:f.arenaTheme,showMechanicAlerts:f.showMechanicAlerts!==false,showHitbox:f.showHitbox,isReplay:!0,replayTime:snap.time,matchEvents:matchEventsRef.current})};if(format==="mp4"){await exportClipAsVideo({snapshots:slice,renderFrame,width:1280,height:704,fps:30,signal:abortController.signal,onProgress:(pct,statusText)=>{setExportModal(prev=>({...prev,progress:pct,statusText}))}})}else{await exportClipAsGif({snapshots:slice,renderFrame,width:640,height:352,fps:20,signal:abortController.signal,onProgress:(pct,statusText)=>{setExportModal(prev=>({...prev,progress:pct,statusText}))}})}setExportModal(prev=>({...prev,progress:100,statusText:"Export complete! File downloaded."}));setTimeout(()=>{setExportModal(prev=>({...prev,isOpen:!1}))},1500);}catch(err:any){if(abortController.signal.aborted){setExportModal(prev=>({...prev,isOpen:!1}))}else{setExportModal(prev=>({...prev,error:err.message||"Export failed."}))}}},[clipRange,f.arenaTheme,f.showMechanicAlerts,f.showHitbox]),handleExportGoalClip=st.useCallback((format:"mp4"|"gif")=>{if(!goalReplayRef.current||!goalReplayRef.current.frames)return;const frames=goalReplayRef.current.frames,hist=replayHistoryRef.current;if(frames.length<3||hist.length<2)return;const inSec=Math.max(0,(frames[0].time-hist[0].time)/1000),outSec=Math.max(0,(frames[frames.length-1].time-hist[0].time)/1000);handleExportClip(format,inSec,outSec);},[handleExportClip]),handleCancelExport=st.useCallback(()=>{if(exportAbortRef.current){exportAbortRef.current.abort();}setExportModal(prev=>({...prev,isOpen:!1}))},[]),handleOpenStudioFromGoalReplay=st.useCallback(()=>{const gr=goalReplayRef.current,hist=replayHistoryRef.current;if(hist.length>0){const lastTime=hist[hist.length-1].time,targetTime=gr?(gr.startTime+(gr.currentSec||0)*1000):lastTime,offset=Math.max(0,(lastTime-targetTime)/1000);setDvr({active:!0,offsetSec:offset,isPlaying:!1,speed:1});}goalReplayRef.current=null,setGoalReplayUI(null);},[]),handleOpenStudioFromAnywhere=st.useCallback(()=>{const maxSec=Math.max(1,getAvailableDvrSeconds());setIsDvrCollapsed(false);setDvr({active:!0,offsetSec:Math.min(15,maxSec),isPlaying:!0,speed:1});},[getAvailableDvrSeconds]);
+const getAvailableDvrSeconds=st.useCallback(()=>{const hist=replayHistoryRef.current;if(hist.length<2)return 0;return Math.max(0,(hist[hist.length-1].time-hist[0].time)/1000);},[]),skipGoalReplay=st.useCallback(()=>{goalReplayRef.current=null,setGoalReplayUI(null),setActiveReplayBadge(null),replayAudioTimeRef.current=null,I?A("ended"):(X<=0&&f.matchDuration<9e3?(C===N?(U(!0),tt(0),be()):A("ended")):be())},[I,X,f.matchDuration,be,C,N]),handleGoalReplayTogglePause=st.useCallback(()=>{if(!goalReplayRef.current)return;goalReplayRef.current.isPaused=!goalReplayRef.current.isPaused,setGoalReplayUI((prev:any)=>prev?{...prev,isPaused:goalReplayRef.current.isPaused}:null)},[]),handleGoalReplayScrub=st.useCallback((prog:number)=>{if(!goalReplayRef.current)return;const targetSec=Math.max(0,Math.min(goalReplayRef.current.durationSec,prog*goalReplayRef.current.durationSec));goalReplayRef.current.currentSec=targetSec;replayAudioTimeRef.current=goalReplayRef.current.startTime+targetSec*1000;setGoalReplayUI((prev:any)=>prev?{...prev,progress:prog,currentSec:targetSec.toFixed(1)}:null)},[]),handleGoalReplayStep=st.useCallback((deltaSec:number)=>{if(!goalReplayRef.current)return;const nextSec=Math.max(0,Math.min(goalReplayRef.current.durationSec,goalReplayRef.current.currentSec+deltaSec));goalReplayRef.current.currentSec=nextSec,goalReplayRef.current.isPaused=!0;replayAudioTimeRef.current=goalReplayRef.current.startTime+nextSec*1000;setGoalReplayUI((prev:any)=>prev?{...prev,isPaused:!0,currentSec:nextSec.toFixed(1),progress:goalReplayRef.current.durationSec>0?nextSec/goalReplayRef.current.durationSec:0}:null)},[]),handleGoalReplayRestart=st.useCallback(()=>{if(!goalReplayRef.current)return;goalReplayRef.current.currentSec=0;replayAudioTimeRef.current=goalReplayRef.current.startTime;setGoalReplayUI((prev:any)=>prev?{...prev,progress:0,currentSec:"0.0"}:null)},[]),handleGoalReplaySpeed=st.useCallback((sp:number)=>{if(!goalReplayRef.current)return;goalReplayRef.current.speed=sp,goalReplayRef.current.isManualSpeed=!0,setGoalReplayUI((prev:any)=>prev?{...prev,speed:sp}:null)},[]),handleDvrScrub=st.useCallback((offsetSec:number)=>{const maxSec=Math.max(1,getAvailableDvrSeconds()),clamped=Math.max(0,Math.min(maxSec,offsetSec));const hist=replayHistoryRef.current;if(hist.length>0){replayAudioTimeRef.current=hist[hist.length-1].time-clamped*1000;}setDvr(prev=>({...prev,active:clamped>0.05,offsetSec:clamped,isPlaying:!1}))},[getAvailableDvrSeconds]),handleDvrJump=st.useCallback((secondsAgo:number)=>{const maxSec=Math.max(1,getAvailableDvrSeconds()),target=Math.min(maxSec,secondsAgo);const hist=replayHistoryRef.current;if(hist.length>0){replayAudioTimeRef.current=hist[hist.length-1].time-target*1000;}setDvr(prev=>({...prev,active:!0,offsetSec:target,isPlaying:!0}))},[getAvailableDvrSeconds]),handleDvrStep=st.useCallback((deltaSec:number)=>{const maxSec=Math.max(1,getAvailableDvrSeconds());setDvr(prev=>{const nextOffset=Math.max(0,Math.min(maxSec,prev.offsetSec+deltaSec));const hist=replayHistoryRef.current;if(hist.length>0){replayAudioTimeRef.current=hist[hist.length-1].time-nextOffset*1000;}return{...prev,active:nextOffset>0.05,offsetSec:nextOffset,isPlaying:!1}})},[getAvailableDvrSeconds]),handleDvrTogglePlay=st.useCallback(()=>{if(peerNetwork.isConnected&&peerNetwork.roomState?.status==="in_game")return;setDvr(prev=>{if(!prev.active||prev.offsetSec<=0.05){const maxSec=Math.max(1,getAvailableDvrSeconds());return{...prev,active:!0,offsetSec:Math.min(10,maxSec),isPlaying:!0}}return{...prev,isPlaying:!prev.isPlaying}})},[getAvailableDvrSeconds]),handleDvrGoLive=st.useCallback(()=>{setDvr({active:!1,offsetSec:0,isPlaying:!1,speed:1}),replayAudioTimeRef.current=null,m&&g(!1)},[m]),handleDvrSpeedChange=st.useCallback((speed:number)=>{setDvr(prev=>({...prev,speed}))},[]),handleSeekToTime=st.useCallback((targetTime:number)=>{const hist=replayHistoryRef.current;if(!hist||hist.length===0)return;const lastTime=hist[hist.length-1].time,maxSec=Math.max(1,(lastTime-hist[0].time)/1000),offset=Math.max(0,Math.min(maxSec,(lastTime-targetTime)/1000));replayAudioTimeRef.current=targetTime;setDvr(prev=>({...prev,active:!0,offsetSec:offset,isPlaying:!0}))},[]),handleSetClipIn=st.useCallback(()=>{const totalSec=Math.max(1,getAvailableDvrSeconds()),currentElapsed=Math.max(0,totalSec-dvrRef.current.offsetSec);setClipRange(prev=>({...prev,inSec:parseFloat(currentElapsed.toFixed(1))}))},[getAvailableDvrSeconds]),handleSetClipOut=st.useCallback(()=>{const totalSec=Math.max(1,getAvailableDvrSeconds()),currentElapsed=Math.max(0,totalSec-dvrRef.current.offsetSec);setClipRange(prev=>({...prev,outSec:parseFloat(currentElapsed.toFixed(1))}))},[getAvailableDvrSeconds]),handleQuickClip=st.useCallback((seconds:number)=>{const totalSec=Math.max(1,getAvailableDvrSeconds()),currentElapsed=Math.max(0,totalSec-dvrRef.current.offsetSec);setClipRange({inSec:Math.max(0,parseFloat((currentElapsed-seconds).toFixed(1))),outSec:parseFloat(currentElapsed.toFixed(1))})},[getAvailableDvrSeconds]),handleExportClip=st.useCallback(async(format:"mp4"|"gif",customInSec?:number,customOutSec?:number)=>{const hist=replayHistoryRef.current;if(!hist||hist.length<3){alert("No replay frames recorded yet.");return;}const totalSec=Math.max(1,(hist[hist.length-1].time-hist[0].time)/1000);let startSec=customInSec!==undefined?customInSec:clipRange.inSec,endSec=customOutSec!==undefined?customOutSec:clipRange.outSec;if(Math.abs(endSec-startSec)<0.4){startSec=Math.max(0,endSec-5);}const minSec=Math.min(startSec,endSec),maxSec=Math.min(totalSec,Math.max(startSec,endSec)),startTime=hist[0].time+minSec*1000,endTime=hist[0].time+maxSec*1000,slice=hist.filter((s:any)=>s.time>=startTime&&s.time<=endTime);if(slice.length<3){alert("Please select a range with at least 1 second of replay.");return;}const abortController=new AbortController();exportAbortRef.current=abortController;setExportModal({isOpen:!0,format,progress:0,statusText:"Preparing frames...",error:null});try{const renderFrame=(ctx:CanvasRenderingContext2D,snap:any)=>{kv(ctx,snap.cars,snap.ball,snap.boostPads||ne.current,snap.particles||[],{showTrajectory:!1,arenaTheme:f.arenaTheme,showMechanicAlerts:f.showMechanicAlerts!==false,showHitbox:f.showHitbox,isReplay:!0,replayTime:snap.time,matchEvents:matchEventsRef.current})};if(format==="mp4"){await exportClipAsVideo({snapshots:slice,renderFrame,width:1280,height:704,fps:30,signal:abortController.signal,onProgress:(pct,statusText)=>{setExportModal(prev=>({...prev,progress:pct,statusText}))}})}else{await exportClipAsGif({snapshots:slice,renderFrame,width:640,height:352,fps:20,signal:abortController.signal,onProgress:(pct,statusText)=>{setExportModal(prev=>({...prev,progress:pct,statusText}))}})}setExportModal(prev=>({...prev,progress:100,statusText:"Export complete! File downloaded."}));setTimeout(()=>{setExportModal(prev=>({...prev,isOpen:!1}))},1500);}catch(err:any){if(abortController.signal.aborted){setExportModal(prev=>({...prev,isOpen:!1}))}else{setExportModal(prev=>({...prev,error:err.message||"Export failed."}))}}},[clipRange,f.arenaTheme,f.showMechanicAlerts,f.showHitbox]),handleExportGoalClip=st.useCallback((format:"mp4"|"gif")=>{if(!goalReplayRef.current||!goalReplayRef.current.frames)return;const frames=goalReplayRef.current.frames,hist=replayHistoryRef.current;if(frames.length<3||hist.length<2)return;const inSec=Math.max(0,(frames[0].time-hist[0].time)/1000),outSec=Math.max(0,(frames[frames.length-1].time-hist[0].time)/1000);handleExportClip(format,inSec,outSec);},[handleExportClip]),handleCancelExport=st.useCallback(()=>{if(exportAbortRef.current){exportAbortRef.current.abort();}setExportModal(prev=>({...prev,isOpen:!1}))},[]),handleOpenStudioFromGoalReplay=st.useCallback(()=>{const gr=goalReplayRef.current,hist=replayHistoryRef.current;if(hist.length>0){const lastTime=hist[hist.length-1].time,targetTime=gr?(gr.startTime+(gr.currentSec||0)*1000):lastTime,offset=Math.max(0,(lastTime-targetTime)/1000);setDvr({active:!0,offsetSec:offset,isPlaying:!1,speed:1});}goalReplayRef.current=null,setGoalReplayUI(null);},[]),handleOpenStudioFromAnywhere=st.useCallback(()=>{if(peerNetwork.isConnected&&peerNetwork.roomState?.status==="in_game")return;const maxSec=Math.max(1,getAvailableDvrSeconds());setIsDvrCollapsed(false);setDvr({active:!0,offsetSec:Math.min(15,maxSec),isPlaying:!0,speed:1});},[getAvailableDvrSeconds]);
 st.useEffect(()=>{ie()},[ie]);
 st.useEffect(()=>{
   peerNetwork.onRemoteInput = (peerId: string, input: any) => {
@@ -12144,12 +12160,12 @@ st.useEffect(()=>{
     const b = ht.current;
     if (b && snapshot.ball) {
       const dist = Math.hypot(snapshot.ball.x - b.x, snapshot.ball.y - b.y);
-      if (dist > 180) {
+      if (dist > 150) {
         b.x = snapshot.ball.x;
         b.y = snapshot.ball.y;
       } else {
-        b.x += (snapshot.ball.x - b.x) * 0.55;
-        b.y += (snapshot.ball.y - b.y) * 0.55;
+        b.x += (snapshot.ball.x - b.x) * 0.75;
+        b.y += (snapshot.ball.y - b.y) * 0.75;
       }
       b.vx = snapshot.ball.vx;
       b.vy = snapshot.ball.vy;
@@ -12187,18 +12203,18 @@ st.useEffect(()=>{
 
         if (car.id === myId) {
           const d = Math.hypot(snapCar.x - car.x, snapCar.y - car.y);
-          if (d > 120) {
+          if (d > 140) {
             car.x = snapCar.x;
             car.y = snapCar.y;
             car.vx = snapCar.vx;
             car.vy = snapCar.vy;
             car.angle = snapCar.angle;
-          } else {
-            car.x += (snapCar.x - car.x) * 0.45;
-            car.y += (snapCar.y - car.y) * 0.45;
-            car.vx = snapCar.vx;
-            car.vy = snapCar.vy;
-            car.angle += (snapCar.angle - car.angle) * 0.45;
+          } else if (d > 10) {
+            car.x += (snapCar.x - car.x) * 0.25;
+            car.y += (snapCar.y - car.y) * 0.25;
+            car.angle += (snapCar.angle - car.angle) * 0.25;
+            car.vx += (snapCar.vx - car.vx) * 0.25;
+            car.vy += (snapCar.vy - car.vy) * 0.25;
           }
         } else {
           const d = Math.hypot(snapCar.x - car.x, snapCar.y - car.y);
@@ -12206,8 +12222,8 @@ st.useEffect(()=>{
             car.x = snapCar.x;
             car.y = snapCar.y;
           } else {
-            car.x += (snapCar.x - car.x) * 0.65;
-            car.y += (snapCar.y - car.y) * 0.65;
+            car.x += (snapCar.x - car.x) * 0.75;
+            car.y += (snapCar.y - car.y) * 0.75;
           }
           car.vx = snapCar.vx;
           car.vy = snapCar.vy;
@@ -12234,11 +12250,13 @@ st.useEffect(()=>{
     const targetPhysics = roomState.settings?.physicsMode || "rocket_league";
     syncMapGlobals(targetMap);
     syncPhysicsGlobals(targetPhysics);
+    setDvr({ active: false, offsetSec: 0, isPlaying: false, speed: 1 });
+    g(false);
     r((prev: any) => ({
       ...prev,
       physicsMode: targetPhysics,
       selectedMap: targetMap,
-      mode: roomState.settings?.mode || prev.mode
+      mode: roomState.settings?.mode || "1v1"
     }));
     ie();
   };
@@ -12323,14 +12341,15 @@ st.useEffect(()=>{
     }
   }, [p, C, N, I, f.mode, f.selectedMap, f.matchDuration, f.selectedCar, X, isCurrentMatchRanked, currentRankedTrack, currentOpponentMmr]),st.useEffect(()=>{Me.setMuted(!f.soundEnabled),Me.setVolume(f.soundVolume)},[f.soundEnabled,f.soundVolume]);const Se=st.useRef({});st.useEffect(()=>{const H=xt=>{if(xt.target.tagName==="INPUT")return;const et=xt.code.toLowerCase(),Et=xt.key.toLowerCase();if(et==="keyf"||Et==="f"||Et==="а"){if(p!=="goal_replay"&&!m){xt.preventDefault(),toggleFullscreen();return}}if(et==="keym"||Et==="m"||Et==="ь"){xt.preventDefault(),toggleSteeringControl();return}if(et==="tab"||Et==="tab"){xt.preventDefault();setIsScoreboardOpen(prev=>!prev);return;}if(et==="keyh"||Et==="h"||Et==="р"){xt.preventDefault(),toggleHitbox();return}
       if(et==="keyc"||Et==="c"||Et==="с"){xt.preventDefault(),toggleAutoCam();return}
-      if(et==="keyy"||Et==="y"||Et==="н"){xt.preventDefault(),toggleTrajectory();return}(["space","arrowup","arrowdown","arrowleft","arrowright"].includes(et)||[" ","arrowup","arrowdown","arrowleft","arrowright"].includes(Et))&&xt.preventDefault(),Se.current[et]=!0,Se.current[Et]=!0;if((p==="goal_replay"||goalReplayRef.current)){if(et==="space"||Et===" "||Et==="escape"){xt.preventDefault(),skipGoalReplay();return}if(xt.key==="ArrowLeft"||xt.key==="["){xt.preventDefault(),handleGoalReplayStep(-0.5);return}if(xt.key==="ArrowRight"||xt.key==="]"){xt.preventDefault(),handleGoalReplayStep(0.5);return}if(et==="keyp"||Et==="p"||Et==="з"){xt.preventDefault(),handleGoalReplayTogglePause();return}if(et==="keyr"||Et==="r"||Et==="к"){xt.preventDefault(),handleGoalReplayRestart();return}}      const isSpectatorMode = f.mode === "bot_vs_bot" || f.mode.startsWith("spectator");
-      if(isSpectatorMode||m||dvrRef.current.active){
+      if(et==="keyy"||Et==="y"||Et==="н"){xt.preventDefault(),toggleTrajectory();return}(["space","arrowup","arrowdown","arrowleft","arrowright"].includes(et)||[" ","arrowup","arrowdown","arrowleft","arrowright"].includes(Et))&&xt.preventDefault(),Se.current[et]=!0,Se.current[Et]=!0;if((p==="goal_replay"||goalReplayRef.current)){if(et==="space"||Et===" "||Et==="escape"){xt.preventDefault(),skipGoalReplay();return}if(xt.key==="ArrowLeft"||xt.key==="["){xt.preventDefault(),handleGoalReplayStep(-0.5);return}if(xt.key==="ArrowRight"||xt.key==="]"){xt.preventDefault(),handleGoalReplayStep(0.5);return}if(et==="keyp"||Et==="p"||Et==="з"){xt.preventDefault(),handleGoalReplayTogglePause();return}if(et==="keyr"||Et==="r"||Et==="к"){xt.preventDefault(),handleGoalReplayRestart();return}}      const isMultiInGame = peerNetwork.isConnected && peerNetwork.roomState?.status === "in_game";
+      const isSpectatorMode = !isMultiInGame && (f.mode === "bot_vs_bot" || f.mode.startsWith("spectator"));
+      if(!isMultiInGame && (isSpectatorMode||m||dvrRef.current.active)){
         if(xt.key==="ArrowLeft"||xt.key==="["){xt.preventDefault(),handleDvrStep(0.5);return}
         if(xt.key==="ArrowRight"||xt.key==="]"){xt.preventDefault(),handleDvrStep(-0.5);return}
         if(et==="keyl"||Et==="l"||Et==="д"){handleDvrGoLive();return}
         if(et==="keyt"||Et==="t"||Et==="е"){xt.preventDefault();setIsDvrCollapsed(prev=>!prev);return;}
         if((et==="space"||Et===" ")&&(isSpectatorMode||dvrRef.current.active)){xt.preventDefault(),handleDvrTogglePlay();return}
-      }if(et==="keyv"||Et==="v"||Et==="м"||et==="backquote"||Et==="`"||Et==="~"){xt.preventDefault();handleOpenStudioFromAnywhere();return;}if(et==="keyp"||Et==="p"||Et==="з"){g(rt=>!rt);return;}if(f.mode==="training"){const c=xt.code,k=xt.key;if(c==="KeyR"||k==="r"||k==="R"||k==="к"||k==="К"){xt.preventDefault();R();return;}if(c==="Digit1"||c==="Numpad1"||k==="1"||k==="!"){xt.preventDefault();R();return;}if(c==="Digit2"||c==="Numpad2"||k==="2"||k==="@"){xt.preventDefault();V();return;}if(c==="Digit3"||c==="Numpad3"||k==="3"||k==="#"){xt.preventDefault();Q();return;}if(c==="Digit4"||c==="Numpad4"||k==="4"||k==="$"){xt.preventDefault();vt();return;}if(c==="Digit5"||c==="Numpad5"||k==="5"||k==="%"){xt.preventDefault();onMustySetup();return;}if(c==="Digit6"||c==="Numpad6"||k==="6"||k==="^"){xt.preventDefault();onFlipResetSetup();return;}if(c==="Digit7"||c==="Numpad7"||k==="7"||k==="&"){xt.preventDefault();onPinchSetup();return;}if(c==="Digit8"||c==="Numpad8"||k==="8"||k==="*"){xt.preventDefault();onDoubleTapSetup();return;}if(c==="Digit9"||c==="Numpad9"||k==="9"||k==="("){xt.preventDefault();onPsychoSetup();return;}if(c==="Digit0"||c==="Numpad0"||k==="0"||k===")"){xt.preventDefault();onCeilingSetup();return;}}else if(et==="keyr"||Et==="r"||Et==="к"){ie();return;}},Z=xt=>{const et=xt.code.toLowerCase(),Et=xt.key.toLowerCase();Se.current[et]=!1,Se.current[Et]=!1},w=xt=>{xt.button===0&&(Se.current.mouse0=!0),xt.button===2&&(Se.current.mouse2=!0)},q=xt=>{xt.button===0&&(Se.current.mouse0=!1),xt.button===2&&(Se.current.mouse2=!1)},onCm=xt=>{xt.preventDefault()},Wt=()=>{Se.current={}};const onMouseMove=(ev:MouseEvent)=>{const cvs=u.current;if(!cvs)return;const rect=cvs.getBoundingClientRect();mouseScreenPos.x=ev.clientX-rect.left;mouseScreenPos.y=ev.clientY-rect.top;mouseScreenPos.active=true;};window.addEventListener("mousemove",onMouseMove);window.addEventListener("keydown",H),window.addEventListener("keyup",Z),window.addEventListener("mousedown",w),window.addEventListener("mouseup",q),window.addEventListener("contextmenu",onCm),window.addEventListener("blur",Wt);const il=setInterval(()=>{const myId = peerNetwork.isConnected ? peerNetwork.myPeerId : null;const xt=(myId?Gt.current.find(wn=>wn.id===myId):null)||Gt.current.find(wn=>!wn.isBot);if(!xt)return;const et=Se.current,
+      }if(!isMultiInGame && (et==="keyv"||Et==="v"||Et==="м"||et==="backquote"||Et==="`"||Et==="~")){xt.preventDefault();handleOpenStudioFromAnywhere();return;}if(et==="keyp"||Et==="p"||Et==="з"){if(!isMultiInGame) g(rt=>!rt);return;}if(f.mode==="training"){const c=xt.code,k=xt.key;if(c==="KeyR"||k==="r"||k==="R"||k==="к"||k==="К"){xt.preventDefault();R();return;}if(c==="Digit1"||c==="Numpad1"||k==="1"||k==="!"){xt.preventDefault();R();return;}if(c==="Digit2"||c==="Numpad2"||k==="2"||k==="@"){xt.preventDefault();V();return;}if(c==="Digit3"||c==="Numpad3"||k==="3"||k==="#"){xt.preventDefault();Q();return;}if(c==="Digit4"||c==="Numpad4"||k==="4"||k==="$"){xt.preventDefault();vt();return;}if(c==="Digit5"||c==="Numpad5"||k==="5"||k==="%"){xt.preventDefault();onMustySetup();return;}if(c==="Digit6"||c==="Numpad6"||k==="6"||k==="^"){xt.preventDefault();onFlipResetSetup();return;}if(c==="Digit7"||c==="Numpad7"||k==="7"||k==="&"){xt.preventDefault();onPinchSetup();return;}if(c==="Digit8"||c==="Numpad8"||k==="8"||k==="*"){xt.preventDefault();onDoubleTapSetup();return;}if(c==="Digit9"||c==="Numpad9"||k==="9"||k==="("){xt.preventDefault();onPsychoSetup();return;}if(c==="Digit0"||c==="Numpad0"||k==="0"||k===")"){xt.preventDefault();onCeilingSetup();return;}}else if(et==="keyr"||Et==="r"||Et==="к"){if(!isMultiInGame) ie();return;}},Z=xt=>{const et=xt.code.toLowerCase(),Et=xt.key.toLowerCase();Se.current[et]=!1,Se.current[Et]=!1},w=xt=>{xt.button===0&&(Se.current.mouse0=!0),xt.button===2&&(Se.current.mouse2=!0)},q=xt=>{xt.button===0&&(Se.current.mouse0=!1),xt.button===2&&(Se.current.mouse2=!1)},onCm=xt=>{xt.preventDefault()},Wt=()=>{Se.current={}};const onMouseMove=(ev:MouseEvent)=>{const cvs=u.current;if(!cvs)return;const rect=cvs.getBoundingClientRect();mouseScreenPos.x=ev.clientX-rect.left;mouseScreenPos.y=ev.clientY-rect.top;mouseScreenPos.active=true;};window.addEventListener("mousemove",onMouseMove);window.addEventListener("keydown",H),window.addEventListener("keyup",Z),window.addEventListener("mousedown",w),window.addEventListener("mouseup",q),window.addEventListener("contextmenu",onCm),window.addEventListener("blur",Wt);const il=setInterval(()=>{const myId = peerNetwork.isConnected ? peerNetwork.myPeerId : null;const xt=(myId?Gt.current.find(wn=>wn.id===myId):null)||Gt.current.find(wn=>!wn.isBot);if(!xt)return;const et=Se.current,
   Et=!!(et.keyw||et.w||et.ц||et.arrowup),
   rt=!!(et.keys||et.s||et.ы||et.arrowdown),
   de=!!(et.keya||et.a||et.ф||et.arrowleft),
@@ -12429,6 +12448,61 @@ if(rt.goalScored&&isPlaying){
       const Rt=["EZ!","Calculated.","What a save!","Too easy!","Savage!"];
       const We=Rt[Math.floor(Math.random()*Rt.length)];
       x(We,senderName,senderTeam);
+    }
+  }
+} else {
+  const dtClamped = Math.min(q, 0.033);
+  const isLegacy = (f.physicsMode || activePhysicsMode) === "legacy";
+  const myId = peerNetwork.myPeerId;
+  const dummyRes: any = { goalScored: null, demoEvents: [], newParticles: [], mechanicEvents: [], boostPickups: [] };
+
+  const myCar = xt.find((c: any) => c.id === myId);
+  if (myCar && !myCar.isDemoed) {
+    if (isLegacy) {
+      Cv_legacy(myCar, dtClamped, dummyRes);
+    } else {
+      Cv(myCar, dtClamped, dummyRes);
+    }
+    Bv(myCar, ne.current || [], dummyRes);
+  }
+
+  for (const c of xt) {
+    if (c.id === myId || c.isDemoed) continue;
+    c.x += c.vx * dtClamped;
+    c.y += c.vy * dtClamped;
+    if (!c.isGrounded && c.angularVel) {
+      c.angle += c.angularVel * dtClamped;
+    }
+  }
+
+  if (p === "playing" || p === "goal_scored") {
+    if (isLegacy) {
+      Dv_legacy(et, dtClamped, dummyRes);
+    } else {
+      Dv(et, dtClamped, dummyRes);
+    }
+  }
+
+  if (dummyRes.newParticles && dummyRes.newParticles.length > 0) {
+    Yt.current.push(...dummyRes.newParticles);
+  }
+  for (let nt = Yt.current.length - 1; nt >= 0; nt--) {
+    const Rt = Yt.current[nt];
+    Rt.x += Rt.vx * q;
+    Rt.y += Rt.vy * q;
+    Rt.life -= q;
+    if (Rt.life <= 0) Yt.current.splice(nt, 1);
+  }
+
+  if (ne.current) {
+    for (const pad of ne.current) {
+      if (!pad.active) {
+        pad.cooldownTimer -= dtClamped;
+        if (pad.cooldownTimer <= 0) {
+          pad.active = true;
+          pad.cooldownTimer = 0;
+        }
+      }
     }
   }
 }

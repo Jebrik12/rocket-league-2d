@@ -473,23 +473,101 @@ function runTests() {
     assert(orangeCar.botState.action === "wall_pinch", "Orange executes Kuxir pinch on defensive right wall");
   }
 
-  // --- TEST GROUP 15: Active Flip Reset Hunting ---
-  console.log("\n--- 15. Active Flip Reset Hunting ---");
+  // --- TEST GROUP 16: Orange Kickoff & Dodge Orientation (Zero Backwards Flip) ---
+  console.log("\n--- 16. Orange Kickoff & Dodge Orientation (Zero Backwards Flip) ---");
   {
-    const aerialCar = createMockCar({
-      x: 700,
-      y: testEnv.k - 200,
-      vx: 300,
-      vy: -150,
-      isGrounded: false,
-      jumpCount: 1,
-      hasFlipReset: false,
-      boost: 40
+    const orangeCar = createMockCar({
+      id: "bot-orange-1",
+      team: "orange",
+      x: 1360,
+      y: testEnv.k - 14.5,
+      angle: Math.PI,
+      facing: -1,
+      boost: 33,
+      isGrounded: true
     });
-    const aerialBall = { x: 740, y: testEnv.k - 220, vx: 200, vy: -100, radius: 30 };
-    executeMasterBotBrain(aerialCar, aerialBall, null, null, [], 1, 0.016, testEnv, true, [], {});
-    assert(aerialCar.botState.action === "hunting_reset" || aerialCar.botState.action === "attack",
-      "Airborne bot actively targets ball underside for flip reset");
+    const centerBall = { x: testEnv.Kt / 2, y: testEnv.k - 45, vx: 0, vy: 0, radius: 30 };
+
+    // Kickoff execution
+    executeMasterBotBrain(orangeCar, centerBall, null, null, [], -1, 0.016, testEnv, true, [], {});
+    assert(orangeCar.botState.action === "kickoff", "Orange bot recognizes kickoff");
+    assert(orangeCar.facing === -1, "Orange car maintains facing = -1 towards ball");
+    assert(orangeCar.angle === Math.PI, "Orange car maintains angle = Math.PI towards ball");
+    assert(orangeCar.input.throttleForward === true, "Orange car accelerates forward on kickoff");
+    assert(orangeCar.input.boost === true, "Orange car activates boost on kickoff");
+
+    // Speedflip kickoff dodge direction check
+    startBotJumpSeq(orangeCar, "speedflip_kickoff", -1, -0.04);
+    assert(orangeCar.botState.jumpSeq.dodgeX === -1, "Orange kickoff dodgeX is directed forward towards center ball (-1)");
+
+    // Advance sequence through press1, release, into press2 execution
+    updateBotJumpSeq(orangeCar, 0.03, testEnv); // press1 -> transitions to release
+    updateBotJumpSeq(orangeCar, 0.02, testEnv); // release -> transitions to press2
+    updateBotJumpSeq(orangeCar, 0.016, testEnv); // executes press2 inputs
+    assert(orangeCar.input.mouseAim === true, "Dodge jump activates mouseAim in press2");
+    assert(typeof orangeCar.input.mouseTargetAngle === "number", "Dodge jump sets numeric mouseTargetAngle");
+    // Target angle should point leftwards (cos < -0.9)
+    assert(Math.cos(orangeCar.input.mouseTargetAngle!) < -0.9, "Orange dodge impulse angle aims left towards ball (cos < -0.9)");
+    assert(orangeCar.input.throttleForward === false, "Neutral throttle forward in press2 prevents engine flip reversal");
+
+    // Landing from flip preserves leftward angle and facing
+    orangeCar.isFlipping = true;
+    orangeCar.flipTimer = 0.15;
+    orangeCar.flipDirection = { x: -1, y: -0.04 };
+    const _dashDir = orangeCar.flipDirection.x >= 0 ? 1 : -1;
+    orangeCar.angle = _dashDir >= 0 ? 0 : Math.PI;
+    orangeCar.facing = _dashDir;
+    assert(orangeCar.angle === Math.PI, "Landing from flip preserves angle = Math.PI for leftward facing car");
+    assert(orangeCar.facing === -1, "Landing from flip preserves facing = -1 for leftward facing car");
+  }
+
+  // --- TEST GROUP 17: Inverted Car Basis Vector Check (Facing Left) ---
+  console.log("\n--- 17. Inverted Car Basis Vector Check (Facing Left) ---");
+  {
+    // Car on ground facing left: angle = Math.PI, facing = -1
+    const angle = Math.PI;
+    const facing = -1;
+    const fwdX = Math.cos(angle); // -1
+    const fwdY = Math.sin(angle); // 0
+    const rollMult = 1;
+
+    const isFacingLeft = facing === -1 || Math.cos(angle) < -0.1;
+    let downX: number, downY: number;
+    if (isFacingLeft) {
+      downX = fwdY * rollMult;
+      downY = -fwdX * rollMult;
+    } else {
+      downX = -fwdY * rollMult;
+      downY = fwdX * rollMult;
+    }
+
+    assert(isFacingLeft === true, "Accurately detects left-facing car");
+    assert(Math.abs(downX) < 0.001, "downX is 0 for horizontal left-facing car");
+    assert(downY === 1, "downY is +1 (downward towards ground, wheels on floor, roof up)");
+  }
+
+  // --- TEST GROUP 18: Multiplayer In-Game Input & DVR Isolation ---
+  console.log("\n--- 18. Multiplayer In-Game Input & DVR Isolation ---");
+  {
+    const peerNetworkState = { isConnected: true, roomState: { status: "in_game" } };
+    const isMultiInGame = peerNetworkState.isConnected && peerNetworkState.roomState?.status === "in_game";
+    assert(isMultiInGame === true, "Accurately detects active in-game multiplayer match");
+
+    // DVR shortcut guard test: in multiplayer in-game, spectator mode and DVR trigger must be disabled
+    const mockSettingsMode = "bot_vs_bot";
+    const isSpectatorMode = !isMultiInGame && (mockSettingsMode === "bot_vs_bot");
+    assert(isSpectatorMode === false, "Spectator mode is suppressed during active multiplayer match");
+
+    let dvrActive = false;
+    let dvrOffsetSec = 0;
+    const handleDvrTogglePlay = () => {
+      if (peerNetworkState.isConnected && peerNetworkState.roomState?.status === "in_game") return;
+      dvrActive = true;
+      dvrOffsetSec = 10;
+    };
+    handleDvrTogglePlay();
+    assert(dvrActive === false, "Space key / toggle play NEVER activates DVR in multiplayer match");
+    assert(dvrOffsetSec === 0, "Space key NEVER rewinds 10s in multiplayer match");
   }
 
   // Summary

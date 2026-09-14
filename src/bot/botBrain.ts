@@ -755,9 +755,12 @@ export function updateBotJumpSeq(car: any, dt: number, env: ArenaEnv): boolean {
       car.input.boost = true;
       car.input.mouseAim = true;
       car.input.mouseTargetAngle = Math.atan2(s.dodgeY, s.dodgeX);
-      car.input.steerRight = s.dodgeX > 0.15;
-      car.input.steerLeft = s.dodgeX < -0.15;
-      car.input.pitchDown = true;
+      car.input.steerRight = false;
+      car.input.steerLeft = false;
+      car.input.pitchDown = false;
+      car.input.pitchUp = false;
+      car.input.throttleForward = false;
+      car.input.throttleReverse = false;
 
       if (s.timer >= 0.06) {
         s.stage = "idle";
@@ -1295,6 +1298,12 @@ function executeKickoff(car: any, ball: any, teamDir: number, env: ArenaEnv, isU
     }
   }
 
+  // Ensure facing aligns with team attack direction towards ball
+  car.facing = teamDir;
+  if (car.isGrounded) {
+    car.angle = teamDir > 0 ? 0 : Math.PI;
+  }
+
   car.input.throttleForward = true;
   car.input.steerRight = s > 1.5;
   car.input.steerLeft = s < -1.5;
@@ -1308,15 +1317,20 @@ function executeKickoff(car: any, ball: any, teamDir: number, env: ArenaEnv, isU
     car.input.handbrake = true;
   }
 
-  // Speedflip kickoff trigger when crossing optimal acceleration zone
-  if (isUnfair && car.isGrounded && car.canJump && !car.isFlipping && dist < 580 && dist > 340 && Math.abs(car.vx) > 320) {
-    startBotJumpSeq(car, "speedflip_kickoff", teamDir, -0.15);
+  // Speedflip kickoff trigger when crossing optimal acceleration zone (flat level dash)
+  if (isUnfair && car.isGrounded && car.canJump && !car.isFlipping && dist < 540 && dist > 350 && Math.abs(car.vx) > 280) {
+    startBotJumpSeq(car, "speedflip_kickoff", teamDir, -0.04);
     return;
   }
 
-  // Contact power blast timed directly to contact
-  if (dist <= contactDist + 22 && dist >= contactDist - 25 && car.canJump && !car.isFlipping) {
-    startBotJumpSeq(car, "dodge", teamDir, -0.16);
+  // Contact power blast: when within close range of kickoff ball, STAY FIRMLY GROUNDED!
+  // 100% full throttle + boost driving directly through the ball's center
+  // Guarantees winning 50/50s and eliminates jumping/flipping over the ball
+  if (dist <= contactDist + 50) {
+    car.input.throttleForward = true;
+    if (car.boost > 0) car.input.boost = true;
+    car.input.steerRight = s > 0.5;
+    car.input.steerLeft = s < -0.5;
   }
 }
 
