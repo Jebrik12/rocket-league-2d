@@ -2870,9 +2870,16 @@ function Rv(u: any) {
     }
   }
 
+  const wasCeiling = u.isGrounded && u.surfaceType === "ceiling";
   u.isGrounded = s;
   u.surfaceNormal = y;
   u.surfaceType = m;
+  if (wasCeiling && !s && !u.isFlipping) {
+    u.isCeilingDrop = true;
+    u.canJump = true;
+    u.jumpCount = 0;
+    u.flipWindowTimer = 0;
+  }
 }
 
 function fc(u:any,f:any,r:any){

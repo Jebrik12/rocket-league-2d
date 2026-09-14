@@ -7,7 +7,9 @@ import {
   botDriveGround,
   botDriveAir,
   executeMasterBotBrain,
-  checkDefensiveThreat
+  checkDefensiveThreat,
+  getCarHitboxSpecs,
+  CAR_HITBOX_MAP
 } from "../src/bot/botBrain";
 
 // Standard arena environment matching App.tsx default RL_PHYSICS
@@ -298,7 +300,7 @@ function runTests() {
     // Ball balanced on car roof
     const ball = { x: 805, y: testEnv.k - 14.5 - car.height / 2, vx: 300, vy: 0, radius: 30 };
     executeMasterBotBrain(car, ball, null, null, [], 1, 0.016, testEnv, true, [], {});
-    assert(car.botState.jumpSeq.stage !== "idle" && car.botState.jumpSeq.type === "dodge",
+    assert(car.botState.jumpSeq.stage !== "idle" && (car.botState.jumpSeq.type === "dodge" || car.botState.jumpSeq.type === "musty_jump"),
       "Fires clinical flick shot when dribble carry matures", `jumpSeq.type was ${car.botState.jumpSeq.type}`);
   }
 
@@ -336,6 +338,158 @@ function runTests() {
     const ceilBall = { x: 1000, y: testEnv.Qt + 25, vx: 200, vy: -600, radius: 30 };
     simulateBallSubstep(ceilBall, 0.016, testEnv);
     assert(ceilBall.vy > 0, "Ceiling reverses vertical velocity downward", `vy was ${ceilBall.vy}`);
+  }
+
+  // --- TEST GROUP 12: Multi-Car Support Across All 6 Hitboxes ---
+  console.log("\n--- 12. Multi-Car Hitbox & Physics Adaptation (All 6 Cars) ---");
+  const carModels = ["octane", "fennec", "dominus", "breakout", "skyline", "merc"];
+  for (const model of carModels) {
+    const specs = CAR_HITBOX_MAP[model];
+    const car = createMockCar({
+      carModel: model,
+      width: specs.width,
+      height: specs.height,
+      wheelbase: specs.wheelbase,
+      wheelRadius: specs.wheelRadius,
+      x: 500,
+      vx: 400
+    });
+
+    // 12.1 Hitbox specifications match
+    const computedSpecs = getCarHitboxSpecs(car);
+    assert(computedSpecs.width === specs.width && computedSpecs.height === specs.height,
+      `[${model}] Dimensions match expected (${specs.width}x${specs.height})`);
+
+    // 12.2 Ground strike zero-whiff: Car stays grounded, NEVER jumps over ground ball
+    const groundBall = { x: 700, y: testEnv.k - 30, vx: 50, vy: 0, radius: 30 };
+    executeMasterBotBrain(car, groundBall, null, null, [], 1, 0.016, testEnv, true, [], {});
+    assert(car.input.jump === false && car.botState.jumpSeq.stage === "idle",
+      `[${model}] Ground strike stays grounded (zero-whiff)`, `jump=${car.input.jump}, stage=${car.botState.jumpSeq.stage}`);
+    assert(car.input.throttleForward === true,
+      `[${model}] Ground strike applies 100% forward throttle directly through ball`);
+
+    // 12.3 Floating ball precision jump strike: Jumps cleanly to elevate bumper to ball height
+    const floatingCar = createMockCar({
+      carModel: model,
+      width: specs.width,
+      height: specs.height,
+      wheelbase: specs.wheelbase,
+      wheelRadius: specs.wheelRadius,
+      x: 650,
+      vx: 300
+    });
+    const floatingBall = { x: 710, y: testEnv.k - 70, vx: 50, vy: 0, radius: 30 };
+    executeMasterBotBrain(floatingCar, floatingBall, null, null, [], 1, 0.016, testEnv, true, [], {});
+    assert(floatingCar.botState.jumpSeq.stage !== "idle",
+      `[${model}] Floating ball initiates precision jump strike (no under-car whiff)`);
+
+    // 12.4 Roof dribble carry height calibration
+    const dribbleCar = createMockCar({
+      carModel: model,
+      width: specs.width,
+      height: specs.height,
+      wheelbase: specs.wheelbase,
+      wheelRadius: specs.wheelRadius,
+      x: 600,
+      vx: 300,
+      boost: 30
+    });
+    // Ball resting directly on car roof
+    const roofBall = { x: 600, y: testEnv.k - specs.height - 24, vx: 300, vy: 0, radius: 30 };
+    executeMasterBotBrain(dribbleCar, roofBall, null, null, [], 1, 0.016, testEnv, true, [], {});
+    assert(dribbleCar.botState.action === "dribble" || dribbleCar.botState.jumpSeq.stage !== "idle",
+      `[${model}] Recognizes roof carry dribble calibrated to roof height (action=${dribbleCar.botState.action})`);
+  }
+
+  // --- TEST GROUP 13: Dual-Physics Engine Reachability ---
+  console.log("\n--- 13. Dual-Physics Engine Reachability (Rocket League vs Legacy) ---");
+  {
+    const legacyEnv: ArenaEnv = {
+      ...testEnv,
+      isLegacy: true,
+      pv: 600,
+      Ph: 600,
+      Uh: 0.998,
+      wavedashMinSpeed: 1280
+    };
+
+    const carRL = createMockCar({ x: 500, y: testEnv.k - 14.5, vx: 200, boost: 40 });
+    const carLegacy = createMockCar({ x: 500, y: legacyEnv.k - 14.5, vx: 200, boost: 40 });
+    const highBall = { x: 800, y: testEnv.k - 260, vx: 50, vy: -50, radius: 30 };
+
+    const interceptRL = solveBestIntercept(carRL, highBall, 1, testEnv, null, null, true, 2.5);
+    const interceptLegacy = solveBestIntercept(carLegacy, highBall, 1, legacyEnv, null, null, true, 2.5);
+
+    assert(interceptRL.isAerial === true, "RL physics mode identifies aerial opportunity");
+    assert(interceptLegacy.isAerial === true, "Legacy physics mode identifies aerial opportunity");
+    assert(interceptRL.t > 0 && interceptLegacy.t > 0, "Both physics modes calculate reachable time");
+  }
+
+  // --- TEST GROUP 14: Advanced Mechanics (Musty Flick & Wall Pinches) ---
+  console.log("\n--- 14. Advanced Mechanics (Musty Flick & Kuxir Wall Pinches) ---");
+  {
+    // Musty Flick state machine execution
+    const mustyCar = createMockCar({
+      x: 600,
+      y: testEnv.k - 120,
+      vx: 300,
+      vy: -100,
+      isGrounded: false,
+      jumpCount: 1
+    });
+    startBotJumpSeq(mustyCar, "musty_jump", 1, -0.45);
+    assert(mustyCar.botState.jumpSeq.stage === "tilt", "Musty jump in air starts in tilt stage");
+    assert(mustyCar.input.mouseAim === true, "Musty jump activates mouseAim for rapid tilt");
+    assert(Math.abs(mustyCar.input.mouseTargetAngle || 0) > 1.75, "Musty tilt targets pitch angle past 1.75 radians");
+
+    // Advance tilt timer to trigger flick stage
+    updateBotJumpSeq(mustyCar, 0.10, testEnv);
+    assert(mustyCar.botState.jumpSeq.stage === "press2", "Musty jump transitions to press2 flick dodge");
+    assert(mustyCar.input.jump === true, "Musty flick executes dodge flip into ball");
+
+    // Blue Team Kuxir Pinch on Left Wall (Solid wall section above net yMin = 380)
+    const blueCar = createMockCar({
+      x: testEnv.At + 80,
+      y: 280,
+      vx: -200,
+      team: "blue",
+      boost: 30
+    });
+    const leftWallBall = { x: testEnv.At + 25, y: 280, vx: -50, vy: 0, radius: 30 };
+    executeMasterBotBrain(blueCar, leftWallBall, null, null, [], 1, 0.016, testEnv, true, [], {});
+    assert(blueCar.botState.action === "wall_pinch", "Blue executes Kuxir pinch on defensive left wall");
+
+
+    // Orange Team Kuxir Pinch on Right Wall (Solid wall section above net yMin = 380)
+    const orangeCar = createMockCar({
+      x: testEnv.Mt - 80,
+      y: 280,
+      vx: 200,
+      team: "orange",
+      boost: 30
+    });
+    const rightWallBall = { x: testEnv.Mt - 25, y: 280, vx: 50, vy: 0, radius: 30 };
+    executeMasterBotBrain(orangeCar, rightWallBall, null, null, [], -1, 0.016, testEnv, true, [], {});
+    assert(orangeCar.botState.action === "wall_pinch", "Orange executes Kuxir pinch on defensive right wall");
+  }
+
+  // --- TEST GROUP 15: Active Flip Reset Hunting ---
+  console.log("\n--- 15. Active Flip Reset Hunting ---");
+  {
+    const aerialCar = createMockCar({
+      x: 700,
+      y: testEnv.k - 200,
+      vx: 300,
+      vy: -150,
+      isGrounded: false,
+      jumpCount: 1,
+      hasFlipReset: false,
+      boost: 40
+    });
+    const aerialBall = { x: 740, y: testEnv.k - 220, vx: 200, vy: -100, radius: 30 };
+    executeMasterBotBrain(aerialCar, aerialBall, null, null, [], 1, 0.016, testEnv, true, [], {});
+    assert(aerialCar.botState.action === "hunting_reset" || aerialCar.botState.action === "attack",
+      "Airborne bot actively targets ball underside for flip reset");
   }
 
   // Summary
