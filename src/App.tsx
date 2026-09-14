@@ -470,28 +470,27 @@ function syncPhysicsGlobals(mode: string) {
 }
 const BOT_PRO_NAMES = [
   "Zen", "Vatira", "Squishy", "Jstn", "Kronovi",
-  "Garrett", "MonkeyM00n", "Ahmad", "Daniel", "First",
-  "Joyo", "AppJack", "Beast", "Mawkzy", "Atow",
-  "Rw9", "Killerz", "Alpha54", "Turbo", "Kaydop",
-  "Rizzo", "Sizz", "Leth", "Sunless", "Wayton",
-  "Musty", "Kuxir", "Torment", "Gimmick", "Scrub",
-  "Fairy", "Paschy", "Deevo", "Jhzer",
+  "GarrettG", "MonkeyM00n", "Ahmad", "Daniel", "Firstkiller",
+  "Joyo", "AppJack", "BeastMode", "Mawkzy", "Atow",
+  "Rw9", "Kiileerrz", "Alpha54", "Turbopolsa", "Kaydop",
+  "Rizzo", "Sizz", "Lethamyr", "Sunless", "Wayton",
+  "Musty", "Kuxir", "Torment", "Gimmick", "Scrub Killa",
+  "Fairy Peak", "Paschy90", "Deevo", "Jhzer",
   "Itachi", "ExoTiiK", "Seikoo", "Dralii", "Rise",
   "Oski", "Archie", "Kash", "Joreuz", "AyyJayy"
 ];
 
 const BOT_MEME_NAMES = [
-  "AKAN550", "AKAN67", "AKAN", "AKAN_GOAT", "AKAN_M",
-  "Skibidi", "Rizzler", "Sigma", "Gigachad", "CaseOh",
-  "Jynxzi", "Fanum", "Mewing", "Speed", "KaiCenat",
-  "Gronk", "Grimace", "Aura+1k", "LockIn", "NoCap",
-  "Gyatt", "Brainrot", "HawkTuah", "Glazer", "Cooked",
-  "Cinema", "SkillDiff", "Shuffler", "Enforcer", "WhiffGod",
-  "Vampire", "Turtle", "Crossbar", "Spammer", "Andy",
-  "Breezi", "Demoman", "Camper", "Scammer", "Whiffer",
-  "Bandit", "Dunker", "PinchGod", "SpinBot", "Clanger",
-  "Smurf", "ZeroBoost", "DemoGod", "Flicker", "PostHit",
-  "Broski", "OhioBoss", "Plank", "Sweeper", "Gamer77"
+  "AKAN550 MENTALITY", "AKAN550", "AKAN67", "AKAN THE GOAT", "AKAN550 PRIME", "AKAN67 TURBO", "AKAN WARRIOR", "AKAN MENTALITY",
+  "Skibidi Striker", "Rizzler 2026", "Sigma Mentality", "Gigachad", "CaseOh",
+  "Jynxzi", "Fanum Tax", "Mewing Champion", "What The Sigma", "Kai Cenat",
+  "Baby Gronk", "IShowSpeed", "Grimace Shake", "Aura +1000",
+  "Ohio Final Boss", "Broski Nation", "Lock In 2026", "No Cap", "Gyatt Reset",
+  "Brainrot Sweeper", "Hawk Tuah", "Glazing Master", "Let Him Cook", "Real Cinema", "Skill Issue",
+  "Rule 1 Enforcer", "Whiff Artist", "Boost Vampire", "Speedflip Demon",
+  "Turtle Enjoyer", "Crossbar Lover", "Calculated Spammer", "What A Save Andy",
+  "Breezi", "Demo Addict", "Zero Boost Hero", "Ceiling Pinch", "Kickoff Scammer",
+  "Flip Reset King", "Air Roll Spinner", "Musty Or Bust", "Post Clanger"
 ];
 
 const BOT_CLAN_TAGS = [
@@ -510,51 +509,44 @@ export function clearLobbyNames() {
 
 export function getRandomMemeName(prefix = ""): string {
   for (let attempt = 0; attempt < 60; attempt++) {
-    const isPro = Math.random() < 0.45;
+    const isPro = Math.random() < 0.38;
     const base = isPro
       ? BOT_PRO_NAMES[Math.floor(Math.random() * BOT_PRO_NAMES.length)]
       : BOT_MEME_NAMES[Math.floor(Math.random() * BOT_MEME_NAMES.length)];
 
     let name = base;
     const p = prefix ? prefix.trim() : "";
+    const isPhrase = base.includes(" ") || base.length > 9;
 
     if (p) {
-      // With emoji prefix, keep name very short: either just prefix+base or short suffix if base is tiny
-      if (base.length <= 6 && Math.random() < 0.22) {
-        const suf = BOT_SUFFIXES[Math.floor(Math.random() * BOT_SUFFIXES.length)];
-        name = `${p} ${base}${suf}`;
-      } else {
-        name = `${p} ${base}`;
-      }
-    } else {
-      // Without prefix: add either a short clan tag OR a suffix, NEVER both
+      // With emoji prefix (e.g. ☠️ or 🔥): clean prefix + name
+      name = `${p} ${base}`;
+    } else if (!isPhrase) {
+      // Single short base names (e.g. Zen, Jstn, Sigma, CaseOh, AKAN550):
+      // Optionally add a clan tag OR a suffix (never both)
       const roll = Math.random();
-      if (roll < 0.28) {
+      if (roll < 0.25) {
         const tag = BOT_CLAN_TAGS[Math.floor(Math.random() * BOT_CLAN_TAGS.length)];
-        if (tag.length + 1 + base.length <= 12) {
-          name = `${tag} ${base}`;
-        }
-      } else if (roll < 0.48) {
+        name = `${tag} ${base}`;
+      } else if (roll < 0.45) {
         const suf = BOT_SUFFIXES[Math.floor(Math.random() * BOT_SUFFIXES.length)];
-        if (base.length + suf.length <= 12) {
-          name = `${base}${suf}`;
-        }
+        name = `${base}${suf}`;
       } else {
         name = base;
       }
+    } else {
+      // Already an iconic phrase like "AKAN550 MENTALITY": keep it clean and pristine
+      name = base;
     }
 
     name = name.trim();
-    if (name.length > 12) {
-      name = name.slice(0, 12);
-    }
 
     if (!usedLobbyNames.has(name)) {
       usedLobbyNames.add(name);
       return name;
     }
   }
-  const fallback = ((prefix ? `${prefix.trim()} ` : "") + `Bot_${Math.floor(10 + Math.random() * 89)}`).slice(0, 12);
+  const fallback = ((prefix ? `${prefix.trim()} ` : "") + `Bot_${Math.floor(10 + Math.random() * 89)}`);
   usedLobbyNames.add(fallback);
   return fallback;
 }
@@ -8062,8 +8054,8 @@ function lg(u: any, f: any, m: any = {}) {
   u.save();
   const isBlue = f.team === "blue";
   let name = f.name || (isBlue ? "Player" : "Bot");
-  if (name.length > 12) {
-    name = name.slice(0, 11) + "…";
+  if (name.length > 20) {
+    name = name.slice(0, 19) + "…";
   }
   const score = Math.round(f.score || 0);
   const scoreStr = `${score}`;
@@ -8073,7 +8065,7 @@ function lg(u: any, f: any, m: any = {}) {
   u.font = "900 12px monospace, -apple-system, sans-serif";
   const scoreMetrics = u.measureText(scoreStr);
 
-  const pillW = Math.max(76, Math.min(130, Math.round(nameMetrics.width + scoreMetrics.width + 28)));
+  const pillW = Math.max(76, Math.min(195, Math.round(nameMetrics.width + scoreMetrics.width + 24)));
   const pillH = 24;
   const rx = Math.round(f.x);
   const ry = Math.round(f.y - 44);
