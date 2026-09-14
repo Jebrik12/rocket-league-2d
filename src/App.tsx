@@ -5402,16 +5402,24 @@ function Fv(
     { x: 2120, w: 70, h: 135 }
   ];
   const horizonBaseY = 360;
-  for (const b of skyline) {
-    if (b.x + b.w >= minX && b.x <= maxX) {
-      u.fillRect(b.x, horizonBaseY - b.h, b.w, b.h);
-      if (b.h > 150) {
-        u.strokeStyle = "#5f8398";
-        u.lineWidth = 2.5;
-        u.beginPath();
-        u.moveTo(b.x + b.w / 2, horizonBaseY - b.h);
-        u.lineTo(b.x + b.w / 2, horizonBaseY - b.h - 24);
-        u.stroke();
+  const skylineSpan = 2300;
+  const minRep = Math.floor(minX / skylineSpan);
+  const maxRep = Math.ceil(maxX / skylineSpan);
+
+  for (let rep = minRep; rep <= maxRep; rep++) {
+    const shiftX = rep * skylineSpan;
+    for (const b of skyline) {
+      const bx = b.x + shiftX;
+      if (bx + b.w >= minX && bx <= maxX) {
+        u.fillRect(bx, horizonBaseY - b.h, b.w, b.h);
+        if (b.h > 150) {
+          u.strokeStyle = "#5f8398";
+          u.lineWidth = 2.5;
+          u.beginPath();
+          u.moveTo(bx + b.w / 2, horizonBaseY - b.h);
+          u.lineTo(bx + b.w / 2, horizonBaseY - b.h - 24);
+          u.stroke();
+        }
       }
     }
   }
@@ -5488,8 +5496,8 @@ function Fv(
     u.restore();
   };
 
-  drawLightTower(390);
-  drawLightTower(1610);
+  drawLightTower(At + (Mt - At) * 0.18);
+  drawLightTower(At + (Mt - At) * 0.82);
 
   // 6. STADIUM GRANDSTAND STANDS & CROWD (Inside arena: At to Mt)
   u.fillStyle = "#263346";
@@ -5530,29 +5538,35 @@ function Fv(
   }
 
   // 7. SLEEK STADIUM BACK WALL (Inside arena: At to Mt, down to dasher boards)
-  const wallGrad = u.createLinearGradient(0, 540, 0, 895);
+  const dasherH = 55;
+  const dasherY = k - dasherH;
+  const crowdBottomY = 540;
+  const wallH = Math.max(50, dasherY - crowdBottomY);
+
+  const wallGrad = u.createLinearGradient(0, crowdBottomY, 0, dasherY);
   wallGrad.addColorStop(0, "#1e293b");
   wallGrad.addColorStop(0.4, "#182230");
   wallGrad.addColorStop(1, "#0f172a");
   u.fillStyle = wallGrad;
-  u.fillRect(At, 540, Mt - At, 355);
+  u.fillRect(At, crowdBottomY, Mt - At, wallH);
 
   // Architectural panel seams on the stadium wall
   u.strokeStyle = "rgba(255, 255, 255, 0.06)";
   u.lineWidth = 2;
   for (let px = At + 160; px < Mt; px += 160) {
     u.beginPath();
-    u.moveTo(px, 540);
-    u.lineTo(px, 895);
+    u.moveTo(px, crowdBottomY);
+    u.lineTo(px, dasherY);
     u.stroke();
   }
   u.strokeStyle = "rgba(255, 255, 255, 0.08)";
   u.beginPath();
-  u.moveTo(At, 720);
-  u.lineTo(Mt, 720);
+  const midWallY = crowdBottomY + wallH * 0.5;
+  u.moveTo(At, midWallY);
+  u.lineTo(Mt, midWallY);
   u.stroke();
 
-  // 8. HANGING TEAM BANNERS (Symmetrical at 790 and 1210)
+  // 8. HANGING TEAM BANNERS (Symmetrical at midfield)
   const drawTeamBanner = (x: number, isBlue: boolean) => {
     u.save();
     const bannerW = 58;
@@ -5596,25 +5610,25 @@ function Fv(
     u.restore();
   };
 
-  drawTeamBanner(790, true);
-  drawTeamBanner(1210, false);
+  drawTeamBanner(Kt / 2 - 210, true);
+  drawTeamBanner(Kt / 2 + 210, false);
 
-  // 9. DASHER BOARDS (Inside arena: At to Mt, at ground level y = 895 to 948)
-  const blueWallGrad = u.createLinearGradient(At, 895, At, 948);
+  // 9. DASHER BOARDS (Inside arena: At to Mt, sitting on turf at dasherY to k)
+  const blueWallGrad = u.createLinearGradient(At, dasherY, At, k - 2);
   blueWallGrad.addColorStop(0, "#0284c7");
   blueWallGrad.addColorStop(1, "#0369a1");
   u.fillStyle = blueWallGrad;
-  u.fillRect(At, 895, Kt / 2 - At, 53);
+  u.fillRect(At, dasherY, Kt / 2 - At, dasherH - 2);
 
-  const orangeWallGrad = u.createLinearGradient(Kt / 2, 895, Kt / 2, 948);
+  const orangeWallGrad = u.createLinearGradient(Kt / 2, dasherY, Kt / 2, k - 2);
   orangeWallGrad.addColorStop(0, "#f97316");
   orangeWallGrad.addColorStop(1, "#c2410c");
   u.fillStyle = orangeWallGrad;
-  u.fillRect(Kt / 2, 895, Mt - Kt / 2, 53);
+  u.fillRect(Kt / 2, dasherY, Mt - Kt / 2, dasherH - 2);
 
   // White top cap of dasher boards
   u.fillStyle = "#ffffff";
-  u.fillRect(At, 893, Mt - At, 3.5);
+  u.fillRect(At, dasherY - 2, Mt - At, 3.5);
 
   // 10. SOLID CEILING ROOF STRUCTURE & INDUSTRIAL TRUSS (Spans minX to maxX across full top!)
   u.save();
@@ -5668,11 +5682,14 @@ function Fv(
     u.fill();
   }
 
-  // Industrial floodlights hung along ceiling
-  const overheadLights = [
-    At + 220, At + 520, At + 820,
-    Mt - 820, Mt - 520, Mt - 220
-  ];
+  // Industrial floodlights hung along ceiling across full pitch width
+  const lightSpacing = 280;
+  const lightCount = Math.max(4, Math.floor((Mt - At - 240) / lightSpacing));
+  const lightGap = (Mt - At - 320) / Math.max(1, lightCount - 1);
+  const overheadLights: number[] = [];
+  for (let i = 0; i < lightCount; i++) {
+    overheadLights.push(At + 160 + i * lightGap);
+  }
   for (const lx of overheadLights) {
     u.fillStyle = "#0f172a";
     u.strokeStyle = "#475569";
@@ -5711,9 +5728,10 @@ function Fv(
   u.strokeStyle = "rgba(255, 255, 255, 0.35)";
   u.lineWidth = 2.5;
   const dashSpacing = 45;
-  const maxOffset = Mt - F - 1000 - 30; // Symmetrical offset from center 1000
+  const arenaMidX = Kt / 2;
+  const maxOffset = Mt - F - arenaMidX - 30; // Symmetrical offset from arena center
   for (let dx = -Math.floor(maxOffset / dashSpacing) * dashSpacing; dx <= maxOffset; dx += dashSpacing) {
-    const cx = 1000 + dx;
+    const cx = arenaMidX + dx;
     u.beginPath();
     u.moveTo(cx, Qt - 7);
     u.lineTo(cx, Qt - 1);
@@ -5725,20 +5743,21 @@ function Fv(
   const drawWallPanels = (isBlue: boolean) => {
     u.save();
     u.beginPath();
+    const goalYTop = isBlue ? (le.yMin ?? 380) : (ae.yMin ?? 380);
     if (isBlue) {
       u.moveTo(minX, minY);
       u.lineTo(At + F, minY);
       u.lineTo(At + F, Qt);
       u.arc(At + F, Qt + F, F, Math.PI * 1.5, Math.PI, true);
-      u.lineTo(At, 380);
-      u.lineTo(minX, 380);
+      u.lineTo(At, goalYTop);
+      u.lineTo(minX, goalYTop);
     } else {
       u.moveTo(maxX, minY);
       u.lineTo(Mt - F, minY);
       u.lineTo(Mt - F, Qt);
       u.arc(Mt - F, Qt + F, F, Math.PI * 1.5, 0, false);
-      u.lineTo(Mt, 380);
-      u.lineTo(maxX, 380);
+      u.lineTo(Mt, goalYTop);
+      u.lineTo(maxX, goalYTop);
     }
     u.closePath();
     u.clip();
@@ -8559,16 +8578,18 @@ const a2 = ({
   };
 
   const mapDef = MAP_DEFINITIONS[currentMap] || MAP_DEFINITIONS.standard;
+  const isReplay = y === "goal_replay" || y === "replay";
 
   return d.jsx("div", {
     className: "absolute top-2 left-0 right-0 z-20 flex flex-col items-center pointer-events-none px-2 sm:px-4 select-none",
     children: d.jsxs("div", {
       className: "flex items-center justify-between w-full max-w-[98vw] pointer-events-auto gap-1.5 sm:gap-2",
       children: [
-        // Left: Game Mode & Arena badges
-        d.jsxs("div", {
-          className: "flex items-center gap-1.5 flex-1 min-w-0 justify-start overflow-hidden",
-          children: [
+        // Left: Game Mode & Arena badges (Hidden during replay to eliminate HUD overlapping)
+        !isReplay ? (
+          d.jsxs("div", {
+            className: "flex items-center gap-1.5 flex-1 min-w-0 justify-start overflow-hidden",
+            children: [
             onOpenMatchSetup ? (
               d.jsxs("button", {
                 onClick: onOpenMatchSetup,
@@ -8622,7 +8643,10 @@ const a2 = ({
               ]
             })
           ]
-        }),
+        })
+      ) : (
+        d.jsx("div", { className: "flex-1 min-w-0 pointer-events-none" })
+      ),
 
         // Center: Tournament Scoreboard Pod (Unobstructed & Always Centered)
         d.jsx("div", {
@@ -8681,10 +8705,11 @@ const a2 = ({
           })
         }),
 
-        // Right: Control Icons / Mobile Quick Menu
-        d.jsxs("div", {
-          className: "flex items-center gap-1.5 flex-1 min-w-0 justify-end",
-          children: [
+        // Right: Control Icons / Mobile Quick Menu (Hidden during replay)
+        !isReplay ? (
+          d.jsxs("div", {
+            className: "flex items-center gap-1.5 flex-1 min-w-0 justify-end",
+            children: [
             !isMobileDevice && d.jsxs("button", {
               onClick: onOpenGarage,
               className: "flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/40 text-amber-300 font-mono font-bold text-xs shadow-lg transition cursor-pointer active:scale-95 shrink-0",
@@ -8865,6 +8890,9 @@ const a2 = ({
             })
           ]
         })
+      ) : (
+        d.jsx("div", { className: "flex-1 min-w-0 pointer-events-none" })
+      )
       ]
     })
   });
@@ -9009,7 +9037,7 @@ const n2 = ({ playerCar: u }: any) => {
   });
 };
 
-const u2 = ({ messages: u, onSendMessage: f }: any) => {
+const u2 = ({ messages: u, onSendMessage: f, isReplay = false }: any) => {
   const [isOpen, setIsOpen] = st.useState(false);
   const [isChatHidden, setIsChatHidden] = st.useState(() => {
     try {
@@ -9063,7 +9091,7 @@ const u2 = ({ messages: u, onSendMessage: f }: any) => {
   };
 
   return d.jsxs("div", {
-    className: "absolute top-12 sm:top-16 left-2.5 sm:left-5 z-30 flex flex-col gap-1 sm:gap-2 pointer-events-none select-none",
+    className: `absolute ${isReplay ? "top-16 sm:top-20 opacity-70" : "top-12 sm:top-16"} left-2.5 sm:left-5 z-30 flex flex-col gap-1 sm:gap-2 pointer-events-none select-none transition-all`,
     children: [
       // Recent killfeed / chat notification items (hidden if isChatHidden)
       !isChatHidden && d.jsx("div", {
@@ -10891,63 +10919,67 @@ const GoalReplayOverlay = ({
     <div className="absolute inset-0 pointer-events-none z-40 flex flex-col justify-between select-none animate-fade-in">
       <ReplayMechanicBadge badge={activeBadge} />
 
-      <div className="w-full bg-gradient-to-b from-black/95 via-black/85 to-transparent pt-4 pb-10 px-6 flex items-center justify-between pointer-events-auto border-b border-white/10 flex-wrap gap-3">
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-red-600/30 border border-red-500/80 shadow-[0_0_25px_rgba(239,68,68,0.6)] backdrop-blur-md">
-            <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
-            <span className="text-xs md:text-sm font-black uppercase tracking-widest text-red-100 flex items-center gap-1.5">
-              <Video className="w-4 h-4 text-red-400" />
-              {isSlowMo ? "⚡ SLOW-MO REPLAY" : "GOAL REPLAY"}
+      <div className="w-full bg-gradient-to-b from-black/95 via-black/85 to-transparent pt-2.5 pb-6 px-3 sm:px-6 flex items-center justify-between pointer-events-auto border-b border-white/10 gap-2 sm:gap-3">
+        {/* Left: Replay Status & Scorer Pill */}
+        <div className="flex items-center gap-2 shrink-0 flex-nowrap overflow-hidden">
+          <div className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl bg-red-600/30 border border-red-500/80 shadow-[0_0_20px_rgba(239,68,68,0.5)] backdrop-blur-md shrink-0">
+            <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
+            <span className="text-[11px] sm:text-xs md:text-sm font-black uppercase tracking-wider sm:tracking-widest text-red-100 flex items-center gap-1">
+              <Video className="w-3.5 h-3.5 text-red-400" />
+              <span className="hidden xs:inline">{isSlowMo ? "⚡ SLOW-MO" : "REPLAY"}</span>
             </span>
-            <span className="ml-1 px-1.5 py-0.5 rounded bg-amber-400 text-slate-950 font-black text-[11px] font-mono shadow">
+            <span className="ml-0.5 px-1.5 py-0.2 rounded bg-amber-400 text-slate-950 font-black text-[10px] sm:text-[11px] font-mono shadow">
               {replayUI.speed || 1}x
             </span>
           </div>
 
           {replayUI.info && (
             <div
-              className={`flex items-center gap-2 px-4 py-1.5 rounded-xl border backdrop-blur-md shadow-lg ${
+              className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-xl border backdrop-blur-md shadow-lg shrink-0 ${
                 isBlue
                   ? "bg-sky-950/90 border-sky-400/90 text-sky-200 shadow-sky-500/30"
                   : "bg-orange-950/90 border-orange-400/90 text-orange-200 shadow-orange-500/30"
               }`}
             >
-              <span className="text-xs font-semibold text-slate-300">Scored by:</span>
-              <span className="text-sm font-black tracking-tight">{replayUI.info.scorerName}</span>
-              <span className="text-xs px-2 py-0.5 rounded-md bg-black/50 font-mono font-black text-amber-300 border border-amber-400/40">
-                ⚡ {replayUI.info.speedKmh} KM/H
+              <span className="text-[10px] sm:text-xs font-semibold text-slate-300 hidden md:inline">Scored by:</span>
+              <span className="text-xs sm:text-sm font-black tracking-tight truncate max-w-[90px] sm:max-w-[140px]">{replayUI.info.scorerName}</span>
+              <span className="text-[10px] sm:text-xs px-1.5 py-0.5 rounded-md bg-black/50 font-mono font-black text-amber-300 border border-amber-400/40">
+                ⚡ {replayUI.info.speedKmh} <span className="hidden sm:inline">KM/H</span>
               </span>
             </div>
           )}
         </div>
 
-        <div className="flex items-center gap-2.5 flex-wrap">
+        {/* Center: Clear zone reserved for the match scoreboard pod (0  0:42  3) */}
+        <div className="hidden lg:flex flex-1 min-w-[80px] max-w-[260px] pointer-events-none" />
+
+        {/* Right: Replay Action Toolbar (Compact, non-overlapping, sleek) */}
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0 flex-nowrap">
           <button
             onClick={() => setIsCleanView(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700/80 text-xs font-bold transition cursor-pointer active:scale-95 shadow"
+            className="flex items-center gap-1 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700/80 text-xs font-bold transition cursor-pointer active:scale-95 shadow shrink-0"
             title="Hide UI for clean full-screen view"
           >
-            <Eg className="w-4 h-4 text-sky-400" />
-            <span className="hidden sm:inline">Clean View</span>
+            <Eg className="w-3.5 h-3.5 text-sky-400" />
+            <span className="hidden xl:inline">Clean</span>
           </button>
 
           {onExportClip && (
-            <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-slate-700/80 backdrop-blur-md shadow-md">
-              <span className="text-[10px] font-bold text-slate-400 px-1.5 uppercase hidden md:inline">Clip</span>
+            <div className="flex items-center gap-0.5 sm:gap-1 bg-slate-900/90 p-0.5 sm:p-1 rounded-xl border border-slate-700/80 backdrop-blur-md shadow-md shrink-0">
               <button
                 onClick={() => onExportClip("mp4")}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-600/30 hover:bg-sky-500/40 text-sky-300 border border-sky-500/50 text-xs font-bold transition cursor-pointer active:scale-95 shadow"
+                className="flex items-center gap-1 px-2 py-1 rounded-lg bg-sky-600/30 hover:bg-sky-500/40 text-sky-300 border border-sky-500/50 text-[11px] sm:text-xs font-bold transition cursor-pointer active:scale-95 shadow"
                 title="Save this goal replay as MP4 video"
               >
-                <Download className="w-3.5 h-3.5" />
+                <Download className="w-3 h-3" />
                 <span>MP4</span>
               </button>
               <button
                 onClick={() => onExportClip("gif")}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/50 text-xs font-bold transition cursor-pointer active:scale-95 shadow"
+                className="flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/50 text-[11px] sm:text-xs font-bold transition cursor-pointer active:scale-95 shadow"
                 title="Save this goal replay as animated GIF"
               >
-                <Film className="w-3.5 h-3.5" />
+                <Film className="w-3 h-3" />
                 <span>GIF</span>
               </button>
             </div>
@@ -10956,31 +10988,30 @@ const GoalReplayOverlay = ({
           {onOpenStudio && (
             <button
               onClick={onOpenStudio}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-600/30 hover:bg-purple-600/50 text-purple-200 border border-purple-400/50 text-xs font-bold transition cursor-pointer active:scale-95 shadow-md"
+              className="flex items-center gap-1 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-xl bg-purple-600/30 hover:bg-purple-600/50 text-purple-200 border border-purple-400/50 text-xs font-bold transition cursor-pointer active:scale-95 shadow-md shrink-0"
               title="Open full match timeline scrubber and clip editor"
             >
-              <Film className="w-4 h-4 text-purple-300" />
-              <span className="hidden sm:inline">Full Match Timeline</span>
+              <Film className="w-3.5 h-3.5 text-purple-300" />
+              <span className="hidden xl:inline">Timeline</span>
             </button>
           )}
 
           {onToggleAudioMute && (
             <button
               onClick={onToggleAudioMute}
-              className="p-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700/80 transition cursor-pointer"
+              className="p-1.5 sm:p-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700/80 transition cursor-pointer shrink-0"
               title={isAudioMuted ? "Unmute Replay Audio" : "Mute Replay Audio"}
             >
-              {isAudioMuted ? <t2 className="w-4 h-4 text-rose-400" /> : <Ig className="w-4 h-4 text-sky-400" />}
+              {isAudioMuted ? <t2 className="w-3.5 h-3.5 text-rose-400" /> : <Ig className="w-3.5 h-3.5 text-sky-400" />}
             </button>
           )}
 
-          <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-slate-700/80 backdrop-blur-md shadow-md">
-            <span className="text-[10px] font-bold text-slate-400 px-2 uppercase hidden sm:inline">Speed</span>
+          <div className="flex items-center gap-0.5 bg-slate-900/90 p-0.5 sm:p-1 rounded-xl border border-slate-700/80 backdrop-blur-md shadow-md shrink-0">
             {[0.25, 0.5, 0.75, 1.0].map((s) => (
               <button
                 key={s}
                 onClick={() => onSpeedToggle(s)}
-                className={`px-2 py-1 rounded-lg text-xs font-bold font-mono transition cursor-pointer ${
+                className={`px-1 sm:px-1.5 py-0.5 sm:py-1 rounded-lg text-[10px] sm:text-xs font-bold font-mono transition cursor-pointer ${
                   (replayUI.speed || 1) === s
                     ? "bg-amber-500 text-slate-950 shadow-md shadow-amber-500/30 font-black"
                     : "text-slate-400 hover:text-white hover:bg-slate-800/80"
@@ -10993,13 +11024,13 @@ const GoalReplayOverlay = ({
 
           <button
             onClick={onSkip}
-            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs md:text-sm rounded-xl shadow-lg shadow-amber-500/40 transition active:scale-95 cursor-pointer border border-amber-300/60"
+            className="flex items-center gap-1 sm:gap-1.5 px-3 sm:px-4 py-1 sm:py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs md:text-sm rounded-xl shadow-lg shadow-amber-500/40 transition active:scale-95 cursor-pointer border border-amber-300/60 shrink-0"
           >
             <span>Skip</span>
-            <kbd className="px-1.5 py-0.5 rounded bg-amber-900/30 font-mono text-[11px] text-amber-950 border border-amber-900/20 font-bold">
+            <kbd className="hidden sm:inline px-1.5 py-0.5 rounded bg-amber-900/30 font-mono text-[10px] sm:text-[11px] text-amber-950 border border-amber-900/20 font-bold">
               SPACE
             </kbd>
-            <SkipForward className="w-4 h-4 text-slate-950 fill-current" />
+            <SkipForward className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-950 fill-current" />
           </button>
         </div>
       </div>
@@ -12605,7 +12636,7 @@ onCeilingSetup=()=>{
 isPortrait&&isTouchDevice&&!dismissPortrait&&d.jsxs("div",{className:"absolute top-16 left-1/2 -translate-x-1/2 z-45 w-[92%] max-w-sm px-3.5 py-2.5 rounded-2xl bg-slate-900/95 border border-amber-500/60 shadow-2xl backdrop-blur-md flex items-center justify-between gap-2.5 text-amber-200 animate-fade-in pointer-events-auto",children:[d.jsxs("div",{className:"flex items-center gap-2",children:[d.jsx(RotateCw,{className:"w-4 h-4 text-amber-400 shrink-0 animate-spin-slow"}),d.jsxs("span",{className:"text-xs font-sans font-medium text-amber-100",children:["Rotate device to ",d.jsx("strong",{className:"text-amber-300",children:"Landscape"})," for best view!"]})]}),d.jsx("button",{onClick:()=>setDismissPortrait(true),className:"px-2 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold text-[11px] shrink-0 cursor-pointer",children:"Got it"})]}),
 showMobileControls&&d.jsx(MobileControlsOverlay,{onInputChange:handleTouchInputChange,activeBoost:B?.boost??100,hasFlipReset:!!B?.hasFlipReset,isAirRollInverted:!!B?.airRollInverted,isGrounded:!!B?.isGrounded,isSpectator:isSpectator,visible:!m&&p!=="ended"&&!goalReplayUI?.active&&!dvr.active}),
 d.jsx(MobileQuickMenu,{isOpen:isQuickMenuOpen,onClose:()=>setIsQuickMenuOpen(false),isPaused:m,onTogglePause:()=>g(H=>!H),onResetMatch:ie,isFullscreen:isFullscreen,onToggleFullscreen:toggleFullscreen,isAudioMuted:!f.soundEnabled,onToggleAudioMute:()=>handleUpdateSettings({...f,soundEnabled:!f.soundEnabled}),autoCam:f.autoCam!==false,onToggleAutoCam:toggleAutoCam,steeringControl:f.steeringControl||"keyboard",onToggleSteeringControl:toggleSteeringControl,onOpenMultiplayer:()=>setIsMultiplayerOpen(true),onOpenSettings:()=>y(!0),onOpenControls:()=>setIsControlsOpen(!0),onOpenMatchHistory:()=>setIsMatchHistoryOpen(true),onOpenReplayStudio:handleOpenStudioFromAnywhere,isSpectator:isSpectator,isMultiplayerActive:peerNetwork.isConnected&&peerNetwork.roomState?.status==="in_game",multiplayerRoomCode:peerNetwork.roomState?.roomCode||null,onOpenGarage:()=>setIsGarageOpen(true),onOpenCrates:()=>setIsCratesOpen(true),onOpenRanked:()=>setIsRankedModalOpen(true),onOpenMatchSetup:()=>setIsMatchSetupOpen(true),coinsCount:getPlayerInventory().coins,unopenedCratesCount:Object.values(getPlayerInventory().unopenedCrates||{}).reduce((acc:number,v:any)=>acc+v,0),currentRankLabel:calculateRankDetails(getRankedProfile().mmr).label}),
-d.jsx(u2,{messages:J,onSendMessage:H=>x(H,pilotName,"blue")}),d.jsx(s2,{jumpKey:f.jumpKey,isOpen:isControlsOpen,onClose:()=>setIsControlsOpen(!1)}),
+d.jsx(u2,{messages:J,onSendMessage:H=>x(H,pilotName,"blue"),isReplay:p==="goal_replay"||!!goalReplayUI?.active}),d.jsx(s2,{jumpKey:f.jumpKey,isOpen:isControlsOpen,onClose:()=>setIsControlsOpen(!1)}),
 d.jsx(ScoreboardModal,{isOpen:isScoreboardOpen,onClose:()=>setIsScoreboardOpen(false),cars:Gt.current,blueScore:C,orangeScore:N,gameMode:f.mode,arenaName:(activeMapDef||MAP_DEFINITIONS[f.selectedMap||"standard"]||MAP_DEFINITIONS.standard).name}),
 d.jsx(MatchHistoryModal,{isOpen:isMatchHistoryOpen,onClose:()=>setIsMatchHistoryOpen(false),onWatchReplay:handleWatchPastReplay}),
 d.jsx(MultiplayerModal,{isOpen:isMultiplayerOpen,onClose:()=>setIsMultiplayerOpen(false),onStartMatch:()=>{setIsMultiplayerOpen(false);ie();},playerCarModel:f.selectedCar||"octane",onSelectCarModel:(cm:string)=>handleUpdateSettings({...f,selectedCar:cm}),currentMap:f.selectedMap||"standard",onPlayerNameChange:handleUpdatePilotName}),
