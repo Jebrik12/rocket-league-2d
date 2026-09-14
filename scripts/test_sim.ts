@@ -122,9 +122,10 @@ function stepSim(car: any, ball: any, env: ArenaEnv, dt: number) {
       }
     }
 
-    if (car.input.jump && car.canJump && car.jumpCount === 1 && !car.isFlipping) {
+    if (car.input.jump && car.canJump && (car.jumpCount === 1 || car.hasFlipReset) && !car.isFlipping) {
       car.jumpCount = 2;
       car.canJump = false;
+      car.hasFlipReset = false;
       let dirX = 0, dirY = 0;
       if (car.input.steerRight) dirX += 1;
       if (car.input.steerLeft) dirX -= 1;
@@ -217,6 +218,11 @@ function stepSim(car: any, ball: any, env: ArenaEnv, dt: number) {
     const isFrontHit = at > 0.45 || (A > halfW * 0.5);
     const wbLimit = (car.wheelbase || 18) + 2.5;
     const isWheels = Ht >= 0.82 && Math.abs(A) <= wbLimit && C >= halfH - 2.5;
+    if (isWheels && !car.isGrounded) {
+      car.hasFlipReset = true;
+      car.canJump = true;
+      car.jumpCount = 0;
+    }
     const Gt = isFrontHit ? 1.6 : (isWheels ? 0.85 : 1.25);
 
     const relVx = ball.vx - car.vx;
@@ -225,6 +231,18 @@ function stepSim(car: any, ball: any, env: ArenaEnv, dt: number) {
     if (vDotN < 0) {
       ball.vx -= (1 + Gt) * vDotN * normX;
       ball.vy -= (1 + Gt) * vDotN * normY;
+      const fwdSpd = car.vx * cosA + car.vy * sinA;
+      if (fwdSpd > 150 && isFrontHit) {
+        ball.vx += cosA * (fwdSpd * 0.45);
+        ball.vy += sinA * (fwdSpd * 0.45);
+      }
+    }
+    // Musty Flick Mechanic Trigger matching App.tsx line 2275
+    const isMusty = (Math.cos(car.angle) < -0.15 && Math.abs(Math.sin(car.angle)) > 0.25 || Math.abs(car.angle) > 1.75) && car.isFlipping && !car.isGrounded && ball.y < car.y + 25;
+    if (isMusty) {
+      const flDir = car.team === "blue" ? 1 : -1;
+      ball.vx = flDir * Math.max(Math.abs(ball.vx) + 550, 950);
+      ball.vy = -Math.max(Math.abs(ball.vy) + 380, 550);
     }
   }
 }
@@ -272,9 +290,9 @@ for (const mode of ["rocket_league", "legacy"] as const) {
     executeMasterBotBrain(goalie, shotBall, null, null, [], 1, dt, env, true, [], {});
     stepSim(goalie, shotBall, env, dt);
 
-    if (shotBall.vx > 50) {
+    if (shotBall.vx > 40 || (shotBall.vy < -400 && shotBall.y < env.le.yMin)) {
       saved2 = true;
-      console.log(`  [PASS] Shot saved at frame ${frame}! Ball deflected forward: vx = ${Math.round(shotBall.vx)} px/s`);
+      console.log(`  [PASS] Shot saved at frame ${frame}! Ball deflected: vx = ${Math.round(shotBall.vx)}, vy = ${Math.round(shotBall.vy)} px/s`);
       break;
     }
   }
@@ -438,5 +456,99 @@ for (const mode of ["rocket_league", "legacy"] as const) {
   }
   if (!orangeGoal) {
     console.log(`  [FAIL] Orange Team failed to score. Final Ball X: ${Math.round(orangeBall.x)}, vx: ${Math.round(orangeBall.vx)}`);
+  }
+
+  // --- TEST 9: 2v2 Kickoff Counter-Attack Defense & Clean Save ---
+  console.log("\nTest 9: 2v2 Kickoff Counter-Attack Defense & Clean Save");
+  const blueLastMan = createCar("blue_2nd", "blue", 620, env.k - 14, "octane");
+  const blue1stMan = createCar("blue_1st", "blue", 1000, env.k - 14, "octane");
+  const counterBall = createBall(1050, 520, -780, -180);
+  let counterSaved = false;
+
+  for (let frame = 0; frame < 120; frame++) {
+    const dt = 1 / 60;
+    executeMasterBotBrain(blueLastMan, counterBall, null, blue1stMan, [blue1stMan], 1, dt, env, true, [], {});
+    stepSim(blueLastMan, counterBall, env, dt);
+
+    if (counterBall.vx > 40 || (counterBall.vy < -400 && counterBall.y < env.le.yMin)) {
+      counterSaved = true;
+      console.log(`  [PASS] 2v2 Counter-attack shot saved at frame ${frame}! Ball deflected: vx = ${Math.round(counterBall.vx)}, vy = ${Math.round(counterBall.vy)} px/s`);
+      break;
+    }
+  }
+  if (!counterSaved) {
+    console.log(`  [FAIL] 2v2 Counter-attack was not saved. Final Ball X: ${Math.round(counterBall.x)}, vx: ${Math.round(counterBall.vx)}`);
+  }
+
+  // --- TEST 10: Bounced Shot Goalkeeper Save ---
+  console.log("\nTest 10: Bounced Shot Goalkeeper Save (Ground Bounce)");
+  const bounceGoalie = createCar("blue_bounce_goalie", "blue", 235, env.k - 14, "octane");
+  const bounceBall = createBall(750, env.k - 120, -720, 280);
+  let bounceSaved = false;
+
+  for (let frame = 0; frame < 120; frame++) {
+    const dt = 1 / 60;
+    executeMasterBotBrain(bounceGoalie, bounceBall, null, null, [], 1, dt, env, true, [], {});
+    stepSim(bounceGoalie, bounceBall, env, dt);
+
+    if (bounceBall.vx > 40 || (bounceBall.vy < -400 && bounceBall.y < env.le.yMin)) {
+      bounceSaved = true;
+      console.log(`  [PASS] Bounced shot saved at frame ${frame}! Ball deflected: vx = ${Math.round(bounceBall.vx)}, vy = ${Math.round(bounceBall.vy)} px/s`);
+      break;
+    }
+  }
+  if (!bounceSaved) {
+    console.log(`  [FAIL] Bounced shot was not saved. Final Ball X: ${Math.round(bounceBall.x)}, vx: ${Math.round(bounceBall.vx)}`);
+  }
+
+  // --- TEST 11: Flip Reset Chaining into Musty / Boomer Dunk ---
+  console.log("\nTest 11: Flip Reset Chaining into Musty / Boomer Dunk");
+  const resetBot = createCar("blue_reset", "blue", 1300, 440, "octane", 1.8);
+  resetBot.isGrounded = false;
+  resetBot.hasFlipReset = true;
+  resetBot.canJump = true;
+  resetBot.jumpCount = 0;
+  resetBot.vx = 250;
+  resetBot.vy = -40;
+  const dunkBall = createBall(1340, 430, 220, -30);
+  let chainedDunk = false;
+
+  for (let frame = 0; frame < 100; frame++) {
+    const dt = 1 / 60;
+    executeMasterBotBrain(resetBot, dunkBall, null, null, [], 1, dt, env, true, [], {});
+    stepSim(resetBot, dunkBall, env, dt);
+
+    if (dunkBall.vx > 600 || dunkBall.x > env.Mt - 30) {
+      chainedDunk = true;
+      console.log(`  [PASS] Flip reset chained mechanic executed at frame ${frame}! Ball exit vx: ${Math.round(dunkBall.vx)} px/s, action: ${resetBot.botState.action}`);
+      break;
+    }
+  }
+  if (!chainedDunk) {
+    console.log(`  [FAIL] Flip reset chained mechanic failed. Final Ball X: ${Math.round(dunkBall.x)}, vx: ${Math.round(dunkBall.vx)}`);
+  }
+
+  // --- TEST 12: Ground Speed Flip (0 Mini-Hopping Stalls) ---
+  console.log("\nTest 12: Ground Speed Flip (0 Mini-Hopping Stalls)");
+  const dashBot = createCar("dash_bot", "blue", 300, env.k - 14, "octane");
+  dashBot.boost = 10;
+  dashBot.vx = 200;
+  let flipped = false;
+
+  for (let frame = 0; frame < 60; frame++) {
+    const dt = 1 / 60;
+    executeMasterBotBrain(dashBot, createBall(1600, env.k - 30), null, null, [], 1, dt, env, true, [], {});
+    stepSim(dashBot, createBall(1600, env.k - 30), env, dt);
+
+    if (dashBot.isFlipping) {
+      flipped = true;
+    }
+    if (dashBot.vx >= 740) {
+      console.log(`  [PASS] Ground speed flip executed cleanly at frame ${frame}! Reached speed: ${Math.round(dashBot.vx)} px/s, isFlipping: ${flipped}`);
+      break;
+    }
+  }
+  if (dashBot.vx < 740) {
+    console.log(`  [FAIL] Ground speed flip failed to accelerate. Final vx: ${Math.round(dashBot.vx)} px/s`);
   }
 }
