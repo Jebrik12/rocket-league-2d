@@ -102,6 +102,15 @@ import {
 } from "./ranked/rankedStorage";
 import { RankedBotProfile, RankedTrack } from "./ranked/rankedTypes";
 import { getBotUpgrades, getBotUpgradesModifiers } from "./bot/botUpgradeStorage";
+import {
+  ArenaEnv,
+  executeMasterBotBrain,
+  startBotJumpSeq,
+  updateBotJumpSeq,
+  solveBestIntercept,
+  botDriveGround,
+  botDriveAir
+} from "./bot/botBrain";
 
 
 
@@ -3595,8 +3604,10 @@ function Uv(u:any,f:any,r:number,s:any){
   Vh(u);
   Xv(u,m);
 
-  // If in the middle of a fast-aerial double jump, preserve rocket launch inputs!
-  const isLaunchingAerial=u.botState.jumpSeq&&u.botState.jumpSeq.stage!=="idle"&&u.botState.jumpSeq.type==="aerial";
+  // If jump sequencer is actively driving the car, preserve its exclusive input authority!
+  if (u.botState.jumpSeq && u.botState.jumpSeq.stage !== "idle") {
+    return p;
+  }
 
   // Expose other active cars on field to bot for obstacle avoidance
   u._otherCars = [...(r || []), ...(s || [])];
@@ -3618,9 +3629,8 @@ function Uv(u:any,f:any,r:number,s:any){
       u.input.steerRight = true;
       u.input.steerLeft = false;
     }
-    if ((u._stuckTicks || 0) > 10 || !u.isGrounded) {
+    if ((u._stuckTicks || 0) > 20 || !u.isGrounded) {
       u.input.jump = true;
-      u.input.pitchUp = true;
       if (u.boost > 0) u.input.boost = true;
     }
     return p;
@@ -3639,9 +3649,8 @@ function Uv(u:any,f:any,r:number,s:any){
       u.input.steerLeft = true;
       u.input.steerRight = false;
     }
-    if ((u._stuckTicks || 0) > 10 || !u.isGrounded) {
+    if ((u._stuckTicks || 0) > 20 || !u.isGrounded) {
       u.input.jump = true;
-      u.input.pitchUp = true;
       if (u.boost > 0) u.input.boost = true;
     }
     return p;
@@ -3659,7 +3668,6 @@ function Uv(u:any,f:any,r:number,s:any){
       u.input.steerLeft = exitDir < 0;
       if (u.isGrounded || u.y > k + 10) {
         u.input.jump = true;
-        u.input.pitchUp = true;
         if (u.boost > 0) u.input.boost = true;
       }
       return p;
@@ -3683,39 +3691,25 @@ function Uv(u:any,f:any,r:number,s:any){
     }
   }
 
-  // 4. Universal Pitch-wide Stuck-Detection Watchdog (Deadlock & Border Breaker)
+  // 4. Stuck Watchdog: only if genuinely blocked against a solid wall or opponent car for > 65 ticks (> 1 sec)
   const curSpd = Math.hypot(u.vx, u.vy);
-  const isTryingToMove = u.input.throttleForward || u.input.throttleReverse || u.input.boost;
-  if (curSpd < 35 && isTryingToMove) {
+  const isPressingObstacle = (u._carContactTicks || 0) > 10 || (u.x <= At + 20 || u.x >= Mt - 20);
+  if (curSpd < 20 && isPressingObstacle) {
     u._stuckTicks = (u._stuckTicks || 0) + 1;
-  } else if (curSpd > 60) {
+  } else if (curSpd > 45) {
     u._stuckTicks = Math.max(0, (u._stuckTicks || 0) - 2);
   }
 
-  if ((u._stuckTicks || 0) > 16) {
-    // Stage 1: Jump & dodge over the blocking car, net border, or wall
-    if (u.isGrounded && u.canJump && !u.isFlipping) {
-      const escapeDir = u.facing || (u.team === "blue" ? 1 : -1);
-      Oe(u, "dodge", escapeDir, -0.6);
-      u._stuckTicks = 8;
-      return p;
+  if ((u._stuckTicks || 0) > 65) {
+    u.input.throttleForward = false;
+    u.input.throttleReverse = true;
+    u.input.handbrake = true;
+    u.input.steerLeft = u.team === "blue";
+    u.input.steerRight = u.team === "orange";
+    if (u._stuckTicks > 90) {
+      u._stuckTicks = 0;
     }
-    // Stage 2: Reverse throttle + handbrake to disengage and steer away
-    if ((u._stuckTicks || 0) > 28) {
-      u.input.throttleForward = false;
-      u.input.throttleReverse = true;
-      u.input.handbrake = true;
-      u.input.steerLeft = u.team === "blue";
-      u.input.steerRight = u.team === "orange";
-      if (u.boost > 0 && !u.isGrounded) {
-        u.input.pitchUp = true;
-        u.input.boost = true;
-      }
-      if (u._stuckTicks > 55) {
-        u._stuckTicks = 0;
-      }
-      return p;
-    }
+    return p;
   }
 
   const ownGoal = u.team === "orange" ? ae : le;
@@ -3792,15 +3786,6 @@ function Uv(u:any,f:any,r:number,s:any){
     }
   }
 
-  // Preserve rocket launch thrust during fast-aerial double jump
-  if (isLaunchingAerial) {
-    u.input.throttleForward = !1;
-    u.input.throttleReverse = !1;
-    u.input.pitchUp = !0;
-    u.input.pitchDown = !1;
-    u.input.boost = !0;
-  }
-
   return p;
 }
 
@@ -3809,92 +3794,44 @@ function Vh(u:any){
 }
 
 function Oe(u: any, f: string, r: number = 0, s: number = 0) {
-  const y = u.botState;
-  if (!y.jumpSeq || y.jumpSeq.stage === "idle") {
-    const isAirborne = !u.isGrounded || u.hasFlipReset || u.isCeilingDrop || u.jumpCount >= 1;
-    if (f === "dodge" && isAirborne) {
-      // Airborne dodge execution: fires on frame 1 with directional inputs!
-      y.jumpSeq = { stage: "press2", timer: 0, type: f, dodgeX: r, dodgeY: s };
-      u.input.jump = !0;
-      u.input.throttleForward = !1;
-      u.input.throttleReverse = !1;
-      r > .15 ? (u.input.steerRight = !0) : r < -.15 && (u.input.steerLeft = !0);
-      s > .15 ? (u.input.pitchDown = !0) : s < -.15 && (u.input.pitchUp = !0);
-    } else if (f === "wavedash") {
-      // Grounded micro-jump + downward forward dodge for instant wavedash
-      y.jumpSeq = { stage: "press1", timer: 0, type: "wavedash", dodgeX: r, dodgeY: s || 0.85 };
-    } else {
-      y.jumpSeq = { stage: "press1", timer: 0, type: f, dodgeX: r, dodgeY: s };
-    }
-  }
+  const typeMap: any = {
+    aerial: "fast_aerial",
+    fast_aerial: "fast_aerial",
+    dodge: "dodge",
+    wavedash: "wavedash",
+    musty_jump: "musty_jump"
+  };
+  startBotJumpSeq(u, typeMap[f] || "dodge", r, s);
 }
 
 function Xv(u: any, f: number) {
-  const r = u.botState;
-  if (!r.jumpSeq || r.jumpSeq.stage === "idle") return;
-  const s = r.jumpSeq;
-  s.timer += f;
-
-  if (s.type === "aerial") {
-    // Fast-aerial double jump: tilt nose upward into sky for both blue and orange
-    const isFacingLeft = Math.cos(u.angle) < 0;
-    if (isFacingLeft) {
-      u.input.steerRight = true;
-      u.input.steerLeft = false;
-    } else {
-      u.input.steerLeft = true;
-      u.input.steerRight = false;
-    }
-    u.input.pitchUp = false;
-    u.input.pitchDown = false;
-    u.input.boost = true;
-    u.input.throttleForward = false;
-    u.input.throttleReverse = false;
-    if (s.stage === "press1") {
-      u.input.jump = true;
-      if (s.timer >= 0.025) { s.stage = "release"; s.timer = 0; u.input.jump = false; }
-    } else if (s.stage === "release") {
-      u.input.jump = false;
-      if (s.timer >= 0.015) { s.stage = "press2"; s.timer = 0; }
-    } else if (s.stage === "press2") {
-      u.input.jump = true;
-      if (s.timer >= 0.05) { s.stage = "idle"; s.timer = 0; }
-    }
-  } else if (s.type === "musty_jump") {
-    u.input.jump = !0;
-    if (s.timer >= .05) { s.stage = "idle"; s.timer = 0; u.input.jump = !1; }
-  } else if (s.type === "wavedash") {
-    // Micro-jump low to turf, pitch nose down, dodge into ground for instant supersonic wavedash
-    if (s.stage === "press1") {
-      u.input.jump = !0;
-      u.input.pitchDown = !0;
-      if (s.timer >= .02) { s.stage = "release"; s.timer = 0; u.input.jump = !1; }
-    } else if (s.stage === "release") {
-      u.input.jump = !1;
-      u.input.pitchDown = !0;
-      if (s.timer >= .015) { s.stage = "press2"; s.timer = 0; }
-    } else if (s.stage === "press2") {
-      u.input.jump = !0;
-      u.input.pitchDown = !0;
-      s.dodgeX > .15 ? (u.input.steerRight = !0) : s.dodgeX < -.15 && (u.input.steerLeft = !0);
-      if (s.timer >= .06) { s.stage = "idle"; s.timer = 0; }
-    }
-  } else if (s.type === "dodge") {
-    if (s.stage === "press1") {
-      u.input.jump = !0;
-      if (s.timer >= .03) { s.stage = "release"; s.timer = 0; u.input.jump = !1; }
-    } else if (s.stage === "release") {
-      u.input.jump = !1;
-      if (s.timer >= .015) { s.stage = "press2"; s.timer = 0; }
-    } else if (s.stage === "press2") {
-      u.input.jump = !0;
-      u.input.throttleForward = !1;
-      u.input.throttleReverse = !1;
-      s.dodgeX > .15 ? (u.input.steerRight = !0) : s.dodgeX < -.15 && (u.input.steerLeft = !0);
-      s.dodgeY > .15 ? (u.input.pitchDown = !0) : s.dodgeY < -.15 && (u.input.pitchUp = !0);
-      if (s.timer >= .06) { s.stage = "idle"; s.timer = 0; }
-    }
-  }
+  const botEnv: ArenaEnv = {
+    Kt,
+    hl,
+    k,
+    Qt,
+    At,
+    Mt,
+    F,
+    zn,
+    POST_INSET,
+    le,
+    ae,
+    goalType: activeMapDef.goalType || "wall",
+    isLegacy: activePhysicsMode === "legacy",
+    pv,
+    Ph,
+    Uh,
+    Hh,
+    Av,
+    Bh,
+    cc,
+    Gh,
+    Ev,
+    qh,
+    wavedashMinSpeed: activePhysicsMode === "legacy" ? 1280 : (RL_PHYSICS.wavedashMinSpeed || 1280)
+  };
+  updateBotJumpSeq(u, f, botEnv);
 }
 
 function tm(u:any){
@@ -4646,45 +4583,11 @@ function isBallBehindCar(u: any, f: any, teamDir: number): boolean {
 }
 
 function handleWrongSideRecovery(u: any, f: any, ownGoal: any, teamDir: number) {
-  const distToBallX = Math.abs(u.x - f.x);
-  const retreatX = ownGoal.x + teamDir * 160;
-
-  // Rule: NEVER accelerate or dodge into the ball towards own net!
-  u.input.boost = false;
-
-  if (distToBallX < 150) {
-    if (f.y > 600 && u.isGrounded) {
-      // Ball is low/grounded: leap high over the ball to reach defensive half!
-      u.input.jump = true;
-      u.input.pitchUp = true;
-      u.input.throttleForward = false;
-      u.input.throttleReverse = false;
-      if (teamDir > 0) {
-        u.input.steerLeft = true;
-        u.input.steerRight = false;
-      } else {
-        u.input.steerRight = true;
-        u.input.steerLeft = false;
-      }
-      return;
-    } else if (!u.isGrounded) {
-      // Airborne: steer away from ball towards own goal side
-      if (teamDir > 0) {
-        u.input.steerLeft = true;
-        u.input.steerRight = false;
-      } else {
-        u.input.steerRight = true;
-        u.input.steerLeft = false;
-      }
-      u.input.throttleForward = false;
-      return;
-    }
-  }
-
-  // Clear of the ball or ball is elevated: retreat to defensive station
+  const retreatX = (ownGoal.x !== undefined ? ownGoal.x : (teamDir > 0 ? At : Mt)) + teamDir * 170;
   u.input.jump = false;
   u.input.pitchUp = false;
   u.input.pitchDown = false;
+  u.input.boost = false;
   je(u, retreatX, false, false);
 }
 
@@ -4732,18 +4635,19 @@ function Qv(u: any, f: any, oppCar: any, ownGoal: any, oppGoal: any, teamDir: nu
   const threat = lm(f, ownGoal, teamDir);
   if (threat.isThreat === 1) { am(u, f, ownGoal, teamDir, threat.interceptTime, threat.interceptY); return; }
 
-  // Attack towards opponent net
-  const targetCornerY = oppCar && Math.abs(oppCar.x - oppGoal.x) < 300 && oppCar.y > 650
-    ? oppGoal.yMin + 45
-    : oppGoal.yMin + 50;
-  const shootAngle = Math.atan2(targetCornerY - f.y, oppGoal.x - f.x);
-  const cosShoot = Math.cos(shootAngle), sinShoot = Math.sin(shootAngle);
-  const dist = Math.hypot(f.x - u.x, f.y - u.y);
-
-  // Intercept calculation for attack:
-  const intercept = findBestBallIntercept(u, f, teamDir, 1.6);
+  const botEnv: ArenaEnv = {
+    Kt, hl, k, Qt, At, Mt, F, zn, POST_INSET, le, ae,
+    goalType: activeMapDef.goalType || "wall",
+    isLegacy: activePhysicsMode === "legacy",
+    pv, Ph, Uh, Hh, Av, Bh, cc, Gh, Ev, qh,
+    wavedashMinSpeed: activePhysicsMode === "legacy" ? 1280 : (RL_PHYSICS.wavedashMinSpeed || 1280)
+  };
+  const intercept = solveBestIntercept(u, f, teamDir, botEnv, oppCar, tmCar, false, 1.6);
   const targetX = intercept.strikeTargetX || intercept.x;
   const targetY = intercept.strikeTargetY || intercept.y;
+  const shootAngle = Math.atan2(intercept.targetCornerY - f.y, oppGoal.x - f.x);
+  const cosShoot = Math.cos(shootAngle), sinShoot = Math.sin(shootAngle);
+  const dist = Math.hypot(f.x - u.x, f.y - u.y);
 
   if (u.isGrounded) {
     if (!intercept.isSafe || (targetX - u.x) * teamDir < -15) {
@@ -4757,12 +4661,11 @@ function Qv(u: any, f: any, oppCar: any, ownGoal: any, oppGoal: any, teamDir: nu
       const horizDist = Math.abs(u.x - targetX);
       const maxLaunchDist = Math.max(85, Math.abs(u.vx) * climbTime + 65);
       if (u.canJump && !u.isFlipping && u.boost > 8 && intercept.t <= climbTime + 0.14 && horizDist <= maxLaunchDist) {
-        Oe(u, "aerial");
+        startBotJumpSeq(u, "fast_aerial");
       }
     } else {
-      // Ground ball: chip/dodge strike into net on contact
       if (dist <= 65 && Math.abs(u.x - f.x) <= 55 && u.canJump && !u.isFlipping) {
-        Oe(u, "dodge", cosShoot, sinShoot * 0.85);
+        startBotJumpSeq(u, "dodge", cosShoot, sinShoot * 0.85);
       }
     }
   } else {
@@ -4772,7 +4675,7 @@ function Qv(u: any, f: any, oppCar: any, ownGoal: any, oppGoal: any, teamDir: nu
     }
     jn(u, targetX, targetY, 0.45, false, intercept.t);
     if (dist <= 85 && (u.jumpCount === 1 || u.hasFlipReset)) {
-      Oe(u, "dodge", cosShoot, sinShoot * 0.85);
+      startBotJumpSeq(u, "dodge", cosShoot, sinShoot * 0.85);
     }
   }
 }
@@ -4791,321 +4694,46 @@ function Zv(
   tmCar: any,
   allTeammates?: any[]
 ) {
-  const z = u.botState;
-  const D = Math.hypot(f.x - u.x, f.y - u.y);
-  const curSpd = Math.hypot(u.vx, u.vy);
+  const botEnv: ArenaEnv = {
+    Kt,
+    hl,
+    k,
+    Qt,
+    At,
+    Mt,
+    F,
+    zn,
+    POST_INSET,
+    le,
+    ae,
+    goalType: activeMapDef.goalType || "wall",
+    isLegacy: activePhysicsMode === "legacy",
+    pv,
+    Ph,
+    Uh,
+    Hh,
+    Av,
+    Bh,
+    cc,
+    Gh,
+    Ev,
+    qh,
+    wavedashMinSpeed: activePhysicsMode === "legacy" ? 1280 : (RL_PHYSICS.wavedashMinSpeed || 1280)
+  };
 
-  // Elevated goal targeting: y in [380, 680], center is 530
-  const targetCornerY =
-    oppCar && Math.abs(oppCar.x - oppGoal.x) < 320
-      ? oppCar.y > 650
-        ? oppGoal.yMin + 45
-        : oppCar.y < 520
-          ? oppGoal.yMax - 45
-          : oppGoal.yMin + 45
-      : oppGoal.yMin + 45;
-
-  // Determine rotational hierarchy across teammates (1st man, 2nd man, 3rd man)
-  let rank = 0;
-  if (allTeammates && allTeammates.length > 0) {
-    const myDist = Math.hypot(f.x - u.x, f.y - u.y);
-    for (const tm of allTeammates) {
-      if (tm.isDemoed) continue;
-      const d = Math.hypot(f.x - tm.x, f.y - tm.y);
-      if (d < myDist - 35) {
-        rank++;
-      }
-    }
-  }
-
-  // 1. KICKOFF: Execute dynamic competitive kickoff strategies
-  if (tm(f)) {
-    z.action = "kickoff";
-    const isSecondMan = rank > 0;
-    nm(u, f, teamDir, isSecondMan, ownGoal, oppGoal, oppCar);
-    return;
-  }
-  if (z.kickoffStrat || z.kickoffFlipDone) {
-    z.kickoffStrat = null;
-    z.kickoffFlipDone = false;
-  }
-
-  // 2. STRICT ANTI-OWN-GOAL INVARIANT (HIGHEST PRIORITY)
-  // If bot is on the wrong side (ball is more than 50px behind bot towards own net), NEVER attack or boost into ball!
-  if (isBallBehindCar(u, f, teamDir)) {
-    z.action = "rotate_back";
-    handleWrongSideRecovery(u, f, ownGoal, teamDir);
-    return;
-  }
-
-  // Ball boundary clamp if trapped in corner
-  if (f.x < At + 30 || f.x > Mt - 30) {
-    const waitX = f.x < At + 30 ? At + 140 : Mt - 140;
-    je(u, waitX, false, false);
-    return;
-  }
-
-  // 3. DEFENSIVE THREATS & CLUTCH SAVES
-  const threat = lm(f, ownGoal, teamDir);
-  if (threat.isThreat === 1) {
-    z.action = "save";
-    am(u, f, ownGoal, teamDir, threat.interceptTime, threat.interceptY);
-    return;
-  }
-  if (threat.isThreat === 2) {
-    z.action = "backboard_clear";
-    Jv(u, f, ownGoal, teamDir);
-    return;
-  }
-
-  // 4. 2v2 & 3v3 TEAMPLAY ROTATION
-  if (rank >= 2) {
-    // 3rd MAN (SWEEPER-KEEPER / LAST MAN DEFENSE)
-    z.action = "sweeper_keeper";
-    const sweeperX = ownGoal.x + teamDir * 230;
-    je(u, sweeperX, false, false);
-    return;
-  }
-
-  if (rank === 1) {
-    // 2nd MAN (MIDFIELD SUPPORT / PASS RECEIVER)
-    const ballInOurHalf = (teamDir > 0 && f.x < Kt / 2) || (teamDir < 0 && f.x > Kt / 2);
-    if (ballInOurHalf) {
-      z.action = "anchor_goal";
-      const goalAnchorX = ownGoal.x + teamDir * 180;
-      je(u, goalAnchorX, false, false);
-      return;
-    } else {
-      const isTmCrossing = tmCar && Math.abs(tmCar.x - oppGoal.x) < 360 && f.y < k - 90;
-      if (isTmCrossing && (f.vx * teamDir < -20 || Math.abs(f.vx) < 160)) {
-        z.action = "score_pass";
-        const intercept = findBestBallIntercept(u, f, teamDir, 1.4);
-        const targetX = intercept.strikeTargetX || intercept.x;
-        const targetY = intercept.strikeTargetY || intercept.y;
-        if (u.isGrounded) {
-          je(u, targetX, true, false);
-          const heightClimb = Math.max(0, u.y - intercept.y);
-          const climbTime = 0.10 + heightClimb / 580;
-          const horizDist = Math.abs(u.x - targetX);
-          const maxLaunchDist = Math.max(85, Math.abs(u.vx) * climbTime + 65);
-          if (intercept.isAerial && u.canJump && !u.isFlipping && u.boost > 10 && intercept.t <= climbTime + 0.14 && horizDist <= maxLaunchDist) {
-            Oe(u, "aerial");
-          }
-        } else {
-          jn(u, targetX, targetY, 0.40, false, intercept.t);
-          if (D < 90 && (u.jumpCount === 1 || u.hasFlipReset)) {
-            const shootAng = Math.atan2(targetCornerY - f.y, oppGoal.x - f.x);
-            Oe(u, "dodge", Math.cos(shootAng), Math.sin(shootAng) * 0.85);
-          }
-        }
-        return;
-      } else {
-        z.action = "midfield_support";
-        const midSupportX = Kt / 2 + teamDir * 180;
-        je(u, midSupportX, false, false);
-        return;
-      }
-    }
-  }
-
-  // 5. 2v2 PASSING PLAY: If 1st man in offensive corner, dish cross infield!
-  if (tmCar && Math.abs(f.x - oppGoal.x) < 260 && f.y > 450) {
-    z.action = "infield_cross";
-    je(u, f.x, true, false);
-    if (Math.abs(u.x - f.x) <= 48 && u.canJump && !u.isFlipping) {
-      Oe(u, "dodge", -teamDir * 0.45, -0.8);
-      if (Math.random() < 0.4) evtObj.chatMessage = "Centering! 🎯";
-      return;
-    }
-  }
-
-  // 6. KUXIR PINCH ATTEMPT: If ball is against own defensive sidewall outside goal mouth
-  const isNearOwnWall = (teamDir > 0 && f.x < At + 120) || (teamDir < 0 && f.x > Mt - 120);
-  const isSolidWall = f.y < ownGoal.yMin - 20 || f.y > ownGoal.yMax + 20;
-  if (isNearOwnWall && isSolidWall && u.boost > 15 && (u.botDifficulty === "ssl" || isUnfair || Math.random() < 0.6)) {
-    z.action = "kuxir_pinch";
-    je(u, f.x, true, false);
-    if (u.isGrounded && Math.abs(u.x - f.x) <= 55 && Math.abs(u.vx) > 280 && u.canJump && !u.isFlipping) {
-      Oe(u, "dodge", -teamDir, -0.3);
-      if (Math.random() < 0.4) evtObj.chatMessage = "Kuxir pinch! 💥";
-      return;
-    }
-  }
-
-  // 7. PSYCHO REDIRECT ATTEMPT: Read own backboard rebound and blast into opp net!
-  if (f.psychoCandidate && f.psychoCandidate.sourceWall === u.team && Date.now() - f.psychoCandidate.time < 3800) {
-    z.action = "psycho_redirect";
-    const intercept = findBestBallIntercept(u, f, teamDir, 1.5);
-    const targetX = intercept.strikeTargetX || intercept.x;
-    const targetY = intercept.strikeTargetY || intercept.y;
-    if (u.isGrounded) {
-      je(u, targetX, true, false);
-      const heightClimb = Math.max(0, u.y - intercept.y);
-      const climbTime = 0.10 + heightClimb / 580;
-      const horizDist = Math.abs(u.x - targetX);
-      const maxLaunchDist = Math.max(85, Math.abs(u.vx) * climbTime + 65);
-      if (u.canJump && !u.isFlipping && u.boost > 10 && intercept.t <= climbTime + 0.14 && horizDist <= maxLaunchDist) {
-        Oe(u, "aerial");
-      }
-    } else {
-      jn(u, targetX, targetY, 0.40, false, intercept.t);
-      if (D < 95 && (u.jumpCount === 1 || u.canJump || u.hasFlipReset)) {
-        const oppGoalX = teamDir > 0 ? Mt : At;
-        const oppGoalY = (oppGoal.yMin + oppGoal.yMax) / 2;
-        const ang = Math.atan2(oppGoalY - f.y, oppGoalX - f.x);
-        Oe(u, "dodge", Math.cos(ang), Math.sin(ang) * 0.85);
-        if (Math.random() < 0.5) evtObj.chatMessage = "Psycho incoming! 🔮";
-        return;
-      }
-    }
-    return;
-  }
-
-  // 8. DOUBLE TAP REBOUND ATTEMPT: Read opponent backboard rebound and pre-jump into net!
-  const isOppBackboardThreat = (teamDir > 0 && f.x > Mt - 280) || (teamDir < 0 && f.x < At + 280);
-  if (isOppBackboardThreat && f.y < oppGoal.yMin + 30 && u.boost > 10 && (u.botDifficulty === "ssl" || isUnfair)) {
-    const intercept = findBestBallIntercept(u, f, teamDir, 1.5);
-    if (intercept && intercept.isRebound) {
-      z.action = "double_tap";
-      const targetX = intercept.strikeTargetX || intercept.x;
-      const targetY = intercept.strikeTargetY || intercept.y;
-      if (u.isGrounded) {
-        je(u, targetX, true, false);
-        const heightClimb = Math.max(0, u.y - intercept.y);
-        const climbTime = 0.10 + heightClimb / 580;
-        const horizDist = Math.abs(u.x - targetX);
-        const maxLaunchDist = Math.max(85, Math.abs(u.vx) * climbTime + 65);
-        if (u.canJump && !u.isFlipping && u.boost > 12 && intercept.t <= climbTime + 0.14 && horizDist <= maxLaunchDist) {
-          Oe(u, "aerial");
-        }
-      } else {
-        jn(u, targetX, targetY, 0.40, false, intercept.t);
-        if (D < 85 && (u.jumpCount === 1 || u.hasFlipReset)) {
-          const shootAng = Math.atan2(targetCornerY - f.y, oppGoal.x - f.x);
-          Oe(u, "dodge", Math.cos(shootAng), Math.sin(shootAng) * 0.85);
-          if (Math.random() < 0.6) evtObj.chatMessage = "Double tap! 🎯";
-        }
-      }
-      return;
-    }
-  }
-
-  // 9. CEILING SHOT ATTEMPT: drive up wall onto ceiling, fall off with infinite flip and shoot
-  if (f.y < 550 && f.y > 250 && Math.abs(f.x - Kt / 2) < 400 && u.boost > 20 && (u.botDifficulty === "ssl" || isUnfair)) {
-    if (u.surfaceType === "ceiling" || u.isCeilingDrop) {
-      z.action = "ceiling_shot";
-      jn(u, f.x, f.y, 0.45);
-      if (D < 95 && (u.isCeilingDrop || u.canJump || u.jumpCount === 1 || u.hasFlipReset)) {
-        const oppGoalX = teamDir > 0 ? Mt : At;
-        const oppGoalY = (oppGoal.yMin + oppGoal.yMax) / 2;
-        const ang = Math.atan2(oppGoalY - f.y, oppGoalX - f.x);
-        Oe(u, "dodge", Math.cos(ang), Math.sin(ang) * 0.85);
-        if (Math.random() < 0.5) evtObj.chatMessage = "Ceiling shot! 🌌";
-        return;
-      }
-      return;
-    }
-  }
-
-  // 10. FLIP RESET EXECUTION & FREESTYLE (With Q/E Air Roll)
-  if (u.hasFlipReset) {
-    z.action = "flip_reset_shot";
-    const shootAngle = Math.atan2(targetCornerY - f.y, oppGoal.x - f.x);
-    if (u.airRollInverted) {
-      u.input.airRollRight = true;
-    }
-    if (D < 85) {
-      Oe(u, "dodge", Math.cos(shootAngle), Math.sin(shootAngle) * 0.85);
-      if (Math.random() < 0.6) evtObj.chatMessage = "Flip reset flick! 🚀";
-      return;
-    } else {
-      jn(u, f.x, f.y, 0.45, false);
-      return;
-    }
-  }
-
-  // FLIP RESET SETUP: fly under high ball with wheels facing ball (Q/E Air Roll)
-  if (f.y < k - 210 && f.y > Qt + 130 && u.boost > 14 && (u.botDifficulty === "ssl" || isUnfair)) {
-    const intercept = findBestBallIntercept(u, f, teamDir, 1.2);
-    if (u.isGrounded && D < 320 && Math.abs(f.vx) < 700) {
-      z.action = "flip_reset_setup";
-      const targetX = intercept.strikeTargetX || intercept.x;
-      je(u, targetX, true, false);
-      const heightClimb = Math.max(0, u.y - intercept.y);
-      const climbTime = 0.10 + heightClimb / 580;
-      const horizDist = Math.abs(u.x - targetX);
-      const maxLaunchDist = Math.max(85, Math.abs(u.vx) * climbTime + 65);
-      if (u.canJump && !u.isFlipping && u.boost > 14 && intercept.t <= climbTime + 0.14 && horizDist <= maxLaunchDist) {
-        Oe(u, "aerial");
-      }
-      return;
-    }
-    if (!u.isGrounded && !u.hasFlipReset && D < 260) {
-      z.action = "flip_reset_setup";
-      // Position underside of car directly towards the ball with inverted roll
-      jn(u, f.x, f.y + 24, 0.45, true);
-      return;
-    }
-  }
-
-  // 11. AIR DRIBBLE: when ball is airborne, carry it towards goal
-  if (f.y < k - 130 && f.y > Qt + 110 && u.boost > 12 && ((teamDir > 0 && f.x < oppGoal.x - 140) || (teamDir < 0 && f.x > oppGoal.x + 140))) {
-    z.action = "air_dribble";
-    Kv(u, f, oppGoal, targetCornerY, teamDir, dt, evtObj);
-    return;
-  }
-
-  // 12. BOOST MANAGEMENT: If low on boost and ball is safe, collect boost pads on route
-  if (u.boost < 22 && boostPads && D > 320) {
-    const pad = Fs(u, boostPads, ownGoal.x, oppGoal.x, teamDir, "defensive_route");
-    if (pad && Math.hypot(pad.x - u.x, pad.y - u.y) < 280) {
-      je(u, pad.x, false, false);
-      return;
-    }
-  }
-
-  // 13. MASTERPIECE ELEVATED SCORING (AFK Punisher & 100% Lethal Strikes)
-  z.action = "attack";
-  const shootAngle = Math.atan2(targetCornerY - f.y, oppGoal.x - f.x);
-  const cosShoot = Math.cos(shootAngle), sinShoot = Math.sin(shootAngle);
-
-  // Airborne & ground interception using exact physical trajectory:
-  const intercept = findBestBallIntercept(u, f, teamDir, 1.6);
-  const targetX = intercept.strikeTargetX || intercept.x;
-  const targetY = intercept.strikeTargetY || intercept.y;
-
-  if (u.isGrounded) {
-    if (!intercept.isSafe || (targetX - u.x) * teamDir < -15) {
-      z.action = "rotate_back";
-      handleWrongSideRecovery(u, f, ownGoal, teamDir);
-      return;
-    }
-    je(u, targetX, true, false);
-    if (intercept.isAerial) {
-      const heightClimb = Math.max(0, u.y - intercept.y);
-      const climbTime = 0.10 + heightClimb / 580;
-      const horizDist = Math.abs(u.x - targetX);
-      const maxLaunchDist = Math.max(85, Math.abs(u.vx) * climbTime + 65);
-      if (u.canJump && !u.isFlipping && u.boost > 8 && intercept.t <= climbTime + 0.14 && horizDist <= maxLaunchDist) {
-        Oe(u, "aerial");
-      }
-    } else {
-      // Ground ball strike: when lined up and close to ball, execute powerful dodge chip into opp net
-      if (D <= 68 && Math.abs(u.x - f.x) <= 58 && u.canJump && !u.isFlipping) {
-        Oe(u, "dodge", cosShoot, sinShoot * 0.85);
-      }
-    }
-  } else {
-    if (!intercept.isSafe || (targetX - u.x) * teamDir < -15) {
-      z.action = "rotate_back";
-      handleWrongSideRecovery(u, f, ownGoal, teamDir);
-      return;
-    }
-    jn(u, targetX, targetY, 0.45, false, intercept.t);
-    if (D < 85 && (u.jumpCount === 1 || u.hasFlipReset)) {
-      Oe(u, "dodge", cosShoot, sinShoot * 0.85);
-    }
-  }
+  executeMasterBotBrain(
+    u,
+    f,
+    oppCar,
+    tmCar,
+    allTeammates || [],
+    teamDir,
+    dt,
+    botEnv,
+    isUnfair,
+    boostPads,
+    evtObj
+  );
 }
 
 function Kv(u: any, f: any, oppGoal: any, targetCornerY: number, teamDir: number, dt: number, p: any) {
@@ -5170,14 +4798,8 @@ function am(u: any, f: any, ownGoal: any, teamDir: number, interceptTime: number
           Oe(u, "dodge", clearDirX, clearDirY);
         }
       } else {
-        // Ball is behind goalie: DO NOT drive into ball towards net!
-        if (dist < 120) {
-          u.input.jump = true;
-          u.input.pitchUp = true;
-          u.input.throttleForward = false;
-        } else {
-          je(u, goalGuardX, false, false);
-        }
+        // Ball is behind goalie: safely position at goal guard post
+        je(u, goalGuardX, false, false);
       }
     }
   } else {
@@ -5355,14 +4977,9 @@ function je(u: any, targetX: number, allowBoost: boolean = true, allowFlip: bool
       }
     }
 
-    // 3. Approaching car in front: jump / hop cleanly over them instead of ground dragging
-    if (minDistInFront < 110 && u.isGrounded && u.canJump && !u.isFlipping) {
-      if (Math.abs(u.vx) > 130) {
-        Oe(u, "dodge", driveDir, -0.4);
-      } else {
-        u.input.jump = true;
-        u.input.pitchUp = false;
-      }
+    // 3. Approaching car in front: dodge over if moving fast
+    if (minDistInFront < 90 && u.isGrounded && u.canJump && !u.isFlipping && Math.abs(u.vx) > 160) {
+      Oe(u, "dodge", driveDir, -0.4);
       return;
     }
   }
