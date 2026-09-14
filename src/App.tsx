@@ -9212,6 +9212,24 @@ const n2 = ({ playerCar: u }: any) => {
 
 const u2 = ({ messages: u, onSendMessage: f }: any) => {
   const [isOpen, setIsOpen] = st.useState(false);
+  const [isChatHidden, setIsChatHidden] = st.useState(() => {
+    try {
+      return localStorage.getItem("rl2d_chat_hidden") === "true";
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleHideChat = () => {
+    setIsChatHidden((prev: boolean) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("rl2d_chat_hidden", String(next));
+      } catch {}
+      return next;
+    });
+  };
+
   const quickChatOptions = [
     {
       label: "Reactions",
@@ -9248,8 +9266,8 @@ const u2 = ({ messages: u, onSendMessage: f }: any) => {
   return d.jsxs("div", {
     className: "absolute top-12 sm:top-16 left-2.5 sm:left-5 z-30 flex flex-col gap-1 sm:gap-2 pointer-events-none select-none",
     children: [
-      // Recent killfeed / chat notification items (compact on mobile)
-      d.jsx("div", {
+      // Recent killfeed / chat notification items (hidden if isChatHidden)
+      !isChatHidden && d.jsx("div", {
         className: "flex flex-col gap-1 max-w-[210px] sm:max-w-sm",
         children: u.slice(-3).map((g: any) => {
           const isBlue = g.team === "blue";
@@ -9280,9 +9298,24 @@ const u2 = ({ messages: u, onSendMessage: f }: any) => {
                 d.jsxs("div", {
                   className: "flex items-center justify-between pb-2 border-b border-slate-800 mb-2.5",
                   children: [
-                    d.jsx("span", {
-                      className: "text-xs font-gaming font-black text-slate-200 uppercase tracking-wider",
-                      children: "Quick Chat"
+                    d.jsxs("div", {
+                      className: "flex items-center gap-2",
+                      children: [
+                        d.jsx("span", {
+                          className: "text-xs font-gaming font-black text-slate-200 uppercase tracking-wider",
+                          children: "Quick Chat"
+                        }),
+                        d.jsx("button", {
+                          onClick: toggleHideChat,
+                          className: `px-1.5 py-0.5 rounded text-[9px] font-bold uppercase transition cursor-pointer border ${
+                            isChatHidden
+                              ? "bg-rose-950/70 border-rose-600/70 text-rose-300"
+                              : "bg-slate-800 border-slate-700 text-slate-300 hover:text-white"
+                          }`,
+                          title: isChatHidden ? "Chat messages are hidden. Tap to unhide." : "Hide chat messages from screen",
+                          children: isChatHidden ? "Muted" : "Mute"
+                        })
+                      ]
                     }),
                     d.jsx("button", {
                       onClick: () => setIsOpen(false),
@@ -9316,13 +9349,28 @@ const u2 = ({ messages: u, onSendMessage: f }: any) => {
                 })
               ]
             })
-          : d.jsxs("button", {
-              onClick: () => setIsOpen(true),
-              className: "flex items-center gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 bg-slate-950/80 hover:bg-slate-800 text-slate-300 hover:text-white rounded-lg sm:rounded-xl border border-slate-700/70 text-[11px] sm:text-xs font-gaming font-bold transition shadow-lg cursor-pointer",
-              title: "Quick Chat",
+          : d.jsxs("div", {
+              className: "flex items-center gap-1",
               children: [
-                d.jsx(jg, { className: "w-3 h-3 sm:w-3.5 sm:h-3.5 text-sky-400" }),
-                d.jsx("span", { children: "Chat" })
+                d.jsxs("button", {
+                  onClick: () => setIsOpen(true),
+                  className: "flex items-center gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 bg-slate-950/80 hover:bg-slate-800 text-slate-300 hover:text-white rounded-lg sm:rounded-xl border border-slate-700/70 text-[11px] sm:text-xs font-gaming font-bold transition shadow-lg cursor-pointer",
+                  title: "Quick Chat (Hotkey T)",
+                  children: [
+                    d.jsx(jg, { className: "w-3 h-3 sm:w-3.5 sm:h-3.5 text-sky-400" }),
+                    d.jsx("span", { children: "Chat" })
+                  ]
+                }),
+                d.jsx("button", {
+                  onClick: toggleHideChat,
+                  className: `px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-lg sm:rounded-xl border text-[10px] sm:text-[11px] font-gaming font-bold transition shadow-lg cursor-pointer flex items-center gap-1 ${
+                    isChatHidden
+                      ? "bg-rose-950/85 hover:bg-rose-900 border-rose-700/80 text-rose-300"
+                      : "bg-slate-950/80 hover:bg-slate-800 border-slate-700/70 text-slate-400 hover:text-slate-200"
+                  }`,
+                  title: isChatHidden ? "Chat messages are hidden. Tap to show." : "Hide chat messages",
+                  children: isChatHidden ? "🔇 Chat Off" : "👁️ Hide"
+                })
               ]
             })
       })
@@ -12696,23 +12744,23 @@ d.jsx(MultiplayerModal,{isOpen:isMultiplayerOpen,onClose:()=>setIsMultiplayerOpe
 d.jsx("span",{className:"text-slate-600",children:"•"}),
 d.jsxs("div",{className:"flex items-center gap-1",children:[
 d.jsx("kbd",{className:`px-1.5 py-0.5 rounded border font-mono text-[10px] ${f.steeringControl === "mouse" ? "bg-emerald-950 border-emerald-500 text-emerald-300 font-bold" : "bg-slate-800 border-slate-700 text-slate-300"}`,children:"M"}),
-d.jsx("span",{className:f.steeringControl === "mouse" ? "text-emerald-300 font-bold" : "",children:f.steeringControl === "mouse" ? "Mouse Aim [ON]" : "Mouse Aim"})]})]}),!isMobileDevice&&d.jsx(n2,{playerCar:B}),f.mode==="training"&&d.jsx(c2,{onResetBall:R,onDribbleSetup:V,onPassToMe:Q,onHighAerialSetup:vt,onMustySetup:onMustySetup,onFlipResetSetup:onFlipResetSetup,onPinchSetup:onPinchSetup,onDoubleTapSetup:onDoubleTapSetup,onPsychoSetup:onPsychoSetup,onCeilingSetup:onCeilingSetup,infiniteBoost:Lt,onToggleInfiniteBoost:()=>Ft(H=>!H),showHitbox:f.showHitbox,onToggleHitbox:toggleHitbox,onOpenReplayStudio:handleOpenStudioFromAnywhere}),d.jsx(v2,{alerts:mechAlerts}),d.jsx(i2,{playerCar:Gt.current.find(H=>!H.isBot)||null}),d.jsx(o2,{goalInfo:Ht,kickoffCountdown:Tt}),d.jsx(GoalReplayOverlay,{replayUI:goalReplayUI,onSkip:skipGoalReplay,onSpeedToggle:handleGoalReplaySpeed,onTogglePause:handleGoalReplayTogglePause,onScrub:handleGoalReplayScrub,onStep:handleGoalReplayStep,onRestart:handleGoalReplayRestart,onOpenStudio:handleOpenStudioFromGoalReplay,onExportClip:handleExportGoalClip,isAudioMuted:isReplayAudioMuted,onToggleAudioMute:()=>setIsReplayAudioMuted(prev=>!prev),activeBadge:activeReplayBadge}),(isSpectator||dvr.active)&&!goalReplayUI?.active&&d.jsx(MatchDvrStudio,{isSpectator:isSpectator,dvrState:dvr,onTogglePlay:handleDvrTogglePlay,onScrub:handleDvrScrub,onStep:handleDvrStep,onJump:handleDvrJump,onGoLive:handleDvrGoLive,onSpeedChange:handleDvrSpeedChange,onClose:()=>setDvr({active:!1,offsetSec:0,isPlaying:!1,speed:1}),availableSeconds:getAvailableDvrSeconds(),matchEvents:matchEventsRef.current,onSeekToTime:handleSeekToTime,matchStartTime:matchStartTimeRef.current,clipRange:clipRange,onSetClipIn:handleSetClipIn,onSetClipOut:handleSetClipOut,onQuickClip:handleQuickClip,onExportClip:(format:any)=>handleExportClip(format),isAudioMuted:isReplayAudioMuted,onToggleAudioMute:()=>setIsReplayAudioMuted(prev=>!prev),activeBadge:activeReplayBadge,isCollapsed:isDvrCollapsed,onToggleCollapse:()=>setIsDvrCollapsed(prev=>!prev),autoCam:f.autoCam!==false,onToggleAutoCam:toggleAutoCam,steeringControl:f.steeringControl||"keyboard",onToggleSteeringControl:toggleSteeringControl,onOpenScoreboard:()=>setIsScoreboardOpen(prev=>!prev),onOpenMatchHistory:()=>setIsMatchHistoryOpen(true)}),d.jsx(ExportProgressModal,{exportModal:exportModal,onCancel:handleCancelExport}),m&&d.jsx("div",{className:`absolute inset-0 z-35 flex flex-col items-center justify-center ${dvr.active?"bg-black/35 pointer-events-none":"bg-black/70 backdrop-blur-sm"}`,children:d.jsxs("div",{className:`bg-slate-900/95 border border-slate-700 p-6 rounded-2xl shadow-2xl flex flex-col items-center gap-3 text-center pointer-events-auto ${dvr.active?"opacity-95 scale-95 transition":null}`,children:[d.jsx("h3",{className:"text-2xl md:text-3xl font-black text-white uppercase tracking-wider",children:"MATCH PAUSED"}),d.jsxs("p",{className:"text-xs md:text-sm text-slate-300",children:["Press ",d.jsx("kbd",{className:"px-2 py-0.5 bg-slate-800 rounded border border-slate-600 font-mono text-white",children:"P"})," to resume match or open full-match replay studio"]}),d.jsxs("div",{className:"flex gap-2.5 mt-2 flex-wrap justify-center",children:[d.jsx("button",{onClick:()=>{g(!1),setDvr({active:!1,offsetSec:0,isPlaying:!1,speed:1})},className:"px-5 py-2.5 bg-sky-600 hover:bg-sky-500 text-white font-bold text-sm rounded-xl transition shadow-lg cursor-pointer",children:"Resume Match"}),d.jsxs("button",{onClick:()=>{const maxSec=Math.max(1,getAvailableDvrSeconds());setDvr({active:!0,offsetSec:Math.min(15,maxSec),isPlaying:!0,speed:1})},className:"px-4 py-2.5 bg-gradient-to-r from-amber-500/20 to-sky-500/20 hover:from-amber-500/30 hover:to-sky-500/30 text-amber-300 font-bold text-sm rounded-xl transition border border-amber-500/50 flex items-center gap-2 cursor-pointer shadow-md",children:[d.jsx(Film,{className:"w-4 h-4 text-amber-400"}),d.jsx("span",{children:"🎬 Replay & Clip Studio"})]}),d.jsx("button",{onClick:ie,className:"px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-sm rounded-xl transition border border-slate-700 cursor-pointer",children:"Restart Match"})]})]})}),p==="ended"&&!dvr.active&&!isMatchHistoryOpen&&d.jsx("div",{className:"absolute inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4",children:d.jsxs("div",{className:"bg-slate-950 border-2 border-slate-700 rounded-3xl p-8 max-w-md w-full shadow-2xl flex flex-col items-center text-center animate-fade-in text-slate-100",children:[d.jsx(Is,{className:"w-16 h-16 text-amber-400 mb-2 drop-shadow-[0_0_20px_rgba(251,191,36,0.6)]"}),d.jsx("h2",{className:"text-3xl font-black uppercase tracking-tight text-white mb-1",children:C>N?"BLUE WINS!":N>C?"ORANGE WINS!":"OVERTIME DRAW!"}),d.jsxs("div",{className:"my-5 flex items-center justify-center gap-6 px-6 py-3 rounded-2xl bg-slate-900 border border-slate-800",children:[d.jsxs("div",{className:"flex flex-col items-center",children:[d.jsx("span",{className:"text-xs font-bold text-sky-400 uppercase",children:"Blue Team"}),d.jsx("span",{className:"text-4xl font-mono font-black text-white",children:C})]}),d.jsx("span",{className:"text-2xl font-bold text-slate-500",children:":"}),d.jsxs("div",{className:"flex flex-col items-center",children:[d.jsx("span",{className:"text-xs font-bold text-orange-400 uppercase",children:"Orange Team"}),d.jsx("span",{className:"text-4xl font-mono font-black text-white",children:N})]})]}),d.jsxs("div",{className:"flex flex-col gap-2.5 w-full mt-2",children:[d.jsxs("button",{onClick:()=>{const totalSec=Math.max(1,getAvailableDvrSeconds());setDvr({active:!0,offsetSec:totalSec,isPlaying:!0,speed:1});A("playing");},className:"w-full py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-black text-sm uppercase rounded-xl shadow-lg shadow-amber-500/25 transition flex items-center justify-center gap-2 cursor-pointer",children:[d.jsx(Film,{className:"w-4 h-4 text-slate-950"}),d.jsx("span",{children:"🎬 Review Full Match & Export Clips"})]}),d.jsxs("button",{onClick:()=>setIsMatchHistoryOpen(true),className:"w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-sky-300 font-bold text-xs uppercase rounded-xl border border-sky-500/40 transition flex items-center justify-center gap-2 cursor-pointer",children:[d.jsx(Clock,{className:"w-4 h-4 text-sky-400"}),d.jsx("span",{children:"📜 Match History & Past Replays"})]}),d.jsxs("div",{className:"flex gap-3 w-full",children:[
+d.jsx("span",{className:f.steeringControl === "mouse" ? "text-emerald-300 font-bold" : "",children:f.steeringControl === "mouse" ? "Mouse Aim [ON]" : "Mouse Aim"})]})]}),!isMobileDevice&&d.jsx(n2,{playerCar:B}),f.mode==="training"&&d.jsx(c2,{onResetBall:R,onDribbleSetup:V,onPassToMe:Q,onHighAerialSetup:vt,onMustySetup:onMustySetup,onFlipResetSetup:onFlipResetSetup,onPinchSetup:onPinchSetup,onDoubleTapSetup:onDoubleTapSetup,onPsychoSetup:onPsychoSetup,onCeilingSetup:onCeilingSetup,infiniteBoost:Lt,onToggleInfiniteBoost:()=>Ft(H=>!H),showHitbox:f.showHitbox,onToggleHitbox:toggleHitbox,onOpenReplayStudio:handleOpenStudioFromAnywhere}),d.jsx(v2,{alerts:mechAlerts}),d.jsx(i2,{playerCar:Gt.current.find(H=>!H.isBot)||null}),d.jsx(o2,{goalInfo:Ht,kickoffCountdown:Tt}),d.jsx(GoalReplayOverlay,{replayUI:goalReplayUI,onSkip:skipGoalReplay,onSpeedToggle:handleGoalReplaySpeed,onTogglePause:handleGoalReplayTogglePause,onScrub:handleGoalReplayScrub,onStep:handleGoalReplayStep,onRestart:handleGoalReplayRestart,onOpenStudio:handleOpenStudioFromGoalReplay,onExportClip:handleExportGoalClip,isAudioMuted:isReplayAudioMuted,onToggleAudioMute:()=>setIsReplayAudioMuted(prev=>!prev),activeBadge:activeReplayBadge}),(isSpectator||dvr.active)&&!goalReplayUI?.active&&d.jsx(MatchDvrStudio,{isSpectator:isSpectator,dvrState:dvr,onTogglePlay:handleDvrTogglePlay,onScrub:handleDvrScrub,onStep:handleDvrStep,onJump:handleDvrJump,onGoLive:handleDvrGoLive,onSpeedChange:handleDvrSpeedChange,onClose:()=>setDvr({active:!1,offsetSec:0,isPlaying:!1,speed:1}),availableSeconds:getAvailableDvrSeconds(),matchEvents:matchEventsRef.current,onSeekToTime:handleSeekToTime,matchStartTime:matchStartTimeRef.current,clipRange:clipRange,onSetClipIn:handleSetClipIn,onSetClipOut:handleSetClipOut,onQuickClip:handleQuickClip,onExportClip:(format:any)=>handleExportClip(format),isAudioMuted:isReplayAudioMuted,onToggleAudioMute:()=>setIsReplayAudioMuted(prev=>!prev),activeBadge:activeReplayBadge,isCollapsed:isDvrCollapsed,onToggleCollapse:()=>setIsDvrCollapsed(prev=>!prev),autoCam:f.autoCam!==false,onToggleAutoCam:toggleAutoCam,steeringControl:f.steeringControl||"keyboard",onToggleSteeringControl:toggleSteeringControl,onOpenScoreboard:()=>setIsScoreboardOpen(prev=>!prev),onOpenMatchHistory:()=>setIsMatchHistoryOpen(true)}),d.jsx(ExportProgressModal,{exportModal:exportModal,onCancel:handleCancelExport}),m&&d.jsx("div",{className:`absolute inset-0 z-35 flex flex-col items-center justify-center ${dvr.active?"bg-black/35 pointer-events-none":"bg-black/70 backdrop-blur-sm"}`,children:d.jsxs("div",{className:`bg-slate-900/95 border border-slate-700 p-6 rounded-2xl shadow-2xl flex flex-col items-center gap-3 text-center pointer-events-auto ${dvr.active?"opacity-95 scale-95 transition":null}`,children:[d.jsx("h3",{className:"text-2xl md:text-3xl font-black text-white uppercase tracking-wider",children:"MATCH PAUSED"}),d.jsxs("p",{className:"text-xs md:text-sm text-slate-300",children:["Press ",d.jsx("kbd",{className:"px-2 py-0.5 bg-slate-800 rounded border border-slate-600 font-mono text-white",children:"P"})," to resume match or open full-match replay studio"]}),d.jsxs("div",{className:"flex gap-2.5 mt-2 flex-wrap justify-center",children:[d.jsx("button",{onClick:()=>{g(!1),setDvr({active:!1,offsetSec:0,isPlaying:!1,speed:1})},className:"px-5 py-2.5 bg-sky-600 hover:bg-sky-500 text-white font-bold text-sm rounded-xl transition shadow-lg cursor-pointer",children:"Resume Match"}),d.jsxs("button",{onClick:()=>{const maxSec=Math.max(1,getAvailableDvrSeconds());setDvr({active:!0,offsetSec:Math.min(15,maxSec),isPlaying:!0,speed:1})},className:"px-4 py-2.5 bg-gradient-to-r from-amber-500/20 to-sky-500/20 hover:from-amber-500/30 hover:to-sky-500/30 text-amber-300 font-bold text-sm rounded-xl transition border border-amber-500/50 flex items-center gap-2 cursor-pointer shadow-md",children:[d.jsx(Film,{className:"w-4 h-4 text-amber-400"}),d.jsx("span",{children:"🎬 Replay & Clip Studio"})]}),d.jsx("button",{onClick:ie,className:"px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-sm rounded-xl transition border border-slate-700 cursor-pointer",children:"Restart Match"})]})]})}),p==="ended"&&!dvr.active&&!isMatchHistoryOpen&&d.jsx("div",{className:"absolute inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-2 sm:p-4 overflow-y-auto",children:d.jsxs("div",{className:"bg-slate-950/95 border border-slate-700 sm:border-2 rounded-2xl sm:rounded-3xl p-3 sm:p-5 md:p-7 max-w-xs sm:max-w-md w-full shadow-2xl flex flex-col items-center text-center animate-fade-in text-slate-100 max-h-[96vh] overflow-y-auto",children:[d.jsx(Is,{className:"w-8 h-8 sm:w-12 sm:h-12 md:w-14 md:h-14 text-amber-400 mb-0.5 sm:mb-1.5 drop-shadow-[0_0_15px_rgba(251,191,36,0.6)]"}),d.jsx("h2",{className:"text-lg sm:text-2xl md:text-3xl font-black uppercase tracking-tight text-white mb-0.5 sm:mb-1",children:C>N?"BLUE WINS!":N>C?"ORANGE WINS!":"OVERTIME DRAW!"}),d.jsxs("div",{className:"my-1.5 sm:my-3 flex items-center justify-center gap-4 sm:gap-6 px-3.5 py-1 sm:px-6 sm:py-2 rounded-xl sm:rounded-2xl bg-slate-900/90 border border-slate-800",children:[d.jsxs("div",{className:"flex flex-col items-center",children:[d.jsx("span",{className:"text-[10px] sm:text-xs font-bold text-sky-400 uppercase tracking-wider",children:"Blue Team"}),d.jsx("span",{className:"text-2xl sm:text-3xl md:text-4xl font-mono font-black text-white",children:C})]}),d.jsx("span",{className:"text-lg sm:text-2xl font-bold text-slate-500",children:":"}),d.jsxs("div",{className:"flex flex-col items-center",children:[d.jsx("span",{className:"text-[10px] sm:text-xs font-bold text-orange-400 uppercase tracking-wider",children:"Orange Team"}),d.jsx("span",{className:"text-2xl sm:text-3xl md:text-4xl font-mono font-black text-white",children:N})]})]}),d.jsxs("div",{className:"flex flex-col gap-1.5 sm:gap-2.5 w-full mt-1",children:[d.jsxs("button",{onClick:()=>{const totalSec=Math.max(1,getAvailableDvrSeconds());setDvr({active:!0,offsetSec:totalSec,isPlaying:!0,speed:1});A("playing");},className:"w-full py-2 sm:py-2.5 md:py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-black text-xs sm:text-sm uppercase rounded-lg sm:rounded-xl shadow-md transition flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer",children:[d.jsx(Film,{className:"w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-950"}),d.jsx("span",{children:"🎬 Review Full Match & Export Clips"})]}),d.jsxs("button",{onClick:()=>setIsMatchHistoryOpen(true),className:"w-full py-1.5 sm:py-2 md:py-2.5 bg-slate-900 hover:bg-slate-800 text-sky-300 font-bold text-[11px] sm:text-xs uppercase rounded-lg sm:rounded-xl border border-sky-500/40 transition flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer",children:[d.jsx(Clock,{className:"w-3.5 h-3.5 sm:w-4 sm:h-4 text-sky-400"}),d.jsx("span",{children:"📜 Match History & Past Replays"})]}),d.jsxs("div",{className:"flex gap-2 sm:gap-3 w-full",children:[
   peerNetwork.isConnected&&peerNetwork.roomState?.status==="in_game"?(
     peerNetwork.role==="host"?(
       d.jsxs(st.Fragment,{children:[
-        d.jsxs("button",{onClick:()=>{peerNetwork.rematch();ie();},className:"flex-1 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 text-white font-black text-sm uppercase rounded-xl shadow-lg transition flex items-center justify-center gap-2 cursor-pointer",children:[d.jsx(im,{className:"w-4 h-4"}),d.jsx("span",{children:"Rematch"})]}),
-        d.jsxs("button",{onClick:()=>{peerNetwork.returnToLobby();setIsMultiplayerOpen(true);},className:"flex-1 py-3 bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-400 text-white font-black text-sm uppercase rounded-xl shadow-lg transition flex items-center justify-center gap-2 cursor-pointer",children:[d.jsx(Globe,{className:"w-4 h-4"}),d.jsx("span",{children:"Lobby"})]})
+        d.jsxs("button",{onClick:()=>{peerNetwork.rematch();ie();},className:"flex-1 py-2 sm:py-2.5 md:py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 text-white font-black text-xs sm:text-sm uppercase rounded-lg sm:rounded-xl shadow-md transition flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer",children:[d.jsx(im,{className:"w-3.5 h-3.5 sm:w-4 sm:h-4"}),d.jsx("span",{children:"Rematch"})]}),
+        d.jsxs("button",{onClick:()=>{peerNetwork.returnToLobby();setIsMultiplayerOpen(true);},className:"flex-1 py-2 sm:py-2.5 md:py-3 bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-400 text-white font-black text-xs sm:text-sm uppercase rounded-lg sm:rounded-xl shadow-md transition flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer",children:[d.jsx(Globe,{className:"w-3.5 h-3.5 sm:w-4 sm:h-4"}),d.jsx("span",{children:"Lobby"})]})
       ]})
     ):(
       d.jsxs(st.Fragment,{children:[
-        d.jsxs("button",{onClick:()=>setIsMultiplayerOpen(true),className:"flex-1 py-3 bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-400 text-white font-black text-sm uppercase rounded-xl shadow-lg transition flex items-center justify-center gap-2 cursor-pointer",children:[d.jsx(Globe,{className:"w-4 h-4"}),d.jsx("span",{children:"Room Lobby"})]}),
-        d.jsxs("button",{onClick:()=>{peerNetwork.disconnect();ie();},className:"flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-sm uppercase rounded-xl transition flex items-center justify-center gap-2 cursor-pointer",children:[d.jsx(LogOut,{className:"w-4 h-4"}),d.jsx("span",{children:"Leave"})]})
+        d.jsxs("button",{onClick:()=>setIsMultiplayerOpen(true),className:"flex-1 py-2 sm:py-2.5 md:py-3 bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-400 text-white font-black text-xs sm:text-sm uppercase rounded-lg sm:rounded-xl shadow-md transition flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer",children:[d.jsx(Globe,{className:"w-3.5 h-3.5 sm:w-4 sm:h-4"}),d.jsx("span",{children:"Room Lobby"})]}),
+        d.jsxs("button",{onClick:()=>{peerNetwork.disconnect();ie();},className:"flex-1 py-2 sm:py-2.5 md:py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs sm:text-sm uppercase rounded-lg sm:rounded-xl transition flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer",children:[d.jsx(LogOut,{className:"w-3.5 h-3.5 sm:w-4 sm:h-4"}),d.jsx("span",{children:"Leave"})]})
       ]})
     )
   ):(
     d.jsxs(st.Fragment,{children:[
-      d.jsxs("button",{onClick:ie,className:"flex-1 py-3 bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-400 text-white font-black text-sm uppercase rounded-xl shadow-lg shadow-sky-500/25 transition flex items-center justify-center gap-2 cursor-pointer",children:[d.jsx(im,{className:"w-4 h-4"}),d.jsx("span",{children:"Play Again"})]}),
-      d.jsx("button",{onClick:()=>y(!0),className:"px-4 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl border border-slate-700 transition cursor-pointer",title:"Settings",children:d.jsx(cm,{className:"w-5 h-5"})})
+      d.jsxs("button",{onClick:ie,className:"flex-1 py-2 sm:py-2.5 md:py-3 bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-400 text-white font-black text-xs sm:text-sm uppercase rounded-lg sm:rounded-xl shadow-md shadow-sky-500/25 transition flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer",children:[d.jsx(im,{className:"w-3.5 h-3.5 sm:w-4 sm:h-4"}),d.jsx("span",{children:"Play Again"})]}),
+      d.jsx("button",{onClick:()=>y(!0),className:"px-3 py-2 sm:px-4 sm:py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg sm:rounded-xl border border-slate-700 transition cursor-pointer flex items-center justify-center",title:"Settings",children:d.jsx(cm,{className:"w-4 h-4 sm:w-5 sm:h-5"})})
     ]})
   )
 ]})]})]})}),d.jsx(f2,{isOpen:s,settings:f,onUpdateSettings:handleUpdateSettings,onClose:()=>y(!1),onApplyAndRestart:()=>{y(!1),ie()}})]})})}
