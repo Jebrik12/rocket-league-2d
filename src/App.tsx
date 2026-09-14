@@ -1910,14 +1910,15 @@ function Cv_legacy(u: any, f: number, r: any) {
   } else {
     u.vy += pv * f, u.vx *= Math.pow(Dh, f * 60), u.vy *= Math.pow(Dh, f * 60);
     let g = 0;
-    if (u.input.steerLeft || u.input.pitchUp) g -= 1;
-    if (u.input.steerRight || u.input.pitchDown) g += 1;
+    const isMirrored = u.facing === -1;
+    if (u.input.pitchUp) g += isMirrored ? 1 : -1;
+    if (u.input.pitchDown) g += isMirrored ? -1 : 1;
+    if (u.input.steerLeft) g -= 1;
+    if (u.input.steerRight) g += 1;
     if (u.input.mouseAim && typeof u.input.mouseTargetAngle === "number" && !u.isFlipping) {
       u.angle = Lh(u.angle, u.input.mouseTargetAngle, Av * 3.5 * f);
-      u.facing = Math.cos(u.angle) >= 0 ? 1 : -1;
     } else {
       u.isFlipping || (u.angle += g * Av * f);
-      u.facing = Math.cos(u.angle) >= 0 ? 1 : -1;
     }
     if ((u.input.airRollLeft && !u._prevAirRollLeft) || (u.input.airRollRight && !u._prevAirRollRight)) {
       u.airRollInverted = !u.airRollInverted;
@@ -2211,7 +2212,7 @@ function checkAndEmitSave(u: any, f: any, prevVx: number, prevVy: number, s: any
 function Uv_legacy(u: any, f: any, r: number, s: any) {
   const _now = Date.now(), prevVx = f.vx, prevVy = f.vy;
   const y = Math.cos(u.angle), m = Math.sin(u.angle), g = f.x - u.x, p = f.y - u.y, A = g * y + p * m;
-  const isMirrored = u.isGrounded && (u.facing === -1 || (u.surfaceType === "floor" && Math.cos(u.angle) < -0.5));
+  const isMirrored = u.facing === -1 || (u.isGrounded && (u.surfaceType === "floor" && Math.cos(u.angle) < -0.5));
   const lateralSign = (isMirrored ? -1 : 1) * (u.airRollInverted ? -1 : 1);
   const C = (-g * m + p * y) * lateralSign, z = u.width / 2, N = u.height / 2, D = Math.max(-z, Math.min(z, A)), X = Math.max(-N, Math.min(N, C)), tt = A - D, I = C - X, U = Math.hypot(tt, I);
   if (U < f.radius) {
@@ -2249,7 +2250,8 @@ function Uv_legacy(u: any, f: any, r: number, s: any) {
     }
 
     const rollMult = u.airRollInverted ? -1 : 1;
-    const downY = Math.cos(u.angle) * rollMult;
+    const isMirroredCar = u.facing === -1;
+    const downY = (isMirroredCar ? -Math.cos(u.angle) : Math.cos(u.angle)) * rollMult;
     const isTurtleShot = downY < -0.7 && u.y >= k - (u.height || 28) - 15;
     if (isTurtleShot && !u.isGrounded) {
       Me.playTurtle && Me.playTurtle();
@@ -2447,14 +2449,15 @@ function Cv(u: any, f: number, r: any) {
   } else {
     u.vy += pv * f, u.vx *= Math.pow(Dh, f * 60), u.vy *= Math.pow(Dh, f * 60);
     let g = 0;
-    if (u.input.steerLeft || u.input.pitchUp) g -= 1;
-    if (u.input.steerRight || u.input.pitchDown) g += 1;
+    const isMirrored = u.facing === -1;
+    if (u.input.pitchUp) g += isMirrored ? 1 : -1;
+    if (u.input.pitchDown) g += isMirrored ? -1 : 1;
+    if (u.input.steerLeft) g -= 1;
+    if (u.input.steerRight) g += 1;
     if (u.input.mouseAim && typeof u.input.mouseTargetAngle === "number" && !u.isFlipping) {
       u.angle = Lh(u.angle, u.input.mouseTargetAngle, Av * 3.5 * f);
-      u.facing = Math.cos(u.angle) >= 0 ? 1 : -1;
     } else {
       u.isFlipping || (u.angle += g * Av * f);
-      u.facing = Math.cos(u.angle) >= 0 ? 1 : -1;
     }
     if ((u.input.airRollLeft && !u._prevAirRollLeft) || (u.input.airRollRight && !u._prevAirRollRight)) {
       u.airRollInverted = !u.airRollInverted;
@@ -2566,7 +2569,8 @@ function Rv(u: any) {
       u.y = Qt + wheelContact;
       if (u.vy < 0) u.vy = 0;
       const rollMult = u.airRollInverted ? -1 : 1;
-      const downY = Math.cos(u.angle) * rollMult;
+      const isMirroredCar = u.facing === -1;
+      const downY = (isMirroredCar ? -Math.cos(u.angle) : Math.cos(u.angle)) * rollMult;
       const wheelsTouchCeiling = downY < -0.25 || (u.isGrounded && (u.surfaceType === "ceiling" || u.surfaceType === "curve"));
       if (wheelsTouchCeiling) {
         s = true;
@@ -2611,7 +2615,8 @@ function Rv(u: any) {
         u.y = Qt + wheelContact;
         if (u.vy < 0) u.vy = 0;
         const rollMult = u.airRollInverted ? -1 : 1;
-        const downY = Math.cos(u.angle) * rollMult;
+        const isMirroredCar = u.facing === -1;
+        const downY = (isMirroredCar ? -Math.cos(u.angle) : Math.cos(u.angle)) * rollMult;
         const wheelsTouchCeiling = downY < -0.25 || (u.isGrounded && (u.surfaceType === "ceiling" || u.surfaceType === "curve"));
         if (wheelsTouchCeiling) {
           s = true;
@@ -2695,7 +2700,8 @@ function Rv(u: any) {
       if (u.vy < 0) u.vy = 0;
 
       const rollMult = u.airRollInverted ? -1 : 1;
-      const downY = Math.cos(u.angle) * rollMult;
+      const isMirroredCar = u.facing === -1;
+      const downY = (isMirroredCar ? -Math.cos(u.angle) : Math.cos(u.angle)) * rollMult;
       const wheelsTouchCeiling = downY < -0.25 || (u.isGrounded && (u.surfaceType === "ceiling" || u.surfaceType === "curve"));
       if (wheelsTouchCeiling) {
         s = true;
@@ -2839,8 +2845,9 @@ function Rv(u: any) {
       u.x = tlA + (U / at) * contactR;
       u.y = tlC + (Tt / at) * contactR;
       const rollMult = u.airRollInverted ? -1 : 1;
-      const downX = -Math.sin(u.angle) * rollMult;
-      const downY = Math.cos(u.angle) * rollMult;
+      const isMirroredCar = u.facing === -1;
+      const downX = (isMirroredCar ? Math.sin(u.angle) : -Math.sin(u.angle)) * rollMult;
+      const downY = (isMirroredCar ? -Math.cos(u.angle) : Math.cos(u.angle)) * rollMult;
       const wheelsTouch = u.isGrounded || (downX * (-Ht) + downY * (-ot) > 0.15);
       if (wheelsTouch) {
         s = true;
@@ -2864,8 +2871,9 @@ function Rv(u: any) {
       u.x = trA + (U / at) * contactR;
       u.y = trC + (Tt / at) * contactR;
       const rollMult = u.airRollInverted ? -1 : 1;
-      const downX = -Math.sin(u.angle) * rollMult;
-      const downY = Math.cos(u.angle) * rollMult;
+      const isMirroredCar = u.facing === -1;
+      const downX = (isMirroredCar ? Math.sin(u.angle) : -Math.sin(u.angle)) * rollMult;
+      const downY = (isMirroredCar ? -Math.cos(u.angle) : Math.cos(u.angle)) * rollMult;
       const wheelsTouch = u.isGrounded || (downX * (-Ht) + downY * (-ot) > 0.15);
       if (wheelsTouch) {
         s = true;
@@ -3216,7 +3224,7 @@ function Uv(u:any,f:any,r:number,s:any){
   const y=Math.cos(u.angle),m=Math.sin(u.angle);
   const g=f.x-u.x,p=f.y-u.y;
   const A=g*y+p*m;
-  const isMirrored = u.isGrounded && (u.facing === -1 || (u.surfaceType === "floor" && Math.cos(u.angle) < -0.5));
+  const isMirrored = u.facing === -1 || (u.isGrounded && (u.surfaceType === "floor" && Math.cos(u.angle) < -0.5));
   const lateralSign = (isMirrored ? -1 : 1) * (u.airRollInverted ? -1 : 1);
   const C=(-g*m+p*y)*lateralSign;
   const z=u.width/2,N=u.height/2;
@@ -3264,7 +3272,8 @@ function Uv(u:any,f:any,r:number,s:any){
     }
 
     const rollMult = u.airRollInverted ? -1 : 1;
-    const downY = Math.cos(u.angle) * rollMult;
+    const isMirroredCar = u.facing === -1;
+    const downY = (isMirroredCar ? -Math.cos(u.angle) : Math.cos(u.angle)) * rollMult;
     const isTurtleShot = downY < -0.7 && u.y >= k - (u.height || 28) - 15;
     if (isTurtleShot && !u.isGrounded) {
       Me.playTurtle && Me.playTurtle();
@@ -7564,7 +7573,7 @@ function eg(u: any, f: any, m: any = {}) {
     fwdX = Math.cos(f.angle);
     fwdY = Math.sin(f.angle);
     const rollMult = f.airRollInverted ? -1 : 1;
-    const isFacingLeft = f.facing === -1 || (f.facing === undefined && Math.cos(f.angle) < -0.1);
+    const isFacingLeft = f.facing === -1;
     if (isFacingLeft) {
       downX = fwdY * rollMult;
       downY = -fwdX * rollMult;

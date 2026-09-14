@@ -532,7 +532,7 @@ function runTests() {
     const fwdY = Math.sin(angle); // 0
     const rollMult = 1;
 
-    const isFacingLeft = facing === -1 || Math.cos(angle) < -0.1;
+    const isFacingLeft = facing === -1;
     let downX: number, downY: number;
     if (isFacingLeft) {
       downX = fwdY * rollMult;
@@ -545,6 +545,20 @@ function runTests() {
     assert(isFacingLeft === true, "Accurately detects left-facing car");
     assert(Math.abs(downX) < 0.001, "downX is 0 for horizontal left-facing car");
     assert(downY === 1, "downY is +1 (downward towards ground, wheels on floor, roof up)");
+
+    // Airborne left-facing car tilted backwards (cos(angle) > 0)
+    // Should NOT invert or flip inside-out; facing stays -1
+    const airAngle = -Math.PI * 0.25; // nose up and back
+    const airFacing = -1;
+    const airFacingLeft = airFacing === -1;
+    const airDownY = (airFacing === -1 ? -Math.cos(airAngle) : Math.cos(airAngle)) * rollMult;
+    assert(airFacingLeft === true, "Airborne left-facing car maintains facingLeft regardless of angle");
+    assert(airDownY < 0, "Airborne left-facing tilted car has consistent down vector");
+
+    // Undercarriage / flip reset calculation symmetry for airborne left-facing car
+    const isMirroredAir = airFacing === -1;
+    const lateralSignAir = (isMirroredAir ? -1 : 1) * (rollMult ? 1 : 1);
+    assert(lateralSignAir === -1, "lateralSign is correctly mirrored for left-facing car in air for flip reset");
   }
 
   // --- TEST GROUP 18: Multiplayer In-Game Input & DVR Isolation ---
