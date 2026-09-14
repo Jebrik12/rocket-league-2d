@@ -382,15 +382,20 @@ export function updateBotJumpSeq(car: any, dt: number, env: ArenaEnv): boolean {
       car.input.throttleForward = true;
       car.input.throttleReverse = false;
 
-      // Tilt nose upward into sky (-Y is up, angle = -PI/2)
-      const desiredAngle = -Math.PI / 2;
-      const angleDiff = Math.atan2(Math.sin(desiredAngle - car.angle), Math.cos(desiredAngle - car.angle));
-      if (angleDiff > 0.10) {
-        car.input.steerRight = true;
-        car.input.steerLeft = false;
-      } else if (angleDiff < -0.10) {
-        car.input.steerLeft = true;
-        car.input.steerRight = false;
+      // Tilt nose upward into sky (-Y is up, angle = -PI/2) only when airborne
+      if (!car.isGrounded) {
+        const desiredAngle = -Math.PI / 2;
+        const angleDiff = Math.atan2(Math.sin(desiredAngle - car.angle), Math.cos(desiredAngle - car.angle));
+        if (angleDiff > 0.10) {
+          car.input.steerRight = true;
+          car.input.steerLeft = false;
+        } else if (angleDiff < -0.10) {
+          car.input.steerLeft = true;
+          car.input.steerRight = false;
+        } else {
+          car.input.steerLeft = false;
+          car.input.steerRight = false;
+        }
       } else {
         car.input.steerLeft = false;
         car.input.steerRight = false;
@@ -428,7 +433,7 @@ export function updateBotJumpSeq(car: any, dt: number, env: ArenaEnv): boolean {
       car.input.steerRight = false;
       car.input.pitchUp = false;
       car.input.pitchDown = false;
-      car.input.throttleForward = true;
+      car.input.throttleForward = false;
       car.input.throttleReverse = false;
 
       if (s.timer >= 0.05) {
@@ -623,9 +628,9 @@ export function botDriveAir(
   }
 
   // Boost gating: burn boost when aligned with target climb vector
-  const isAscendingNeed = needAy < -140 && Math.sin(car.angle) < -0.22;
-  const isCloseStrike = dist < 80 && Math.abs(angleDiff) <= 1.1;
-  const isAlignedThrust = Math.abs(angleDiff) <= 0.60;
+  const isAlignedThrust = Math.abs(angleDiff) <= 0.52;
+  const isAscendingNeed = needAy < -140 && Math.sin(car.angle) < -0.22 && Math.abs(angleDiff) <= 0.65;
+  const isCloseStrike = dist < 80 && Math.abs(angleDiff) <= 0.85;
 
   if ((isAlignedThrust || isAscendingNeed || isCloseStrike) && car.boost > 0) {
     car.input.boost = true;
@@ -796,8 +801,10 @@ export function executeMasterBotBrain(
     }
   }
 
-  // FLIP RESET SETUP: fly inverted under high airborne ball
-  if (ball.y < env.k - 200 && ball.y > env.Qt + 140 && car.boost > 16 && (isUnfair || Math.random() < 0.7)) {
+  // FLIP RESET SETUP: fly inverted under high airborne ball (strictly in midfield/offensive zone!)
+  const ownGoalX = ownGoal.x !== undefined ? ownGoal.x : (teamDir > 0 ? env.At : env.Mt);
+  const isOffensiveZone = (ball.x - ownGoalX) * teamDir > 420;
+  if (isOffensiveZone && ball.y < env.k - 200 && ball.y > env.Qt + 140 && car.boost > 16 && (isUnfair || Math.random() < 0.7)) {
     const intercept = solveBestIntercept(car, ball, teamDir, env, oppCar, tmCar, isUnfair, 1.4);
     if (car.isGrounded && distToBall < 300 && Math.abs(ball.vx) < 700) {
       z.action = "flip_reset_setup";
@@ -817,8 +824,9 @@ export function executeMasterBotBrain(
     }
   }
 
-  // 10. AIR DRIBBLE: carry ball toward opponent net in flight
-  if (ball.y < env.k - 120 && ball.y > env.Qt + 110 && car.boost > 10 && ((teamDir > 0 && ball.x < oppGoalX - 120) || (teamDir < 0 && ball.x > oppGoalX + 120))) {
+  // 10. AIR DRIBBLE: carry ball toward opponent net in flight (only when already airborne and close!)
+  const canAirDribble = !car.isGrounded && distToBall < 120 && ball.y < env.k - 90 && ball.y > env.Qt + 110;
+  if (isOffensiveZone && canAirDribble && car.boost > 10 && ((teamDir > 0 && ball.x < oppGoalX - 120) || (teamDir < 0 && ball.x > oppGoalX + 120))) {
     z.action = "air_dribble";
     executeAirDribble(car, ball, oppGoalX, (oppGoal.yMin || 380) + 45, teamDir, dt, env, evtObj);
     return;
@@ -857,9 +865,10 @@ export function executeMasterBotBrain(
 
     if (intercept.isAerial && ball.y < env.k - 90) {
       const hClimb = Math.max(0, car.y - intercept.y);
-      const climbT = 0.10 + hClimb / 590;
+      const climbSpeed = env.isLegacy ? 760 : 440;
+      const climbT = 0.08 + hClimb / climbSpeed;
       const horizDist = Math.abs(car.x - targetX);
-      const maxLaunchDist = Math.max(90, Math.abs(car.vx) * climbT + 75);
+      const maxLaunchDist = Math.max(90, Math.abs(car.vx) * climbT + 120);
       if (car.canJump && !car.isFlipping && car.boost > 8 && intercept.t <= climbT + 0.18 && horizDist <= maxLaunchDist) {
         startBotJumpSeq(car, "fast_aerial");
       }
@@ -921,7 +930,7 @@ function executeKickoff(car: any, ball: any, teamDir: number, env: ArenaEnv, isU
   }
 }
 
-function checkDefensiveThreat(ball: any, ownGoal: GoalDef, teamDir: number, env: ArenaEnv) {
+export function checkDefensiveThreat(ball: any, ownGoal: GoalDef, teamDir: number, env: ArenaEnv) {
   const b = { x: ball.x, y: ball.y, vx: ball.vx, vy: ball.vy, radius: ball.radius || 30 };
   const dt = 0.025;
   const maxSteps = 100;
@@ -961,37 +970,84 @@ function executeGoalkeeperSave(
   env: ArenaEnv
 ) {
   const goalX = ownGoal.x !== undefined ? ownGoal.x : (teamDir > 0 ? env.At : env.Mt);
-  const targetSaveY = Math.max((ownGoal.yMin || 380) + 25, Math.min((ownGoal.yMax || 680) - 25, interceptY));
-  const dist = Math.hypot(ball.x - car.x, ball.y - car.y);
   const clearDirX = teamDir;
-  const clearDirY = -0.45;
+  const clearDirY = -0.22;
 
-  const isHighBall = ball.y < env.k - 90 || targetSaveY < env.k - 80;
+  // The goalkeeper must ALWAYS stay between own net and the ball!
+  // The target contact point is strictly behind the ball towards own net.
+  const targetSaveX = teamDir > 0
+    ? Math.max(goalX + 75, Math.min(ball.x - 26, goalX + 240))
+    : Math.min(goalX - 75, Math.max(ball.x + 26, goalX - 240));
+
+  const relX = targetSaveX - ball.x;
+  const tToMeet = Math.max(0.04, Math.min(1.8, relX / (ball.vx || -teamDir * 450)));
+  const predictedMeetY = ball.y + ball.vy * tToMeet + 0.5 * env.Ph * tToMeet * tToMeet;
+  const targetSaveY = Math.max((ownGoal.yMin || 380) + 15, Math.min((ownGoal.yMax || 680) - 15, predictedMeetY));
+
+  const dist = Math.hypot(ball.x - car.x, ball.y - car.y);
+  const isHighBall = ball.y < env.k - 85 || targetSaveY < env.k - 75;
   const hClimb = Math.max(0, car.y - targetSaveY);
-  const climbT = 0.10 + hClimb / 580;
-  const goalGuardX = goalX + teamDir * 65;
+  const requiresFastAerial = hClimb > 165 && car.boost > 12;
+  const climbSpeed = env.isLegacy ? 760 : 380;
+  const climbT = 0.08 + hClimb / climbSpeed;
+
+  const goalGuardX = goalX + teamDir * 115;
 
   if (car.isGrounded) {
     if (isHighBall) {
-      botDriveGround(car, goalGuardX, true, false, env);
-      if (interceptTime <= climbT + 0.16 && car.boost > 8 && car.canJump && !car.isFlipping) {
-        startBotJumpSeq(car, "fast_aerial");
+      // Disciplined goalkeeper stance: face forward towards incoming attack
+      const toGuard = (goalGuardX - car.x) * teamDir;
+      if (toGuard < -25) {
+        // Reversing back to guard post while maintaining forward view
+        car.input.steerLeft = false;
+        car.input.steerRight = false;
+        car.input.throttleForward = false;
+        car.input.throttleReverse = true;
+        car.facing = teamDir;
+        car.angle = teamDir > 0 ? 0 : Math.PI;
+      } else if (toGuard > 25) {
+        // Advancing out to crease post
+        car.input.steerLeft = teamDir < 0;
+        car.input.steerRight = teamDir > 0;
+        car.input.throttleForward = true;
+        car.input.throttleReverse = false;
+      } else {
+        // Holding optimal post position
+        car.input.throttleForward = false;
+        car.input.throttleReverse = false;
+        car.input.steerLeft = false;
+        car.input.steerRight = false;
+        car.facing = teamDir;
+        car.angle = teamDir > 0 ? 0 : Math.PI;
+      }
+
+      // Precise aerial launch timed to meet ball at targetSaveX
+      if (tToMeet <= climbT + 0.16 && car.canJump && !car.isFlipping) {
+        if (requiresFastAerial) {
+          startBotJumpSeq(car, "fast_aerial", clearDirX, clearDirY);
+        } else if (hClimb > 55) {
+          car.input.jump = true;
+          car.input.throttleForward = true;
+        } else if (dist <= 75) {
+          startBotJumpSeq(car, "dodge", clearDirX, clearDirY);
+        }
       }
     } else {
+      // Low ground ball: charge forward and blast ball away
       const isGoalieBehindBall = (ball.x - car.x) * teamDir > 0;
       if (isGoalieBehindBall) {
-        botDriveGround(car, ball.x, true, false, env);
+        botDriveGround(car, ball.x + teamDir * 15, true, false, env);
         if (dist <= 75 && car.canJump && !car.isFlipping) {
           startBotJumpSeq(car, "dodge", clearDirX, clearDirY);
         }
       } else {
-        // Shadow retreat to guard post without blind hopping
-        botDriveGround(car, goalGuardX, false, false, env);
+        botDriveGround(car, goalGuardX, true, false, env);
       }
     }
   } else {
-    botDriveAir(car, goalX + teamDir * 45, targetSaveY, env, interceptTime);
-    if (dist <= 85 && (car.jumpCount === 1 || car.hasFlipReset)) {
+    // Airborne save: fly outward towards the ball to block and redirect
+    botDriveAir(car, targetSaveX, targetSaveY, env, tToMeet);
+    if (dist <= 85 && (car.jumpCount === 1 || car.hasFlipReset || car.canJump)) {
       startBotJumpSeq(car, "dodge", clearDirX, clearDirY);
     }
   }
@@ -999,18 +1055,18 @@ function executeGoalkeeperSave(
 
 function executeBackboardClear(car: any, ball: any, ownGoal: GoalDef, teamDir: number, env: ArenaEnv) {
   const goalX = ownGoal.x !== undefined ? ownGoal.x : (teamDir > 0 ? env.At : env.Mt);
-  const backboardX = goalX + teamDir * 60;
+  const backboardX = goalX + teamDir * 90;
   const dist = Math.hypot(ball.x - car.x, ball.y - car.y);
 
   if (car.isGrounded) {
     botDriveGround(car, backboardX, true, false, env);
-    if (Math.abs(car.x - backboardX) < 180 && ball.y < env.k - 100 && car.canJump) {
+    if (Math.abs(car.x - backboardX) < 180 && ball.y < env.k - 100 && car.canJump && !car.isFlipping) {
       startBotJumpSeq(car, "fast_aerial");
     }
   } else {
     botDriveAir(car, ball.x, ball.y, env, 0.45);
     if (dist < 110 && (car.jumpCount === 1 || car.hasFlipReset)) {
-      startBotJumpSeq(car, "dodge", teamDir, -0.4);
+      startBotJumpSeq(car, "dodge", teamDir, -0.35);
     }
   }
 }
