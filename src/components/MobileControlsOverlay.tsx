@@ -86,6 +86,15 @@ export const MobileControlsOverlay: React.FC<MobileControlsOverlayProps> = ({
     if (notifyChange) notifyChange({ ...stateRef.current });
   }, [notifyChange]);
 
+  // Safe Pointer Capture (failsafe against browser-specific InvalidPointerId)
+  const safePointerCapture = (target: any, pointerId: number) => {
+    try {
+      if (target && typeof target.setPointerCapture === "function") {
+        target.setPointerCapture(pointerId);
+      }
+    } catch (e) {}
+  };
+
   // Vibrate helper
   const triggerHaptic = (ms: number = 10) => {
     try {
@@ -161,7 +170,7 @@ export const MobileControlsOverlay: React.FC<MobileControlsOverlayProps> = ({
           type="button"
           onPointerDown={(e) => {
             e.preventDefault();
-            (e.target as HTMLElement).setPointerCapture(e.pointerId);
+            safePointerCapture(e.target, e.pointerId);
             handleActionDown("throttleForward", e.pointerId);
           }}
           onPointerUp={(e) => {
@@ -185,7 +194,7 @@ export const MobileControlsOverlay: React.FC<MobileControlsOverlayProps> = ({
             type="button"
             onPointerDown={(e) => {
               e.preventDefault();
-              (e.target as HTMLElement).setPointerCapture(e.pointerId);
+              safePointerCapture(e.target, e.pointerId);
               handleActionDown("steerLeft", e.pointerId);
             }}
             onPointerUp={(e) => {
@@ -208,7 +217,7 @@ export const MobileControlsOverlay: React.FC<MobileControlsOverlayProps> = ({
             type="button"
             onPointerDown={(e) => {
               e.preventDefault();
-              (e.target as HTMLElement).setPointerCapture(e.pointerId);
+              safePointerCapture(e.target, e.pointerId);
               handleActionDown("handbrake", e.pointerId, 15);
             }}
             onPointerUp={(e) => {
@@ -232,7 +241,7 @@ export const MobileControlsOverlay: React.FC<MobileControlsOverlayProps> = ({
             type="button"
             onPointerDown={(e) => {
               e.preventDefault();
-              (e.target as HTMLElement).setPointerCapture(e.pointerId);
+              safePointerCapture(e.target, e.pointerId);
               handleActionDown("steerRight", e.pointerId);
             }}
             onPointerUp={(e) => {
@@ -256,7 +265,7 @@ export const MobileControlsOverlay: React.FC<MobileControlsOverlayProps> = ({
           type="button"
           onPointerDown={(e) => {
             e.preventDefault();
-            (e.target as HTMLElement).setPointerCapture(e.pointerId);
+            safePointerCapture(e.target, e.pointerId);
             handleActionDown("throttleReverse", e.pointerId);
           }}
           onPointerUp={(e) => {
@@ -301,7 +310,7 @@ export const MobileControlsOverlay: React.FC<MobileControlsOverlayProps> = ({
             type="button"
             onPointerDown={(e) => {
               e.preventDefault();
-              (e.target as HTMLElement).setPointerCapture(e.pointerId);
+              safePointerCapture(e.target, e.pointerId);
               handleActionDown("boost", e.pointerId, 20);
             }}
             onPointerUp={(e) => {
@@ -332,7 +341,7 @@ export const MobileControlsOverlay: React.FC<MobileControlsOverlayProps> = ({
             type="button"
             onPointerDown={(e) => {
               e.preventDefault();
-              (e.target as HTMLElement).setPointerCapture(e.pointerId);
+              safePointerCapture(e.target, e.pointerId);
               handleActionDown("jump", e.pointerId, 15);
             }}
             onPointerUp={(e) => {
