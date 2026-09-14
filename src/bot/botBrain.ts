@@ -918,15 +918,15 @@ export function botDriveAir(
   const dist = Math.hypot(dx, dy);
 
   let desiredAngle = 0;
+  const directAngle = Math.atan2(dy, dx);
 
-  // On close approach, align nose directly along strikeAngle into the goal corner for clinical top-shelf snipes
-  if (strikeAngle !== undefined && (dist < 140 || (explicitT !== undefined && explicitT < 0.22))) {
-    desiredAngle = strikeAngle;
-  } else if (dist < 90 || (explicitT !== undefined && explicitT < 0.15)) {
-    desiredAngle = Math.atan2(dy, dx);
+  // Close approach (< 130px): point nose directly at strike target / ball intercept point
+  // Far approach: Newtonian kinematic climb compensation
+  if (dist < 130 || (explicitT !== undefined && explicitT < 0.18)) {
+    desiredAngle = directAngle;
   } else {
-    const spd = Math.hypot(car.vx, car.vy);
-    const estT = Math.max(0.18, Math.min(1.8, (explicitT && explicitT > 0.04) ? explicitT : (dist / Math.max(500, spd))));
+    const spd = Math.max(320, Math.hypot(car.vx, car.vy));
+    const estT = Math.max(0.18, Math.min(1.6, (explicitT && explicitT > 0.04) ? explicitT : (dist / spd)));
     const needAx = 2 * (dx - car.vx * estT) / (estT * estT);
     const needAy = 2 * (dy - car.vy * estT) / (estT * estT) - env.pv;
     desiredAngle = Math.atan2(needAy, needAx);
@@ -944,24 +944,23 @@ export function botDriveAir(
   car.input.throttleForward = false;
   car.input.throttleReverse = false;
 
-  // Inverted air roll alignment for flip resets
-  if (desiredInverted !== undefined) {
-    if (desiredInverted !== !!car.airRollInverted) {
-      if (!car._prevAirRollRight) {
-        car.input.airRollRight = true;
-      } else {
-        car.input.airRollRight = false;
-      }
+  // Inverted air roll alignment - keep car upright unless explicitly requested
+  const targetInverted = !!desiredInverted;
+  if (targetInverted !== !!car.airRollInverted) {
+    if (!car._prevAirRollRight) {
+      car.input.airRollRight = true;
     } else {
       car.input.airRollRight = false;
-      car.input.airRollLeft = false;
     }
+  } else {
+    car.input.airRollRight = false;
+    car.input.airRollLeft = false;
   }
 
-  // Tight boost alignment: only boost when car is oriented within 0.22 radians (~12.6 degrees) of flight vector!
+  // Boost alignment: boost towards flight vector
   const angleDiff = Math.atan2(Math.sin(desiredAngle - car.angle), Math.cos(desiredAngle - car.angle));
-  const isAligned = Math.abs(angleDiff) <= 0.22;
-  const isCloseStrike = dist < 120 && Math.abs(angleDiff) <= 0.45;
+  const isAligned = Math.abs(angleDiff) <= 0.30;
+  const isCloseStrike = dist < 140 && Math.abs(angleDiff) <= 0.60;
 
   if ((isAligned || isCloseStrike) && car.boost > 0) {
     car.input.boost = true;
@@ -1164,11 +1163,11 @@ export function executeMasterBotBrain(
   // 9. WALL & KUXIR PINCH (Supercharged Wall Lasers) - handled in high-priority section 3.5
 
 
-  // 10. FLIP RESET EXECUTION & ACTIVE UNDERCARRIAGE HUNTING
+  // 10. FLIP RESET EXECUTION
   if (car.hasFlipReset) {
     const shootAngle = Math.atan2((oppGoal.yMin || 380) + 32 - ball.y, oppGoalX - ball.x);
     z.action = "flip_reset_dunk";
-    if (distToBall < contactDist + 26) {
+    if (distToBall < contactDist + 30) {
       startBotJumpSeq(car, "dodge", Math.cos(shootAngle), Math.sin(shootAngle) * 0.85);
       if (evtObj && Math.random() < 0.8) evtObj.chatMessage = "🌟 RESET DUNK! 💥";
       return;
@@ -1176,11 +1175,6 @@ export function executeMasterBotBrain(
       botDriveAir(car, ball.x, ball.y, env, 0.25, false, shootAngle);
       return;
     }
-  } else if (!car.isGrounded && car.jumpCount === 1 && ball.y < env.k - 160 && car.boost > 10 && distToBall < 340 && (car.x - ball.x) * teamDir < 0) {
-    // Active Flip Reset Hunting: Position undercarriage (wheels) directly onto ball underside!
-    z.action = "hunting_reset";
-    botDriveAir(car, ball.x - teamDir * 6, ball.y + specs.halfH + 6, env, 0.22, true);
-    return;
   }
 
   // 11. AIR DRIBBLE CARRY
@@ -1228,24 +1222,24 @@ export function executeMasterBotBrain(
     // Drive with true bumper intercept target (NEVER overrides to ball.x!)
     botDriveGround(car, targetX, true, false, env);
 
-    if (intercept.isAerial && ball.y < env.k - 110) {
-      // High Aerial Launch
+    if (intercept.isAerial && ball.y < env.k - 170 && intercept.y < env.k - 170 && car.boost >= 12) {
+      // High Aerial Launch: Only for genuinely elevated balls with adequate boost
       const hClimb = Math.max(0, car.y - intercept.y);
-      const climbSpeed = env.isLegacy ? (car.boost > 6 ? 840 : 540) : (car.boost > 6 ? 680 : 420);
+      const climbSpeed = env.isLegacy ? 840 : 680;
       const climbT = 0.10 + hClimb / climbSpeed;
       const horizDist = Math.abs(car.x - targetX);
       const maxLaunchDist = Math.max(90, Math.abs(car.vx) * climbT + specs.halfW + 70);
-      if (car.canJump && !car.isFlipping && intercept.t <= climbT + 0.18 && horizDist <= maxLaunchDist && car.boost > 5) {
+      if (car.canJump && !car.isFlipping && intercept.t <= climbT + 0.18 && horizDist <= maxLaunchDist) {
         startBotJumpSeq(car, "fast_aerial");
       }
     } else if (intercept.isFloating || ball.y < env.k - 38) {
       // Floating / Waist-high bouncing ball: PRECISION JUMP STRIKE (Never whiffs underneath!)
       const vClose = Math.max(120, (car.vx - ball.vx) * teamDir);
-      const strikeTriggerDist = contactDist + Math.min(55, Math.max(20, vClose * 0.045));
+      const strikeTriggerDist = contactDist + Math.min(55, Math.max(25, vClose * 0.045));
       const isApproachingBall = ballRel > 0;
 
       if (isApproachingBall && distToBall <= strikeTriggerDist && car.canJump && !car.isFlipping) {
-        if (distToBall <= contactDist + 16) {
+        if (distToBall <= contactDist + 20) {
           // Instant dodge flip directly into the ball
           startBotJumpSeq(car, "dodge", cosShoot, Math.min(-0.20, sinShoot * 0.85));
         } else {
@@ -1270,8 +1264,9 @@ export function executeMasterBotBrain(
     }
     // Fly directly to strike target for bumper alignment with smooth corner aiming
     botDriveAir(car, targetX, targetY, env, intercept.t, false, shootAngle);
-    if (distToBall <= contactDist + 24 && (car.jumpCount === 1 || car.hasFlipReset)) {
-      startBotJumpSeq(car, "dodge", cosShoot, sinShoot * 0.85);
+    const canAirDodge = car.jumpCount === 1 || car.hasFlipReset || (car.canJump && !car.isGrounded);
+    if (distToBall <= contactDist + 32 && canAirDodge && !car.isFlipping) {
+      startBotJumpSeq(car, "dodge", cosShoot, Math.min(-0.15, sinShoot * 0.85));
     }
   }
 }

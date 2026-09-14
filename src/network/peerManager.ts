@@ -116,7 +116,7 @@ export class PeerNetworkManager {
       duration: initialSettings?.duration || 180,
       fillBots: initialSettings?.fillBots ?? true,
       botDifficulty: initialSettings?.botDifficulty || "ssl",
-      physicsMode: initialSettings?.physicsMode || "rocket_league"
+      physicsMode: initialSettings?.physicsMode || "legacy"
     };
 
     const slots = createSlotsForMode(settings.mode, settings.botDifficulty);

@@ -473,7 +473,7 @@ const RL_PHYSICS = {
   reverseDriveSpeed: 1400, wavedashMinSpeed: 1280
 };
 
-let activePhysicsMode = "rocket_league";
+let activePhysicsMode = "legacy";
 
 export const activeCameraTransform = {
   offsetX: 0,
@@ -493,12 +493,12 @@ export const mouseWorldPos = {
   active: false
 };
 
-// Dynamic physics constants (synced with activePhysicsMode)
-let pv=720,Ph=720,Dh=.998,wh=.985,Uh=.995,xv=460,Tv=725,bv=750,Hh=1450,ju=1000,Sv=1100,Nv=1350,Mv=33.3,cc=400,Gh=320,Ev=.2,Bh=440,qh=.45,_v=1.35,Av=6.0;
+// Dynamic physics constants (synced with activePhysicsMode - default legacy/original)
+let pv=1050,Ph=850,Dh=.998,wh=.985,Uh=.995,xv=650,Tv=840,bv=1250,Hh=1500,ju=1000,Sv=1600,Nv=2600,Mv=33.3,cc=520,Gh=400,Ev=.2,Bh=600,qh=.45,_v=1.35,Av=6.2;
 
 function syncPhysicsGlobals(mode: string) {
-  activePhysicsMode = mode || "rocket_league";
-  const c = activePhysicsMode === "legacy" ? LEGACY_PHYSICS : RL_PHYSICS;
+  activePhysicsMode = mode || "legacy";
+  const c = activePhysicsMode === "rocket_league" ? RL_PHYSICS : LEGACY_PHYSICS;
   pv = c.pv; Ph = c.Ph; Dh = c.Dh; wh = c.wh; Uh = c.Uh;
   xv = c.xv; Tv = c.Tv; bv = c.bv; Hh = c.Hh; ju = c.ju;
   Sv = c.Sv; Nv = c.Nv; Mv = c.Mv; cc = c.cc; Gh = c.Gh;
@@ -2371,7 +2371,7 @@ function Uv_legacy(u: any, f: any, r: number, s: any) {
   }
 }
 
-function jv(u: any, f: any, r: any, s: any, y = !1, physicsMode = "rocket_league") {
+function jv(u: any, f: any, r: any, s: any, y = !1, physicsMode = "legacy") {
   const m = { goalScored: null, demoEvents: [], newParticles: [], mechanicEvents: [], boostPickups: [] };
   if (y || s <= 0) return m;
   const isLegacy = (physicsMode || activePhysicsMode) === "legacy";
@@ -8548,7 +8548,7 @@ const a2 = ({
   matchState: y,
   gameMode: m,
   botDifficulty: g,
-  physicsMode: pMode = "rocket_league",
+  physicsMode: pMode = "legacy",
   currentMap = "standard",
   isPaused: p,
   onTogglePause: A,
@@ -9718,16 +9718,6 @@ const f2 = ({ isOpen: u, settings: f, onUpdateSettings: r, onClose: s, onApplyAn
                   className: "grid grid-cols-1 sm:grid-cols-2 gap-2.5",
                   children: [
                     {
-                      id: "rocket_league",
-                      name: "Rocket League Pro",
-                      badge: "Realistic & Dribbling",
-                      color: "text-sky-400",
-                      bg: "bg-sky-950/40",
-                      border: "border-sky-500/70",
-                      desc: "Authentic Rocket League pacing and mechanics: unified 720 gravity, smooth ground push dribbling, sticky roof ball carries, and high-velocity flicks.",
-                      features: ["Roof Carry Dribble", "45° & Musty Flicks", "Smooth Ground Roll", "Unified 720 Gravity", "Pro Speed Scaling"]
-                    },
-                    {
                       id: "legacy",
                       name: "Classic / Arcade",
                       badge: "Original",
@@ -9736,9 +9726,19 @@ const f2 = ({ isOpen: u, settings: f, onUpdateSettings: r, onClose: s, onApplyAn
                       border: "border-amber-500/70",
                       desc: "Exact original fast-paced arcade physics: high bounce turf (0.76 restitution), front bumper pop kicks, high car speeds (650/1250 px/s), and extreme pinches.",
                       features: ["Original 850/1050 Gravity", "Bumper Pop Launches", "Fast Paced (1250 Boost)", "Original Arena Bounces", "Extreme Pinches"]
+                    },
+                    {
+                      id: "rocket_league",
+                      name: "Rocket League Pro",
+                      badge: "Realistic & Dribbling",
+                      color: "text-sky-400",
+                      bg: "bg-sky-950/40",
+                      border: "border-sky-500/70",
+                      desc: "Authentic Rocket League pacing and mechanics: unified 720 gravity, smooth ground push dribbling, sticky roof ball carries, and high-velocity flicks.",
+                      features: ["Roof Carry Dribble", "45° & Musty Flicks", "Smooth Ground Roll", "Unified 720 Gravity", "Pro Speed Scaling"]
                     }
                   ].map(p => {
-                    const active = (f.physicsMode || "rocket_league") === p.id;
+                    const active = (f.physicsMode || "legacy") === p.id;
                     return d.jsxs("button", {
                       key: p.id,
                       onClick: () => r({ ...f, physicsMode: p.id }),
@@ -11686,7 +11686,7 @@ function r2(){
   st.useEffect(()=>{const onFullChange=()=>setIsFullscreen(!!document.fullscreenElement);document.addEventListener("fullscreenchange",onFullChange);document.addEventListener("webkitfullscreenchange",onFullChange);return()=>{document.removeEventListener("fullscreenchange",onFullChange);document.removeEventListener("webkitfullscreenchange",onFullChange);};},[]);
   const getInitialSettings = () => {
     let savedMode = "1v1";
-    let savedPhysics = "rocket_league";
+    let savedPhysics = "legacy";
     let savedCar = "octane";
     let savedShowHitbox = false;
     let savedMap = "standard";
@@ -11700,8 +11700,9 @@ function r2(){
       const urlParams = new URLSearchParams(window.location.search);
       const urlMode = urlParams.get("mode");
       if (urlMode && ["1v1", "2v2", "3v3", "training", "bot_vs_bot", "spectator_2v2", "spectator_3v3"].includes(urlMode)) savedMode = urlMode;
-      const p = localStorage.getItem("rl_physics_mode");
+      const p = localStorage.getItem("rl_physics_mode_v2");
       if (p === "legacy" || p === "rocket_league") savedPhysics = p;
+      else savedPhysics = "legacy";
       const c = localStorage.getItem("rl_selected_car");
       if (c && CAR_DEFINITIONS[c]) savedCar = c;
       const hb = localStorage.getItem("rl_show_hitbox");
@@ -11768,7 +11769,7 @@ function r2(){
     try {
       if (newSettings) {
         if (newSettings.physicsMode) {
-          localStorage.setItem("rl_physics_mode", newSettings.physicsMode);
+          localStorage.setItem("rl_physics_mode_v2", newSettings.physicsMode);
         }
         if (newSettings.selectedMap) {
           localStorage.setItem("rl_selected_map", newSettings.selectedMap);
@@ -11846,7 +11847,7 @@ function r2(){
     });
   }, []);
   st.useEffect(() => {
-    syncPhysicsGlobals(f.physicsMode || "rocket_league");
+    syncPhysicsGlobals(f.physicsMode || "legacy");
   }, [f.physicsMode]);
   st.useEffect(() => {
     syncMapGlobals(f.selectedMap || "standard");
@@ -12093,7 +12094,7 @@ function r2(){
     const isMulti = peerNetwork.isConnected && peerNetwork.roomState?.status === "in_game";
     const targetMap = isMulti ? (peerNetwork.roomState?.settings.arena || f.selectedMap || "standard") : (f.selectedMap || "standard");
     const targetDuration = isMulti ? (peerNetwork.roomState?.settings.duration || f.matchDuration) : f.matchDuration;
-    const targetPhysics = isMulti ? (peerNetwork.roomState?.settings.physicsMode || f.physicsMode || "rocket_league") : (f.physicsMode || "rocket_league");
+    const targetPhysics = isMulti ? (peerNetwork.roomState?.settings.physicsMode || f.physicsMode || "legacy") : (f.physicsMode || "legacy");
     syncMapGlobals(targetMap);
     syncPhysicsGlobals(targetPhysics);
     Gt.current = bt(f.mode, f.botDifficulty, f.selectedCar || "octane", pilotMode);
@@ -12247,7 +12248,7 @@ st.useEffect(()=>{
   peerNetwork.onGameStart = (roomState: any) => {
     setIsMultiplayerOpen(false);
     const targetMap = roomState.settings?.arena || "standard";
-    const targetPhysics = roomState.settings?.physicsMode || "rocket_league";
+    const targetPhysics = roomState.settings?.physicsMode || "legacy";
     syncMapGlobals(targetMap);
     syncPhysicsGlobals(targetPhysics);
     setDvr({ active: false, offsetSec: 0, isPlaying: false, speed: 1 });

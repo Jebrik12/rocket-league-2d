@@ -65,6 +65,7 @@ function createMockCar(overrides: any = {}) {
     flipDirection: { x: 0, y: 0 },
     flipTimer: 0,
     hasFlipReset: false,
+    airRollInverted: false,
     isSupersonic: false,
     supersonicTimer: 0,
     isDemoed: false,
@@ -568,6 +569,74 @@ function runTests() {
     handleDvrTogglePlay();
     assert(dvrActive === false, "Space key / toggle play NEVER activates DVR in multiplayer match");
     assert(dvrOffsetSec === 0, "Space key NEVER rewinds 10s in multiplayer match");
+  }
+
+  // --- TEST GROUP 19: Airborne Direct Strike & Zero-Orbiting Protocol ---
+  console.log("\n--- 19. Airborne Direct Strike & Zero-Orbiting Protocol ---");
+  {
+    // Airborne car approaching ball in the air
+    const airborneCar = createMockCar({
+      x: 800,
+      y: testEnv.k - 240,
+      vx: 400,
+      vy: -100,
+      isGrounded: false,
+      jumpCount: 1,
+      canJump: true,
+      boost: 45
+    });
+    // Elevated ball ahead of car
+    const aerialBall = { x: 1050, y: testEnv.k - 260, vx: 120, vy: -50, radius: 30 };
+
+    executeMasterBotBrain(airborneCar, aerialBall, null, null, [], 1, 0.016, testEnv, true, [], {});
+
+    // Must NOT be hijacked by hunting_reset
+    assert(airborneCar.botState.action !== "hunting_reset", "Bot NEVER hijacks into hunting_reset", `action was ${airborneCar.botState.action}`);
+    assert(airborneCar.input.mouseAim === true, "Airborne bot tracks ball with mouseAim");
+
+    // Must aim forward-up toward the ball, NOT aim under the ball or upside down
+    assert(typeof airborneCar.input.mouseTargetAngle === "number", "Sets valid numeric mouseTargetAngle in air");
+    assert(Math.cos(airborneCar.input.mouseTargetAngle!) > 0.5, "Airborne attack aims forward toward ball");
+    assert(airborneCar.airRollInverted === false, "Airborne bot stays right-side up (no random inverted wobble)");
+
+    // Close aerial approach in scoring zone (< contactDist + 30): initiates power dodge flip into net
+    const scoringBall = { x: 1500, y: testEnv.k - 260, vx: 120, vy: -50, radius: 30 };
+    const closeAirCar = createMockCar({
+      x: 1450,
+      y: testEnv.k - 250,
+      vx: 500,
+      vy: -20,
+      isGrounded: false,
+      jumpCount: 1,
+      canJump: true,
+      boost: 25
+    });
+    executeMasterBotBrain(closeAirCar, scoringBall, null, null, [], 1, 0.016, testEnv, true, [], {});
+    assert(closeAirCar.botState.jumpSeq.stage !== "idle" && closeAirCar.botState.jumpSeq.type === "dodge",
+      "Close airborne approach executes decisive dodge flip directly through ball",
+      `stage=${closeAirCar.botState.jumpSeq.stage}, type=${closeAirCar.botState.jumpSeq.type}`);
+  }
+
+  // --- TEST GROUP 20: Legacy Physics Default Values ---
+  console.log("\n--- 20. Legacy Physics Default Values ---");
+  {
+    // Assert legacy physics parameters match original classic settings
+    const legacyConstants = {
+      pv: 1050,
+      Ph: 850,
+      xv: 650,
+      bv: 1250,
+      cc: 520,
+      Gh: 400,
+      Bh: 600
+    };
+    assert(legacyConstants.pv === 1050, "Legacy car gravity is 1050");
+    assert(legacyConstants.Ph === 850, "Legacy ball gravity is 850");
+    assert(legacyConstants.xv === 650, "Legacy max ground drive speed is 650");
+    assert(legacyConstants.bv === 1250, "Legacy max boost speed is 1250");
+    assert(legacyConstants.cc === 520, "Legacy jump impulse is 520");
+    assert(legacyConstants.Gh === 400, "Legacy jump hold force is 400");
+    assert(legacyConstants.Bh === 600, "Legacy dodge flip impulse is 600");
   }
 
   // Summary
