@@ -5386,7 +5386,16 @@ function kv(u: any, f: any, r: any, s: any, y: any, m: any = {}) {
 
   const ARENA_W = Kt;
   const ARENA_H = hl;
-  const baseScale = Math.min(displayW / ARENA_W, displayH / ARENA_H);
+
+  const isTouchScreen = typeof window !== "undefined" && (("ontouchstart" in window) || (navigator.maxTouchPoints > 0) || (window.matchMedia && window.matchMedia("(pointer: coarse)").matches));
+  const isLandscapeMobile = isTouchScreen && displayH < 560;
+
+  // Frame the pitch cleanly with breathing room on mobile landscape
+  const padX = isLandscapeMobile ? Math.max(16, Math.min(60, displayW * 0.04)) : 0;
+  const padY = isLandscapeMobile ? Math.max(20, Math.min(48, displayH * 0.09)) : 0;
+  const availW = displayW - padX * 2;
+  const availH = displayH - padY * 2;
+  const baseScale = Math.min(availW / ARENA_W, availH / ARENA_H);
 
   const isAutoCamEnabled = m.autoCam === true;
 
@@ -5433,8 +5442,8 @@ function kv(u: any, f: any, r: any, s: any, y: any, m: any = {}) {
 
     const isHugeMap = ARENA_W >= 3400;
     const isLargeMap = ARENA_W >= 2600;
-    const maxZoom = isHugeMap ? 1.68 : isLargeMap ? 1.58 : 1.48;
-    const minZoom = isHugeMap ? 1.08 : isLargeMap ? 1.04 : 1.00;
+    const maxZoom = isLandscapeMobile ? 1.08 : (isHugeMap ? 1.68 : isLargeMap ? 1.58 : 1.48);
+    const minZoom = isLandscapeMobile ? 1.00 : (isHugeMap ? 1.08 : isLargeMap ? 1.04 : 1.00);
 
     const speedRatio = Math.min(1, ballSpeed / 1600);
     const sepRatio = Math.min(1, separation / 900);
@@ -5493,7 +5502,7 @@ function kv(u: any, f: any, r: any, s: any, y: any, m: any = {}) {
   }
 
   const offsetX = Math.round(displayW / 2 - clampedCamX * currentScale);
-  const offsetY = Math.round(displayH / 2 - clampedCamY * currentScale);
+  const offsetY = Math.round(displayH / 2 - clampedCamY * currentScale + (isLandscapeMobile ? 10 : 0));
 
   activeCameraTransform.offsetX = offsetX;
   activeCameraTransform.offsetY = offsetY;
@@ -8774,7 +8783,8 @@ const a2 = ({
   multiplayerPing = 0,
   onOpenMultiplayer,
   onLeaveMultiplayer,
-  onOpenQuickMenu
+  onOpenQuickMenu,
+  isMobileDevice = false
 }: any) => {
   const N = Math.floor(Math.max(0, r) / 60);
   const D = Math.floor(Math.max(0, r) % 60);
@@ -8801,36 +8811,36 @@ const a2 = ({
   const mapDef = MAP_DEFINITIONS[currentMap] || MAP_DEFINITIONS.standard;
 
   return d.jsx("div", {
-    className: "absolute top-3 left-0 right-0 z-20 flex flex-col items-center pointer-events-none px-2 sm:px-4 select-none",
+    className: "absolute top-2 left-0 right-0 z-20 flex flex-col items-center pointer-events-none px-2 sm:px-4 select-none",
     children: d.jsxs("div", {
-      className: "flex items-center justify-between w-full max-w-[98vw] pointer-events-auto gap-2",
+      className: "flex items-center justify-between w-full max-w-[98vw] pointer-events-auto gap-1.5 sm:gap-2",
       children: [
-        // Left: Game Mode, Arena, & Bot Difficulty badges
+        // Left: Game Mode & Arena badges
         d.jsxs("div", {
           className: "flex items-center gap-1.5 flex-1 min-w-0 justify-start overflow-hidden",
           children: [
             d.jsxs("div", {
-              className: "flex items-center gap-1.5 bg-slate-900/90 backdrop-blur-md px-2.5 py-1.5 rounded-xl border border-slate-700/80 shadow-lg text-xs font-gaming font-bold text-slate-200 shrink-0",
+              className: "flex items-center gap-1.5 bg-slate-900/90 backdrop-blur-md px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl border border-slate-700/80 shadow-lg text-[11px] sm:text-xs font-gaming font-bold text-slate-200 shrink-0",
               children: [
-                d.jsx(Is, { className: "w-3.5 h-3.5 text-amber-400" }),
+                d.jsx(Is, { className: "w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-400" }),
                 d.jsx("span", { children: modeLabels[m] || m })
               ]
             }),
             d.jsxs("button", {
               onClick: C,
-              className: `px-2 py-1.5 rounded-xl border text-[11px] font-gaming font-bold flex items-center gap-1.5 backdrop-blur-md shadow-lg transition cursor-pointer hover:brightness-125 shrink-0 ${mapDef.badgeColor}`,
+              className: `px-2 py-1 sm:py-1.5 rounded-xl border text-[10px] sm:text-[11px] font-gaming font-bold flex items-center gap-1 sm:gap-1.5 backdrop-blur-md shadow-lg transition cursor-pointer hover:brightness-125 shrink-0 ${mapDef.badgeColor}`,
               title: `Current Arena: ${mapDef.name} (${mapDef.Kt}×${mapDef.hl}) - Click to Change Arena`,
               children: [
-                d.jsx(Layers, { className: "w-3.5 h-3.5" }),
+                d.jsx(Layers, { className: "w-3 h-3 sm:w-3.5 sm:h-3.5" }),
                 d.jsx("span", { children: mapDef.shortName })
               ]
             }),
-            m !== "training" && difficultyBadges[g] &&
+            !isMobileDevice && m !== "training" && difficultyBadges[g] &&
               d.jsx("div", {
                 className: `px-2.5 py-1.5 rounded-xl border text-xs font-gaming flex items-center gap-1 backdrop-blur-md shadow-lg shrink-0 ${difficultyBadges[g].color}`,
                 children: d.jsx("span", { children: difficultyBadges[g].text })
               }),
-            d.jsxs("div", {
+            !isMobileDevice && d.jsxs("div", {
               className: `hidden lg:flex px-2 py-1.5 rounded-xl border text-[11px] font-gaming font-bold items-center gap-1.5 backdrop-blur-md shadow-lg shrink-0 ${
                 pMode === "legacy" ? "text-amber-400 border-amber-500/50 bg-amber-950/80" : "text-sky-400 border-sky-500/50 bg-sky-950/80"
               }`,
@@ -8844,54 +8854,54 @@ const a2 = ({
 
         // Center: Tournament Scoreboard Pod (Unobstructed & Always Centered)
         d.jsx("div", {
-          className: "flex items-center justify-center shrink-0 mx-2",
+          className: "flex items-center justify-center shrink-0 mx-1 sm:mx-2",
           children: d.jsxs("div", {
             onClick: onOpenScoreboard,
             title: "Click to View Scoreboard (Tab)",
-            className: "flex items-center shadow-2xl rounded-2xl overflow-hidden border border-slate-700/80 bg-slate-950/90 backdrop-blur-md cursor-pointer hover:border-sky-400/80 transition active:scale-95",
+            className: "flex items-center shadow-2xl rounded-xl sm:rounded-2xl overflow-hidden border border-slate-700/80 bg-slate-950/90 backdrop-blur-md cursor-pointer hover:border-sky-400/80 transition active:scale-95",
             children: [
-              // Blue Score Pod (Numbers only)
+              // Blue Score Pod
               d.jsx("div", {
-                className: "flex items-center justify-center px-5 sm:px-6 py-2 bg-gradient-to-r from-sky-600 to-sky-700 text-white min-w-[65px] sm:min-w-[76px] shadow-inner",
+                className: "flex items-center justify-center px-3.5 sm:px-6 py-1 sm:py-2 bg-gradient-to-r from-sky-600 to-sky-700 text-white min-w-[48px] sm:min-w-[76px] shadow-inner",
                 children: d.jsx("span", {
-                  className: "text-2xl sm:text-3xl md:text-4xl font-gaming font-black tracking-tight drop-shadow-md",
+                  className: "text-lg sm:text-3xl md:text-4xl font-gaming font-black tracking-tight drop-shadow-md",
                   children: u
                 })
               }),
 
               // Center Clock Pod
               d.jsx("div", {
-                className: "px-4 sm:px-6 py-2 flex flex-col items-center justify-center min-w-[90px] sm:min-w-[110px] bg-slate-900/95 border-x border-slate-800",
+                className: "px-3 sm:px-6 py-1 sm:py-2 flex flex-col items-center justify-center min-w-[72px] sm:min-w-[110px] bg-slate-900/95 border-x border-slate-800",
                 children: s
                   ? d.jsxs("div", {
                       className: "flex flex-col items-center",
                       children: [
                         d.jsx("span", {
-                          className: "text-[10px] font-gaming font-black uppercase tracking-widest text-amber-400 animate-pulse",
+                          className: "text-[9px] sm:text-[10px] font-gaming font-black uppercase tracking-widest text-amber-400 animate-pulse",
                           children: "OVERTIME"
                         }),
                         d.jsxs("span", {
-                          className: "text-base sm:text-lg font-gaming font-black text-amber-300",
+                          className: "text-sm sm:text-lg font-gaming font-black text-amber-300",
                           children: ["+", X]
                         })
                       ]
                     })
                   : m === "training"
                   ? d.jsx("span", {
-                      className: "text-xs font-gaming font-black text-slate-300 tracking-widest",
+                      className: "text-[10px] sm:text-xs font-gaming font-black text-slate-300 tracking-widest",
                       children: "FREE PLAY"
                     })
                   : d.jsx("span", {
-                      className: "text-xl sm:text-2xl font-gaming font-black text-white tracking-widest",
+                      className: "text-base sm:text-2xl font-gaming font-black text-white tracking-widest",
                       children: X
                     })
               }),
 
-              // Orange Score Pod (Numbers only)
+              // Orange Score Pod
               d.jsx("div", {
-                className: "flex items-center justify-center px-5 sm:px-6 py-2 bg-gradient-to-r from-orange-600 to-orange-700 text-white min-w-[65px] sm:min-w-[76px] shadow-inner",
+                className: "flex items-center justify-center px-3.5 sm:px-6 py-1 sm:py-2 bg-gradient-to-r from-orange-600 to-orange-700 text-white min-w-[48px] sm:min-w-[76px] shadow-inner",
                 children: d.jsx("span", {
-                  className: "text-2xl sm:text-3xl md:text-4xl font-gaming font-black tracking-tight drop-shadow-md",
+                  className: "text-lg sm:text-3xl md:text-4xl font-gaming font-black tracking-tight drop-shadow-md",
                   children: f
                 })
               })
@@ -8899,13 +8909,13 @@ const a2 = ({
           })
         }),
 
-        // Right: Control Icons + Controls Help Button
+        // Right: Control Icons / Mobile Quick Menu
         d.jsxs("div", {
-          className: "flex items-center gap-1.5 flex-1 min-w-0 justify-end flex-wrap",
+          className: "flex items-center gap-1.5 flex-1 min-w-0 justify-end",
           children: [
             isMultiplayerActive ? (
               d.jsxs("div", {
-                className: "flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-900/95 border border-emerald-500/60 shadow-lg shadow-emerald-500/10 text-xs font-gaming shrink-0",
+                className: "flex items-center gap-1.5 px-2 py-1 rounded-xl bg-slate-900/95 border border-emerald-500/60 shadow-lg text-xs font-gaming shrink-0",
                 children: [
                   d.jsx("span", { className: "w-2 h-2 rounded-full bg-emerald-400 animate-pulse" }),
                   d.jsxs("button", {
@@ -8931,35 +8941,47 @@ const a2 = ({
               onOpenMultiplayer && d.jsxs("button", {
                 onClick: onOpenMultiplayer,
                 className: "flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-sky-600/30 to-emerald-600/30 hover:from-sky-600/50 hover:to-emerald-600/50 border border-sky-500/50 hover:border-emerald-400/80 text-white font-gaming font-bold text-xs shadow-lg transition cursor-pointer active:scale-95 shrink-0",
-                title: "Play Online Multiplayer (1v1, 2v2, 3v3 with Room Codes & Bot Filling)",
+                title: "Play Online Multiplayer",
                 children: [
                   d.jsx(Globe, { className: "w-3.5 h-3.5 text-sky-400" }),
                   d.jsx("span", { className: "hidden sm:inline", children: "Multiplayer" })
                 ]
               })
             ),
-            onOpenQuickMenu && d.jsxs("button", {
-              onClick: onOpenQuickMenu,
-              className: "md:hidden flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-900/95 border border-sky-500/50 hover:bg-slate-800 text-sky-400 font-gaming font-bold text-xs shadow-lg transition active:scale-95 shrink-0 cursor-pointer",
-              title: "Open Mobile Quick Menu",
-              children: [
-                d.jsx(Menu, { className: "w-4 h-4 text-sky-400" }),
-                d.jsx("span", { className: "text-white text-[11px]", children: "Menu" })
-              ]
-            }),
-            onOpenMatchHistory && d.jsx("button", {
+            (isMobileDevice && onOpenQuickMenu) ? (
+              d.jsxs("button", {
+                onClick: onOpenQuickMenu,
+                className: "flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-900/95 border border-sky-500/60 hover:bg-slate-800 text-sky-400 font-gaming font-bold text-xs shadow-lg transition active:scale-95 shrink-0 cursor-pointer",
+                title: "Open Mobile Menu",
+                children: [
+                  d.jsx(Menu, { className: "w-4 h-4 text-sky-400" }),
+                  d.jsx("span", { className: "text-white text-[11px]", children: "Menu" })
+                ]
+              })
+            ) : (
+              onOpenQuickMenu && d.jsxs("button", {
+                onClick: onOpenQuickMenu,
+                className: "md:hidden flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-900/95 border border-sky-500/50 hover:bg-slate-800 text-sky-400 font-gaming font-bold text-xs shadow-lg transition active:scale-95 shrink-0 cursor-pointer",
+                title: "Open Mobile Quick Menu",
+                children: [
+                  d.jsx(Menu, { className: "w-4 h-4 text-sky-400" }),
+                  d.jsx("span", { className: "text-white text-[11px]", children: "Menu" })
+                ]
+              })
+            ),
+            !isMobileDevice && onOpenMatchHistory && d.jsx("button", {
               onClick: onOpenMatchHistory,
               className: "hidden md:flex p-2 rounded-xl bg-slate-900/85 hover:bg-slate-800 text-sky-400 hover:text-sky-300 border border-slate-700/70 shadow-lg transition cursor-pointer shrink-0",
               title: "Match History & Replays",
               children: d.jsx(Clock, { className: "w-4 h-4 text-sky-400" })
             }),
-            openStudio && d.jsx("button", {
+            !isMobileDevice && openStudio && d.jsx("button", {
               onClick: openStudio,
               className: "hidden md:flex p-2 rounded-xl bg-slate-900/85 hover:bg-slate-800 text-amber-300 hover:text-amber-200 border border-slate-700/70 shadow-lg transition cursor-pointer shrink-0",
               title: "Open Replay & Clip Studio (Key V)",
               children: d.jsx(Film, { className: "w-4 h-4 text-amber-400" })
             }),
-            onToggleAutoCam && d.jsxs("button", {
+            !isMobileDevice && onToggleAutoCam && d.jsxs("button", {
               onClick: onToggleAutoCam,
               className: `hidden lg:flex items-center gap-1 px-2 py-1.5 rounded-xl border text-xs font-gaming font-bold backdrop-blur-md shadow-lg transition cursor-pointer shrink-0 ${
                 autoCam
@@ -8973,7 +8995,7 @@ const a2 = ({
                 d.jsx("kbd", { className: "px-1 py-0.2 text-[9px] bg-black/40 border border-white/20 rounded font-mono", children: "C" })
               ]
             }),
-            onToggleSteeringControl && d.jsxs("button", {
+            !isMobileDevice && onToggleSteeringControl && d.jsxs("button", {
               onClick: onToggleSteeringControl,
               className: `hidden lg:flex items-center gap-1 px-2 py-1.5 rounded-xl border text-xs font-gaming font-bold backdrop-blur-md shadow-lg transition cursor-pointer shrink-0 ${
                 steeringControl === "mouse"
@@ -8987,7 +9009,7 @@ const a2 = ({
                 d.jsx("kbd", { className: "px-1 py-0.2 text-[9px] bg-black/40 border border-white/20 rounded font-mono", children: "M" })
               ]
             }),
-            d.jsx("button", {
+            !isMobileDevice && d.jsx("button", {
               onClick: toggleFull,
               className: "hidden sm:flex p-2 rounded-xl bg-slate-900/85 hover:bg-slate-800 text-slate-200 hover:text-white border border-slate-700/70 shadow-lg transition cursor-pointer shrink-0",
               title: isFull ? "Exit Fullscreen (F)" : "Fullscreen (F)",
@@ -8999,19 +9021,19 @@ const a2 = ({
               title: p ? "Resume (P)" : "Pause (P)",
               children: p ? d.jsx(Hg, { className: "w-4 h-4" }) : d.jsx(wg, { className: "w-4 h-4" })
             }),
-            d.jsx("button", {
+            !isMobileDevice && d.jsx("button", {
               onClick: z,
               className: "hidden md:flex p-2 rounded-xl bg-slate-900/85 hover:bg-slate-800 text-slate-200 hover:text-white border border-slate-700/70 shadow-lg transition cursor-pointer shrink-0",
               title: "Restart Match (R)",
               children: d.jsx(im, { className: "w-4 h-4" })
             }),
-            d.jsx("button", {
+            !isMobileDevice && d.jsx("button", {
               onClick: C,
               className: "hidden md:flex p-2 rounded-xl bg-slate-900/85 hover:bg-slate-800 text-slate-200 hover:text-white border border-slate-700/70 shadow-lg transition cursor-pointer shrink-0",
               title: "Match Settings",
               children: d.jsx(cm, { className: "w-4 h-4" })
             }),
-            d.jsxs("button", {
+            !isMobileDevice && d.jsxs("button", {
               onClick: openControls,
               className: "flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-gaming font-bold text-xs shadow-lg border border-sky-400/40 transition cursor-pointer active:scale-95 shrink-0",
               title: "Controls & Mechanics Guide",
@@ -9275,10 +9297,10 @@ const u2 = ({ messages: u, onSendMessage: f }: any) => {
           : d.jsxs("button", {
               onClick: () => setIsOpen(true),
               className: "flex items-center gap-1.5 px-3 py-1.5 bg-slate-950/80 hover:bg-slate-800 text-slate-300 hover:text-white rounded-xl border border-slate-700/70 text-xs font-gaming font-bold transition shadow-lg cursor-pointer",
-              title: "Quick Chat (Press T)",
+              title: "Quick Chat",
               children: [
                 d.jsx(jg, { className: "w-3.5 h-3.5 text-sky-400" }),
-                d.jsx("span", { children: "Chat (T)" })
+                d.jsx("span", { children: "Chat" })
               ]
             })
       })
@@ -9286,86 +9308,7 @@ const u2 = ({ messages: u, onSendMessage: f }: any) => {
   });
 };
 
-const i2 = ({ playerCar: u }: any) => {
-  const [hasTouch, setHasTouch] = st.useState(false);
-  st.useEffect(() => {
-    setHasTouch("ontouchstart" in window || navigator.maxTouchPoints > 0);
-  }, []);
-
-  if (!hasTouch || !u) return null;
-  const setInput = (key: string, val: boolean) => {
-    if (u) u.input[key] = val;
-  };
-
-  return d.jsxs("div", {
-    className: "absolute inset-x-0 bottom-4 z-30 flex justify-between items-end px-6 pointer-events-none select-none",
-    children: [
-      d.jsxs("div", {
-        className: "flex flex-col items-center gap-1 pointer-events-auto",
-        children: [
-          d.jsx("button", {
-            onTouchStart: () => setInput("pitchUp", true),
-            onTouchEnd: () => setInput("pitchUp", false),
-            className: "w-14 h-12 bg-slate-900/90 active:bg-slate-700 text-white rounded-t-xl border border-slate-700 flex items-center justify-center shadow-lg active:scale-95",
-            children: d.jsx(pg, { className: "w-6 h-6" })
-          }),
-          d.jsxs("div", {
-            className: "flex gap-2",
-            children: [
-              d.jsx("button", {
-                onTouchStart: () => {
-                  setInput("steerLeft", true);
-                  setInput("throttleReverse", true);
-                },
-                onTouchEnd: () => {
-                  setInput("steerLeft", false);
-                  setInput("throttleReverse", false);
-                },
-                className: "w-14 h-14 bg-slate-900/90 active:bg-slate-700 text-white rounded-l-xl border border-slate-700 flex items-center justify-center shadow-lg active:scale-95",
-                children: d.jsx(mg, { className: "w-6 h-6" })
-              }),
-              d.jsx("button", {
-                onTouchStart: () => {
-                  setInput("steerRight", true);
-                  setInput("throttleForward", true);
-                },
-                onTouchEnd: () => {
-                  setInput("steerRight", false);
-                  setInput("throttleForward", false);
-                },
-                className: "w-14 h-14 bg-slate-900/90 active:bg-slate-700 text-white rounded-r-xl border border-slate-700 flex items-center justify-center shadow-lg active:scale-95",
-                children: d.jsx(vg, { className: "w-6 h-6" })
-              })
-            ]
-          }),
-          d.jsx("button", {
-            onTouchStart: () => setInput("pitchDown", true),
-            onTouchEnd: () => setInput("pitchDown", false),
-            className: "w-14 h-12 bg-slate-900/90 active:bg-slate-700 text-white rounded-b-xl border border-slate-700 flex items-center justify-center shadow-lg active:scale-95",
-            children: d.jsx(dg, { className: "w-6 h-6" })
-          })
-        ]
-      }),
-      d.jsxs("div", {
-        className: "flex items-center gap-4 pointer-events-auto mr-40",
-        children: [
-          d.jsxs("button", {
-            onTouchStart: () => setInput("jump", true),
-            onTouchEnd: () => setInput("jump", false),
-            className: "w-20 h-20 rounded-full bg-gradient-to-tr from-sky-600 to-sky-400 text-white font-gaming font-black text-sm uppercase shadow-xl shadow-sky-500/30 border-2 border-sky-300 flex flex-col items-center justify-center active:scale-90",
-            children: [d.jsx(bg, { className: "w-7 h-7" }), d.jsx("span", { children: "JUMP" })]
-          }),
-          d.jsxs("button", {
-            onTouchStart: () => setInput("boost", true),
-            onTouchEnd: () => setInput("boost", false),
-            className: "w-22 h-22 rounded-full bg-gradient-to-tr from-orange-600 to-amber-500 text-white font-gaming font-black text-sm uppercase shadow-2xl shadow-orange-500/40 border-2 border-amber-300 flex flex-col items-center justify-center active:scale-90",
-            children: [d.jsx(Ru, { className: "w-8 h-8 fill-amber-200 text-amber-200" }), d.jsx("span", { children: "BOOST" })]
-          })
-        ]
-      })
-    ]
-  });
-};
+const i2 = (_props: any) => null;
 
 // Skill / Mechanic Alert Banners (Removed from top-right per user request)
 const v2 = ({ alerts }: { alerts: any[] }) => null;
@@ -12710,18 +12653,18 @@ onCeilingSetup=()=>{
   ht.current.vx=isB?(isLegacy?360:300):-(isLegacy?360:300);
   ht.current.vy=isLegacy?-60:-40;
   ht.current.spin=0;
-};const isSpectator = f.mode === "bot_vs_bot" || f.mode.startsWith("spectator");return d.jsx("main",{ref:containerRef,className:"relative w-screen h-screen bg-slate-950 overflow-hidden flex items-center justify-center font-sans select-none",children:d.jsxs("div",{className:"relative w-full h-full overflow-hidden",children:[d.jsx("canvas",{ref:u,className:"absolute inset-0 w-full h-full block"}),d.jsx(a2,{blueScore:C,orangeScore:N,timeLeft:X,isOvertime:I,matchState:p,gameMode:f.mode,botDifficulty:f.botDifficulty,physicsMode:f.physicsMode,currentMap:f.selectedMap||"standard",isPaused:m,onTogglePause:()=>g(H=>!H),onOpenSettings:()=>y(!0),onResetMatch:ie,isFullscreen:isFullscreen,onToggleFullscreen:toggleFullscreen,onOpenControls:()=>setIsControlsOpen(!0),onOpenReplayStudio:handleOpenStudioFromAnywhere,autoCam:f.autoCam===true,onToggleAutoCam:toggleAutoCam,steeringControl:f.steeringControl||"keyboard",onToggleSteeringControl:toggleSteeringControl,onOpenScoreboard:()=>setIsScoreboardOpen(prev=>!prev),onOpenMatchHistory:()=>setIsMatchHistoryOpen(true),isMultiplayerActive:peerNetwork.isConnected&&peerNetwork.roomState?.status==="in_game",multiplayerRoomCode:peerNetwork.roomState?.roomCode||null,multiplayerPing:multiplayerPing,onOpenMultiplayer:()=>setIsMultiplayerOpen(true),onLeaveMultiplayer:()=>{peerNetwork.disconnect();setIsMultiplayerOpen(false);ie();},onOpenQuickMenu:()=>setIsQuickMenuOpen(true)}),
+};const isSpectator = f.mode === "bot_vs_bot" || f.mode.startsWith("spectator");const isMobileDevice = showMobileControls || isTouchDevice;return d.jsx("main",{ref:containerRef,className:"fixed inset-0 w-full h-full min-h-[100dvh] max-h-[100dvh] bg-slate-950 overflow-hidden flex items-center justify-center font-sans select-none",children:d.jsxs("div",{className:"relative w-full h-full overflow-hidden",children:[d.jsx("canvas",{ref:u,className:"absolute inset-0 w-full h-full block"}),d.jsx(a2,{blueScore:C,orangeScore:N,timeLeft:X,isOvertime:I,matchState:p,gameMode:f.mode,botDifficulty:f.botDifficulty,physicsMode:f.physicsMode,currentMap:f.selectedMap||"standard",isPaused:m,onTogglePause:()=>g(H=>!H),onOpenSettings:()=>y(!0),onResetMatch:ie,isFullscreen:isFullscreen,onToggleFullscreen:toggleFullscreen,onOpenControls:()=>setIsControlsOpen(!0),onOpenReplayStudio:handleOpenStudioFromAnywhere,autoCam:f.autoCam===true,onToggleAutoCam:toggleAutoCam,steeringControl:f.steeringControl||"keyboard",onToggleSteeringControl:toggleSteeringControl,onOpenScoreboard:()=>setIsScoreboardOpen(prev=>!prev),onOpenMatchHistory:()=>setIsMatchHistoryOpen(true),isMultiplayerActive:peerNetwork.isConnected&&peerNetwork.roomState?.status==="in_game",multiplayerRoomCode:peerNetwork.roomState?.roomCode||null,multiplayerPing:multiplayerPing,onOpenMultiplayer:()=>setIsMultiplayerOpen(true),onLeaveMultiplayer:()=>{peerNetwork.disconnect();setIsMultiplayerOpen(false);ie();},onOpenQuickMenu:()=>setIsQuickMenuOpen(true),isMobileDevice:isMobileDevice}),
 isPortrait&&isTouchDevice&&!dismissPortrait&&d.jsxs("div",{className:"absolute top-16 left-1/2 -translate-x-1/2 z-45 w-[92%] max-w-sm px-3.5 py-2.5 rounded-2xl bg-slate-900/95 border border-amber-500/60 shadow-2xl backdrop-blur-md flex items-center justify-between gap-2.5 text-amber-200 animate-fade-in pointer-events-auto",children:[d.jsxs("div",{className:"flex items-center gap-2",children:[d.jsx(RotateCw,{className:"w-4 h-4 text-amber-400 shrink-0 animate-spin-slow"}),d.jsxs("span",{className:"text-xs font-sans font-medium text-amber-100",children:["Rotate device to ",d.jsx("strong",{className:"text-amber-300",children:"Landscape"})," for best view!"]})]}),d.jsx("button",{onClick:()=>setDismissPortrait(true),className:"px-2 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold text-[11px] shrink-0 cursor-pointer",children:"Got it"})]}),
 showMobileControls&&d.jsx(MobileControlsOverlay,{onInputChange:handleTouchInputChange,activeBoost:B?.boost??100,hasFlipReset:!!B?.hasFlipReset,isGrounded:!!B?.isGrounded,isSpectator:isSpectator,visible:!m&&p!=="ended"&&!goalReplayUI?.active&&!dvr.active}),
 d.jsx(MobileQuickMenu,{isOpen:isQuickMenuOpen,onClose:()=>setIsQuickMenuOpen(false),isPaused:m,onTogglePause:()=>g(H=>!H),onResetMatch:ie,isFullscreen:isFullscreen,onToggleFullscreen:toggleFullscreen,isAudioMuted:!f.soundEnabled,onToggleAudioMute:()=>handleUpdateSettings({...f,soundEnabled:!f.soundEnabled}),autoCam:f.autoCam===true,onToggleAutoCam:toggleAutoCam,steeringControl:f.steeringControl||"keyboard",onToggleSteeringControl:toggleSteeringControl,onOpenMultiplayer:()=>setIsMultiplayerOpen(true),onOpenSettings:()=>y(!0),onOpenControls:()=>setIsControlsOpen(!0),onOpenMatchHistory:()=>setIsMatchHistoryOpen(true),onOpenReplayStudio:handleOpenStudioFromAnywhere,isSpectator:isSpectator,isMultiplayerActive:peerNetwork.isConnected&&peerNetwork.roomState?.status==="in_game",multiplayerRoomCode:peerNetwork.roomState?.roomCode||null}),
 d.jsx(u2,{messages:J,onSendMessage:H=>x(H,pilotName,"blue")}),d.jsx(s2,{jumpKey:f.jumpKey,isOpen:isControlsOpen,onClose:()=>setIsControlsOpen(!1)}),
 d.jsx(ScoreboardModal,{isOpen:isScoreboardOpen,onClose:()=>setIsScoreboardOpen(false),cars:Gt.current,blueScore:C,orangeScore:N,gameMode:f.mode,arenaName:(activeMapDef||MAP_DEFINITIONS[f.selectedMap||"standard"]||MAP_DEFINITIONS.standard).name}),
 d.jsx(MatchHistoryModal,{isOpen:isMatchHistoryOpen,onClose:()=>setIsMatchHistoryOpen(false),onWatchReplay:handleWatchPastReplay}),
-d.jsx(MultiplayerModal,{isOpen:isMultiplayerOpen,onClose:()=>setIsMultiplayerOpen(false),onStartMatch:()=>{setIsMultiplayerOpen(false);ie();},playerCarModel:f.selectedCar||"octane",onSelectCarModel:(cm:string)=>handleUpdateSettings({...f,selectedCar:cm}),currentMap:f.selectedMap||"standard",onPlayerNameChange:handleUpdatePilotName}),!isSpectator&&d.jsxs("div",{className:"absolute bottom-3 left-4 z-20 pointer-events-none hidden md:flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-slate-950/70 border border-slate-800/80 text-[11px] font-medium text-slate-300 backdrop-blur-sm shadow-md",children:[d.jsxs("div",{className:"flex items-center gap-1",children:[d.jsx("kbd",{className:"px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-sky-300 font-bold text-[10px]",children:"W A S D"}),d.jsx("span",{children:"Drive"})]}),d.jsx("span",{className:"text-slate-600",children:"•"}),d.jsxs("div",{className:"flex items-center gap-1",children:[d.jsx("kbd",{className:"px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-amber-300 font-bold text-[10px]",children:"Q / E"}),d.jsx("span",{children:"Air Roll (180° Flip)"})]}),d.jsx("span",{className:"text-slate-600",children:"•"}),d.jsxs("div",{className:"flex items-center gap-1",children:[d.jsx("kbd",{className:"px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-sky-300 font-bold text-[10px]",children:f.jumpKey==="rmb"?"RMB / Space":"Space"}),d.jsx("span",{children:"Jump"})]}),d.jsx("span",{className:"text-slate-600",children:"•"}),d.jsxs("div",{className:"flex items-center gap-1",children:[d.jsx("kbd",{className:"px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-amber-300 font-bold text-[10px]",children:"Shift / LMB"}),d.jsx("span",{children:"Boost"})]}),d.jsx("span",{className:"text-slate-600",children:"•"}),d.jsxs("div",{className:"flex items-center gap-1",children:[d.jsx("kbd",{className:"px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-amber-300 font-bold text-[10px]",children:"H"}),d.jsx("span",{children:"Hitbox"})]}),d.jsx("span",{className:"text-slate-600",children:"•"}),d.jsxs("div",{className:"flex items-center gap-1",children:[d.jsx("kbd",{className:"px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-purple-300 font-bold text-[10px]",children:"C"}),d.jsx("span",{children:"Auto Cam"})]}),d.jsx("span",{className:"text-slate-600",children:"•"}),d.jsxs("div",{className:"flex items-center gap-1 cursor-pointer",onClick:()=>setIsScoreboardOpen(prev=>!prev),children:[d.jsx("kbd",{className:"px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-amber-300 font-bold text-[10px]",children:"Tab"}),d.jsx("span",{children:"Scoreboard"})]}),
+d.jsx(MultiplayerModal,{isOpen:isMultiplayerOpen,onClose:()=>setIsMultiplayerOpen(false),onStartMatch:()=>{setIsMultiplayerOpen(false);ie();},playerCarModel:f.selectedCar||"octane",onSelectCarModel:(cm:string)=>handleUpdateSettings({...f,selectedCar:cm}),currentMap:f.selectedMap||"standard",onPlayerNameChange:handleUpdatePilotName}),!isSpectator&&!isMobileDevice&&d.jsxs("div",{className:"absolute bottom-3 left-4 z-20 pointer-events-none hidden md:flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-slate-950/70 border border-slate-800/80 text-[11px] font-medium text-slate-300 backdrop-blur-sm shadow-md",children:[d.jsxs("div",{className:"flex items-center gap-1",children:[d.jsx("kbd",{className:"px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-sky-300 font-bold text-[10px]",children:"W A S D"}),d.jsx("span",{children:"Drive"})]}),d.jsx("span",{className:"text-slate-600",children:"•"}),d.jsxs("div",{className:"flex items-center gap-1",children:[d.jsx("kbd",{className:"px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-amber-300 font-bold text-[10px]",children:"Q / E"}),d.jsx("span",{children:"Air Roll (180° Flip)"})]}),d.jsx("span",{className:"text-slate-600",children:"•"}),d.jsxs("div",{className:"flex items-center gap-1",children:[d.jsx("kbd",{className:"px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-sky-300 font-bold text-[10px]",children:f.jumpKey==="rmb"?"RMB / Space":"Space"}),d.jsx("span",{children:"Jump"})]}),d.jsx("span",{className:"text-slate-600",children:"•"}),d.jsxs("div",{className:"flex items-center gap-1",children:[d.jsx("kbd",{className:"px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-amber-300 font-bold text-[10px]",children:"Shift / LMB"}),d.jsx("span",{children:"Boost"})]}),d.jsx("span",{className:"text-slate-600",children:"•"}),d.jsxs("div",{className:"flex items-center gap-1",children:[d.jsx("kbd",{className:"px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-amber-300 font-bold text-[10px]",children:"H"}),d.jsx("span",{children:"Hitbox"})]}),d.jsx("span",{className:"text-slate-600",children:"•"}),d.jsxs("div",{className:"flex items-center gap-1",children:[d.jsx("kbd",{className:"px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-purple-300 font-bold text-[10px]",children:"C"}),d.jsx("span",{children:"Auto Cam"})]}),d.jsx("span",{className:"text-slate-600",children:"•"}),d.jsxs("div",{className:"flex items-center gap-1 cursor-pointer",onClick:()=>setIsScoreboardOpen(prev=>!prev),children:[d.jsx("kbd",{className:"px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-amber-300 font-bold text-[10px]",children:"Tab"}),d.jsx("span",{children:"Scoreboard"})]}),
 d.jsx("span",{className:"text-slate-600",children:"•"}),
 d.jsxs("div",{className:"flex items-center gap-1",children:[
 d.jsx("kbd",{className:`px-1.5 py-0.5 rounded border font-mono text-[10px] ${f.steeringControl === "mouse" ? "bg-emerald-950 border-emerald-500 text-emerald-300 font-bold" : "bg-slate-800 border-slate-700 text-slate-300"}`,children:"M"}),
-d.jsx("span",{className:f.steeringControl === "mouse" ? "text-emerald-300 font-bold" : "",children:f.steeringControl === "mouse" ? "Mouse Aim [ON]" : "Mouse Aim"})]})]}),d.jsx(n2,{playerCar:B}),f.mode==="training"&&d.jsx(c2,{onResetBall:R,onDribbleSetup:V,onPassToMe:Q,onHighAerialSetup:vt,onMustySetup:onMustySetup,onFlipResetSetup:onFlipResetSetup,onPinchSetup:onPinchSetup,onDoubleTapSetup:onDoubleTapSetup,onPsychoSetup:onPsychoSetup,onCeilingSetup:onCeilingSetup,infiniteBoost:Lt,onToggleInfiniteBoost:()=>Ft(H=>!H),showHitbox:f.showHitbox,onToggleHitbox:toggleHitbox,onOpenReplayStudio:handleOpenStudioFromAnywhere}),d.jsx(v2,{alerts:mechAlerts}),d.jsx(i2,{playerCar:Gt.current.find(H=>!H.isBot)||null}),d.jsx(o2,{goalInfo:Ht,kickoffCountdown:Tt}),d.jsx(GoalReplayOverlay,{replayUI:goalReplayUI,onSkip:skipGoalReplay,onSpeedToggle:handleGoalReplaySpeed,onTogglePause:handleGoalReplayTogglePause,onScrub:handleGoalReplayScrub,onStep:handleGoalReplayStep,onRestart:handleGoalReplayRestart,onOpenStudio:handleOpenStudioFromGoalReplay,onExportClip:handleExportGoalClip,isAudioMuted:isReplayAudioMuted,onToggleAudioMute:()=>setIsReplayAudioMuted(prev=>!prev),activeBadge:activeReplayBadge}),(isSpectator||dvr.active)&&!goalReplayUI?.active&&d.jsx(MatchDvrStudio,{isSpectator:isSpectator,dvrState:dvr,onTogglePlay:handleDvrTogglePlay,onScrub:handleDvrScrub,onStep:handleDvrStep,onJump:handleDvrJump,onGoLive:handleDvrGoLive,onSpeedChange:handleDvrSpeedChange,onClose:()=>setDvr({active:!1,offsetSec:0,isPlaying:!1,speed:1}),availableSeconds:getAvailableDvrSeconds(),matchEvents:matchEventsRef.current,onSeekToTime:handleSeekToTime,matchStartTime:matchStartTimeRef.current,clipRange:clipRange,onSetClipIn:handleSetClipIn,onSetClipOut:handleSetClipOut,onQuickClip:handleQuickClip,onExportClip:(format:any)=>handleExportClip(format),isAudioMuted:isReplayAudioMuted,onToggleAudioMute:()=>setIsReplayAudioMuted(prev=>!prev),activeBadge:activeReplayBadge,isCollapsed:isDvrCollapsed,onToggleCollapse:()=>setIsDvrCollapsed(prev=>!prev),autoCam:f.autoCam===true,onToggleAutoCam:toggleAutoCam,steeringControl:f.steeringControl||"keyboard",onToggleSteeringControl:toggleSteeringControl,onOpenScoreboard:()=>setIsScoreboardOpen(prev=>!prev),onOpenMatchHistory:()=>setIsMatchHistoryOpen(true)}),d.jsx(ExportProgressModal,{exportModal:exportModal,onCancel:handleCancelExport}),m&&d.jsx("div",{className:`absolute inset-0 z-35 flex flex-col items-center justify-center ${dvr.active?"bg-black/35 pointer-events-none":"bg-black/70 backdrop-blur-sm"}`,children:d.jsxs("div",{className:`bg-slate-900/95 border border-slate-700 p-6 rounded-2xl shadow-2xl flex flex-col items-center gap-3 text-center pointer-events-auto ${dvr.active?"opacity-95 scale-95 transition":null}`,children:[d.jsx("h3",{className:"text-2xl md:text-3xl font-black text-white uppercase tracking-wider",children:"MATCH PAUSED"}),d.jsxs("p",{className:"text-xs md:text-sm text-slate-300",children:["Press ",d.jsx("kbd",{className:"px-2 py-0.5 bg-slate-800 rounded border border-slate-600 font-mono text-white",children:"P"})," to resume match or open full-match replay studio"]}),d.jsxs("div",{className:"flex gap-2.5 mt-2 flex-wrap justify-center",children:[d.jsx("button",{onClick:()=>{g(!1),setDvr({active:!1,offsetSec:0,isPlaying:!1,speed:1})},className:"px-5 py-2.5 bg-sky-600 hover:bg-sky-500 text-white font-bold text-sm rounded-xl transition shadow-lg cursor-pointer",children:"Resume Match"}),d.jsxs("button",{onClick:()=>{const maxSec=Math.max(1,getAvailableDvrSeconds());setDvr({active:!0,offsetSec:Math.min(15,maxSec),isPlaying:!0,speed:1})},className:"px-4 py-2.5 bg-gradient-to-r from-amber-500/20 to-sky-500/20 hover:from-amber-500/30 hover:to-sky-500/30 text-amber-300 font-bold text-sm rounded-xl transition border border-amber-500/50 flex items-center gap-2 cursor-pointer shadow-md",children:[d.jsx(Film,{className:"w-4 h-4 text-amber-400"}),d.jsx("span",{children:"🎬 Replay & Clip Studio"})]}),d.jsx("button",{onClick:ie,className:"px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-sm rounded-xl transition border border-slate-700 cursor-pointer",children:"Restart Match"})]})]})}),p==="ended"&&!dvr.active&&!isMatchHistoryOpen&&d.jsx("div",{className:"absolute inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4",children:d.jsxs("div",{className:"bg-slate-950 border-2 border-slate-700 rounded-3xl p-8 max-w-md w-full shadow-2xl flex flex-col items-center text-center animate-fade-in text-slate-100",children:[d.jsx(Is,{className:"w-16 h-16 text-amber-400 mb-2 drop-shadow-[0_0_20px_rgba(251,191,36,0.6)]"}),d.jsx("h2",{className:"text-3xl font-black uppercase tracking-tight text-white mb-1",children:C>N?"BLUE WINS!":N>C?"ORANGE WINS!":"OVERTIME DRAW!"}),d.jsxs("div",{className:"my-5 flex items-center justify-center gap-6 px-6 py-3 rounded-2xl bg-slate-900 border border-slate-800",children:[d.jsxs("div",{className:"flex flex-col items-center",children:[d.jsx("span",{className:"text-xs font-bold text-sky-400 uppercase",children:"Blue Team"}),d.jsx("span",{className:"text-4xl font-mono font-black text-white",children:C})]}),d.jsx("span",{className:"text-2xl font-bold text-slate-500",children:":"}),d.jsxs("div",{className:"flex flex-col items-center",children:[d.jsx("span",{className:"text-xs font-bold text-orange-400 uppercase",children:"Orange Team"}),d.jsx("span",{className:"text-4xl font-mono font-black text-white",children:N})]})]}),d.jsxs("div",{className:"flex flex-col gap-2.5 w-full mt-2",children:[d.jsxs("button",{onClick:()=>{const totalSec=Math.max(1,getAvailableDvrSeconds());setDvr({active:!0,offsetSec:totalSec,isPlaying:!0,speed:1});A("playing");},className:"w-full py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-black text-sm uppercase rounded-xl shadow-lg shadow-amber-500/25 transition flex items-center justify-center gap-2 cursor-pointer",children:[d.jsx(Film,{className:"w-4 h-4 text-slate-950"}),d.jsx("span",{children:"🎬 Review Full Match & Export Clips"})]}),d.jsxs("button",{onClick:()=>setIsMatchHistoryOpen(true),className:"w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-sky-300 font-bold text-xs uppercase rounded-xl border border-sky-500/40 transition flex items-center justify-center gap-2 cursor-pointer",children:[d.jsx(Clock,{className:"w-4 h-4 text-sky-400"}),d.jsx("span",{children:"📜 Match History & Past Replays"})]}),d.jsxs("div",{className:"flex gap-3 w-full",children:[
+d.jsx("span",{className:f.steeringControl === "mouse" ? "text-emerald-300 font-bold" : "",children:f.steeringControl === "mouse" ? "Mouse Aim [ON]" : "Mouse Aim"})]})]}),!isMobileDevice&&d.jsx(n2,{playerCar:B}),f.mode==="training"&&d.jsx(c2,{onResetBall:R,onDribbleSetup:V,onPassToMe:Q,onHighAerialSetup:vt,onMustySetup:onMustySetup,onFlipResetSetup:onFlipResetSetup,onPinchSetup:onPinchSetup,onDoubleTapSetup:onDoubleTapSetup,onPsychoSetup:onPsychoSetup,onCeilingSetup:onCeilingSetup,infiniteBoost:Lt,onToggleInfiniteBoost:()=>Ft(H=>!H),showHitbox:f.showHitbox,onToggleHitbox:toggleHitbox,onOpenReplayStudio:handleOpenStudioFromAnywhere}),d.jsx(v2,{alerts:mechAlerts}),d.jsx(i2,{playerCar:Gt.current.find(H=>!H.isBot)||null}),d.jsx(o2,{goalInfo:Ht,kickoffCountdown:Tt}),d.jsx(GoalReplayOverlay,{replayUI:goalReplayUI,onSkip:skipGoalReplay,onSpeedToggle:handleGoalReplaySpeed,onTogglePause:handleGoalReplayTogglePause,onScrub:handleGoalReplayScrub,onStep:handleGoalReplayStep,onRestart:handleGoalReplayRestart,onOpenStudio:handleOpenStudioFromGoalReplay,onExportClip:handleExportGoalClip,isAudioMuted:isReplayAudioMuted,onToggleAudioMute:()=>setIsReplayAudioMuted(prev=>!prev),activeBadge:activeReplayBadge}),(isSpectator||dvr.active)&&!goalReplayUI?.active&&d.jsx(MatchDvrStudio,{isSpectator:isSpectator,dvrState:dvr,onTogglePlay:handleDvrTogglePlay,onScrub:handleDvrScrub,onStep:handleDvrStep,onJump:handleDvrJump,onGoLive:handleDvrGoLive,onSpeedChange:handleDvrSpeedChange,onClose:()=>setDvr({active:!1,offsetSec:0,isPlaying:!1,speed:1}),availableSeconds:getAvailableDvrSeconds(),matchEvents:matchEventsRef.current,onSeekToTime:handleSeekToTime,matchStartTime:matchStartTimeRef.current,clipRange:clipRange,onSetClipIn:handleSetClipIn,onSetClipOut:handleSetClipOut,onQuickClip:handleQuickClip,onExportClip:(format:any)=>handleExportClip(format),isAudioMuted:isReplayAudioMuted,onToggleAudioMute:()=>setIsReplayAudioMuted(prev=>!prev),activeBadge:activeReplayBadge,isCollapsed:isDvrCollapsed,onToggleCollapse:()=>setIsDvrCollapsed(prev=>!prev),autoCam:f.autoCam===true,onToggleAutoCam:toggleAutoCam,steeringControl:f.steeringControl||"keyboard",onToggleSteeringControl:toggleSteeringControl,onOpenScoreboard:()=>setIsScoreboardOpen(prev=>!prev),onOpenMatchHistory:()=>setIsMatchHistoryOpen(true)}),d.jsx(ExportProgressModal,{exportModal:exportModal,onCancel:handleCancelExport}),m&&d.jsx("div",{className:`absolute inset-0 z-35 flex flex-col items-center justify-center ${dvr.active?"bg-black/35 pointer-events-none":"bg-black/70 backdrop-blur-sm"}`,children:d.jsxs("div",{className:`bg-slate-900/95 border border-slate-700 p-6 rounded-2xl shadow-2xl flex flex-col items-center gap-3 text-center pointer-events-auto ${dvr.active?"opacity-95 scale-95 transition":null}`,children:[d.jsx("h3",{className:"text-2xl md:text-3xl font-black text-white uppercase tracking-wider",children:"MATCH PAUSED"}),d.jsxs("p",{className:"text-xs md:text-sm text-slate-300",children:["Press ",d.jsx("kbd",{className:"px-2 py-0.5 bg-slate-800 rounded border border-slate-600 font-mono text-white",children:"P"})," to resume match or open full-match replay studio"]}),d.jsxs("div",{className:"flex gap-2.5 mt-2 flex-wrap justify-center",children:[d.jsx("button",{onClick:()=>{g(!1),setDvr({active:!1,offsetSec:0,isPlaying:!1,speed:1})},className:"px-5 py-2.5 bg-sky-600 hover:bg-sky-500 text-white font-bold text-sm rounded-xl transition shadow-lg cursor-pointer",children:"Resume Match"}),d.jsxs("button",{onClick:()=>{const maxSec=Math.max(1,getAvailableDvrSeconds());setDvr({active:!0,offsetSec:Math.min(15,maxSec),isPlaying:!0,speed:1})},className:"px-4 py-2.5 bg-gradient-to-r from-amber-500/20 to-sky-500/20 hover:from-amber-500/30 hover:to-sky-500/30 text-amber-300 font-bold text-sm rounded-xl transition border border-amber-500/50 flex items-center gap-2 cursor-pointer shadow-md",children:[d.jsx(Film,{className:"w-4 h-4 text-amber-400"}),d.jsx("span",{children:"🎬 Replay & Clip Studio"})]}),d.jsx("button",{onClick:ie,className:"px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-sm rounded-xl transition border border-slate-700 cursor-pointer",children:"Restart Match"})]})]})}),p==="ended"&&!dvr.active&&!isMatchHistoryOpen&&d.jsx("div",{className:"absolute inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4",children:d.jsxs("div",{className:"bg-slate-950 border-2 border-slate-700 rounded-3xl p-8 max-w-md w-full shadow-2xl flex flex-col items-center text-center animate-fade-in text-slate-100",children:[d.jsx(Is,{className:"w-16 h-16 text-amber-400 mb-2 drop-shadow-[0_0_20px_rgba(251,191,36,0.6)]"}),d.jsx("h2",{className:"text-3xl font-black uppercase tracking-tight text-white mb-1",children:C>N?"BLUE WINS!":N>C?"ORANGE WINS!":"OVERTIME DRAW!"}),d.jsxs("div",{className:"my-5 flex items-center justify-center gap-6 px-6 py-3 rounded-2xl bg-slate-900 border border-slate-800",children:[d.jsxs("div",{className:"flex flex-col items-center",children:[d.jsx("span",{className:"text-xs font-bold text-sky-400 uppercase",children:"Blue Team"}),d.jsx("span",{className:"text-4xl font-mono font-black text-white",children:C})]}),d.jsx("span",{className:"text-2xl font-bold text-slate-500",children:":"}),d.jsxs("div",{className:"flex flex-col items-center",children:[d.jsx("span",{className:"text-xs font-bold text-orange-400 uppercase",children:"Orange Team"}),d.jsx("span",{className:"text-4xl font-mono font-black text-white",children:N})]})]}),d.jsxs("div",{className:"flex flex-col gap-2.5 w-full mt-2",children:[d.jsxs("button",{onClick:()=>{const totalSec=Math.max(1,getAvailableDvrSeconds());setDvr({active:!0,offsetSec:totalSec,isPlaying:!0,speed:1});A("playing");},className:"w-full py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-black text-sm uppercase rounded-xl shadow-lg shadow-amber-500/25 transition flex items-center justify-center gap-2 cursor-pointer",children:[d.jsx(Film,{className:"w-4 h-4 text-slate-950"}),d.jsx("span",{children:"🎬 Review Full Match & Export Clips"})]}),d.jsxs("button",{onClick:()=>setIsMatchHistoryOpen(true),className:"w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-sky-300 font-bold text-xs uppercase rounded-xl border border-sky-500/40 transition flex items-center justify-center gap-2 cursor-pointer",children:[d.jsx(Clock,{className:"w-4 h-4 text-sky-400"}),d.jsx("span",{children:"📜 Match History & Past Replays"})]}),d.jsxs("div",{className:"flex gap-3 w-full",children:[
   peerNetwork.isConnected&&peerNetwork.roomState?.status==="in_game"?(
     peerNetwork.role==="host"?(
       d.jsxs(st.Fragment,{children:[
