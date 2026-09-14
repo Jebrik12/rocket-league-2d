@@ -363,4 +363,80 @@ for (const mode of ["rocket_league", "legacy"] as const) {
       break;
     }
   }
+
+  // --- TEST 6: Kickoff 50/50 Power Dodge Trigger ---
+  console.log("\nTest 6: Kickoff 50/50 Power Dodge Timing");
+  const kickoffBot = createCar("blue_ko", "blue", 400, env.k - 14, "octane");
+  const koBall = createBall(1000, env.k - 30, 0, 0);
+  let koDodgeTriggered = false;
+  let koContactVx = 0;
+
+  for (let frame = 0; frame < 120; frame++) {
+    const dt = 1 / 60;
+    executeMasterBotBrain(kickoffBot, koBall, null, null, [], 1, dt, env, true, [], {});
+    stepSim(kickoffBot, koBall, env, dt);
+
+    if (kickoffBot.isFlipping || kickoffBot.botState.jumpSeq.stage === "press2") {
+      koDodgeTriggered = true;
+    }
+    if (koBall.vx > koContactVx) koContactVx = koBall.vx;
+
+    if (koBall.x > 1150) {
+      console.log(`  [PASS] Kickoff win at frame ${frame}! Dodge flip: ${koDodgeTriggered}, Ball exit vx: ${Math.round(koContactVx)} px/s`);
+      break;
+    }
+  }
+  if (koBall.x <= 1150) {
+    console.log(`  [FAIL] Kickoff did not blast ball forward. Ball X: ${Math.round(koBall.x)}, vx: ${Math.round(koContactVx)}`);
+  }
+
+  // --- TEST 7: Air Dribble Push & Lethal Dunk ---
+  console.log("\nTest 7: Air Dribble Offensive Carry & Clinical Dunk");
+  const airBot = createCar("blue_air", "blue", 1100, 460, "octane");
+  airBot.isGrounded = false;
+  airBot.jumpCount = 1;
+  airBot.vx = 320;
+  airBot.vy = -60;
+  airBot.boost = 70;
+  const airBall = createBall(1160, 450, 310, -50);
+  let airDribbled = false;
+  let airDunked = false;
+
+  for (let frame = 0; frame < 120; frame++) {
+    const dt = 1 / 60;
+    executeMasterBotBrain(airBot, airBall, null, null, [], 1, dt, env, true, [], {});
+    stepSim(airBot, airBall, env, dt);
+
+    if (airBot.botState.action === "air_dribble") airDribbled = true;
+    if (airBot.isFlipping && airBall.vx > 600) airDunked = true;
+
+    if (airBall.x > env.Mt - 40) {
+      console.log(`  [PASS] Air dribble scored at frame ${frame}! Carried: ${airDribbled}, Dunked: ${airDunked}, Exit vx: ${Math.round(airBall.vx)} px/s`);
+      break;
+    }
+  }
+  if (airBall.x <= env.Mt - 40) {
+    console.log(`  [RESULT] Air dribble finish: Ball X: ${Math.round(airBall.x)}, Carried: ${airDribbled}, Max vx: ${Math.round(airBall.vx)}`);
+  }
+
+  // --- TEST 8: Orange Team Offensive Parity ---
+  console.log("\nTest 8: Orange Team Strike on Blue Net (Parity Test)");
+  const orangeBot = createCar("orange_striker", "orange", 1400, env.k - 14, "octane", Math.PI);
+  const orangeBall = createBall(1000, env.k - 30, 0, 0);
+  let orangeGoal = false;
+
+  for (let frame = 0; frame < 180; frame++) {
+    const dt = 1 / 60;
+    executeMasterBotBrain(orangeBot, orangeBall, null, null, [], -1, dt, env, true, [], {});
+    stepSim(orangeBot, orangeBall, env, dt);
+
+    if (orangeBall.x < env.le.x + 30) {
+      orangeGoal = true;
+      console.log(`  [PASS] Orange Team Goal scored at frame ${frame}! Exit vx: ${Math.round(orangeBall.vx)} px/s`);
+      break;
+    }
+  }
+  if (!orangeGoal) {
+    console.log(`  [FAIL] Orange Team failed to score. Final Ball X: ${Math.round(orangeBall.x)}, vx: ${Math.round(orangeBall.vx)}`);
+  }
 }

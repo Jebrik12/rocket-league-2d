@@ -286,12 +286,14 @@ export function solveBestIntercept(
     const isAerial = py < env.k - 95;
     let reqTy = 0;
     if (isAerial) {
-      const minBoostNeeded = heightClimb / 36;
+      const jumpReach = 110;
+      const aerialClimb = Math.max(0, heightClimb - jumpReach);
+      const minBoostNeeded = aerialClimb / 36;
       if (car.boost < minBoostNeeded && car.isGrounded) {
         continue;
       }
       reqTy = car.isGrounded
-        ? 0.10 + heightClimb / 590
+        ? 0.08 + heightClimb / 590
         : Math.max(0.04, (heightClimb + Math.max(0, car.vy * 0.25)) / 660);
     }
 
@@ -471,11 +473,29 @@ export function updateBotJumpSeq(car: any, dt: number, env: ArenaEnv): boolean {
     } else if (s.stage === "press2") {
       // Fire dodge with precise directional vector
       car.input.jump = true;
-      car.input.throttleForward = true;
-      car.input.throttleReverse = false;
       if (car.boost > 0) car.input.boost = true;
-      car.input.steerRight = s.dodgeX > 0.15;
-      car.input.steerLeft = s.dodgeX < -0.15;
+
+      // Continuous sub-pixel aim vector support
+      car.input.mouseAim = true;
+      car.input.mouseTargetAngle = Math.atan2(s.dodgeY, s.dodgeX);
+
+      if (s.dodgeX > 0.15) {
+        car.input.steerRight = true;
+        car.input.steerLeft = false;
+        car.input.throttleForward = true;
+        car.input.throttleReverse = false;
+      } else if (s.dodgeX < -0.15) {
+        car.input.steerLeft = true;
+        car.input.steerRight = false;
+        car.input.throttleForward = false;
+        car.input.throttleReverse = true;
+      } else {
+        car.input.steerLeft = false;
+        car.input.steerRight = false;
+        car.input.throttleForward = false;
+        car.input.throttleReverse = false;
+      }
+
       car.input.pitchDown = s.dodgeY > 0.15;
       car.input.pitchUp = s.dodgeY < -0.15;
 
@@ -483,6 +503,7 @@ export function updateBotJumpSeq(car: any, dt: number, env: ArenaEnv): boolean {
         s.stage = "idle";
         s.timer = 0;
         car.input.jump = false;
+        car.input.mouseAim = false;
       }
       return true;
     }
@@ -755,15 +776,9 @@ export function executeMasterBotBrain(
       // If defender is close (< 220px) or dribble held for > 0.4s, execute flick!
       const oppClose = oppCar && Math.hypot(oppCar.x - car.x, oppCar.y - car.y) < 220;
       if (oppClose || z.dribbleTime > 0.45) {
-        if (isUnfair && Math.random() < 0.50) {
-          // Backward Musty flick
-          startBotJumpSeq(car, "dodge", -teamDir, 0.40);
-          if (Math.random() < 0.6) evtObj.chatMessage = "Musty flick! ⚡";
-        } else {
-          // 45-degree forward flick
-          startBotJumpSeq(car, "dodge", teamDir, -0.45);
-          if (Math.random() < 0.6) evtObj.chatMessage = "Flick shot! 🚀";
-        }
+        // Clinical forward flick shot into opponent goal
+        startBotJumpSeq(car, "dodge", teamDir, -0.48);
+        if (evtObj && Math.random() < 0.6) evtObj.chatMessage = "Flick shot! 🚀";
         z.dribbleTime = 0;
         return;
       }
@@ -812,34 +827,17 @@ export function executeMasterBotBrain(
     }
   }
 
-  // FLIP RESET SETUP: fly inverted under high airborne ball (strictly in midfield/offensive zone!)
+  // 10. AIR DRIBBLE: carry ball toward opponent net in flight (only when already airborne and close!)
   const ownGoalX = ownGoal.x !== undefined ? ownGoal.x : (teamDir > 0 ? env.At : env.Mt);
   const isOffensiveZone = (ball.x - ownGoalX) * teamDir > 420;
-  if (isOffensiveZone && ball.y < env.k - 200 && ball.y > env.Qt + 140 && car.boost > 16 && (isUnfair || Math.random() < 0.7)) {
-    const intercept = solveBestIntercept(car, ball, teamDir, env, oppCar, tmCar, isUnfair, 1.4);
-    if (car.isGrounded && distToBall < 300 && Math.abs(ball.vx) < 700) {
-      z.action = "flip_reset_setup";
-      botDriveGround(car, intercept.strikeTargetX, true, false, env);
-      const hClimb = Math.max(0, car.y - intercept.y);
-      const climbT = 0.10 + hClimb / 590;
-      if (car.canJump && !car.isFlipping && car.boost > 14 && intercept.t <= climbT + 0.16) {
-        startBotJumpSeq(car, "fast_aerial");
-      }
-      return;
-    }
-    if (!car.isGrounded && !car.hasFlipReset && distToBall < 240) {
-      z.action = "flip_reset_setup";
-      // Position underside towards ball
-      botDriveAir(car, ball.x, ball.y + 25, env, 0.40, true);
-      return;
-    }
-  }
-
-  // 10. AIR DRIBBLE: carry ball toward opponent net in flight (only when already airborne and close!)
-  const canAirDribble = !car.isGrounded && distToBall < 120 && ball.y < env.k - 90 && ball.y > env.Qt + 110;
-  if (isOffensiveZone && canAirDribble && car.boost > 10 && ((teamDir > 0 && ball.x < oppGoalX - 120) || (teamDir < 0 && ball.x > oppGoalX + 120))) {
+  const canAirDribble = !car.isGrounded && distToBall < 130 && ball.y < env.k - 85 && ball.y > env.Qt + 90 && ((ball.x - car.x) * teamDir > -15);
+  if (isOffensiveZone && canAirDribble && car.boost > 8 && ((teamDir > 0 && ball.x < oppGoalX - 80) || (teamDir < 0 && ball.x > oppGoalX + 80))) {
     z.action = "air_dribble";
-    executeAirDribble(car, ball, oppGoalX, (oppGoal.yMin || 380) + 45, teamDir, dt, env, evtObj);
+    let targetCornerY = (oppGoal.yMin || 380) + 45;
+    if (oppCar && !oppCar.isDemoed) {
+      targetCornerY = oppCar.y < ((oppGoal.yMin || 380) + (oppGoal.yMax || 680)) / 2 ? (oppGoal.yMax || 680) - 45 : (oppGoal.yMin || 380) + 45;
+    }
+    executeAirDribble(car, ball, oppGoalX, targetCornerY, teamDir, dt, env, evtObj, oppCar);
     return;
   }
 
@@ -874,7 +872,7 @@ export function executeMasterBotBrain(
     }
 
     // Direct drive target: when within close range, drive directly through the ball with full aggression!
-    const effectiveTargetX = distToBall < 130 ? ball.x + teamDir * 15 : targetX;
+    const effectiveTargetX = (distToBall < 130 && ballRel > 0) ? ball.x + teamDir * 35 : targetX;
     botDriveGround(car, effectiveTargetX, true, false, env);
 
     if (intercept.isAerial && ball.y < env.k - 90) {
@@ -883,8 +881,12 @@ export function executeMasterBotBrain(
       const climbT = 0.08 + hClimb / climbSpeed;
       const horizDist = Math.abs(car.x - targetX);
       const maxLaunchDist = Math.max(90, Math.abs(car.vx) * climbT + 120);
-      if (car.canJump && !car.isFlipping && car.boost > 8 && intercept.t <= climbT + 0.18 && horizDist <= maxLaunchDist) {
-        startBotJumpSeq(car, "fast_aerial");
+      if (car.canJump && !car.isFlipping && intercept.t <= climbT + 0.18 && horizDist <= maxLaunchDist) {
+        if (hClimb > 95 && car.boost > 6) {
+          startBotJumpSeq(car, "fast_aerial");
+        } else if (car.canJump) {
+          startBotJumpSeq(car, "dodge", cosShoot, Math.min(-0.25, sinShoot * 0.85));
+        }
       }
     } else {
       // Ground chip/dodge strike into net: lethal strike timed to exact hitbox contact distance
@@ -892,8 +894,12 @@ export function executeMasterBotBrain(
       const dodgeTriggerDist = contactDist + Math.min(48, Math.max(14, vClose * 0.040));
       const isApproachingBall = (ball.x - car.x) * teamDir > 0;
 
-      if (isApproachingBall && distToBall <= dodgeTriggerDist && distToBall >= contactDist - 15 && car.canJump && !car.isFlipping) {
-        startBotJumpSeq(car, "dodge", cosShoot, Math.min(-0.15, sinShoot * 0.85));
+      // Also pop into floating / waist-high bouncing balls
+      const isFloatingBall = ball.y < env.k - 40;
+      const strikeDist = isFloatingBall ? Math.max(dodgeTriggerDist, contactDist + 28) : dodgeTriggerDist;
+
+      if (isApproachingBall && distToBall <= strikeDist && distToBall >= contactDist - 20 && car.canJump && !car.isFlipping) {
+        startBotJumpSeq(car, "dodge", cosShoot, Math.min(-0.18, sinShoot * 0.85));
       }
     }
   } else {
@@ -942,8 +948,10 @@ function executeKickoff(car: any, ball: any, teamDir: number, env: ArenaEnv, isU
     car.input.handbrake = true;
   }
 
-  // Lethal contact power blast
-  if (dist <= 48 && car.canJump && !car.isFlipping) {
+  // Lethal contact power blast timed to forward dodge flip right at contact
+  const halfWidth = (car.width || 68) / 2;
+  const contactDist = halfWidth + (ball.radius || 30);
+  if (dist <= contactDist + 22 && dist >= contactDist - 25 && car.canJump && !car.isFlipping) {
     startBotJumpSeq(car, "dodge", teamDir, -0.16);
   }
 }
@@ -1231,25 +1239,35 @@ function executeAirDribble(
   teamDir: number,
   dt: number,
   env: ArenaEnv,
-  evtObj: any
+  evtObj: any,
+  oppCar?: any
 ) {
   const dist = Math.hypot(ball.x - car.x, ball.y - car.y);
+  const halfWidth = (car.width || 68) * 0.5;
+  const contactDist = halfWidth + (ball.radius || 30);
+
   if (car.isGrounded) {
-    botDriveGround(car, ball.x - teamDir * 15, true, false, env);
-    if (Math.abs(car.x - ball.x) < 80 && car.boost > 10) {
+    botDriveGround(car, ball.x - teamDir * 20, true, false, env);
+    if (Math.abs(car.x - ball.x) < 90 && car.boost > 8) {
       startBotJumpSeq(car, "fast_aerial");
     }
     return;
   }
 
-  const sweetX = ball.x - teamDir * 12;
-  const sweetY = ball.y + 18;
-  botDriveAir(car, sweetX, sweetY, env, 0.35);
+  // Push directly through lower-rear quadrant to maintain forward carry and loft
+  const sweetX = ball.x - teamDir * (halfWidth + 6);
+  const sweetY = ball.y + 4;
+  botDriveAir(car, sweetX, sweetY, env, 0.20);
 
+  // Clinical finish: trigger lethal dunk flick when closing in on net or when falling
   const goalDist = Math.abs(car.x - oppGoalX);
-  if (goalDist < 290 && dist < 82 && (car.jumpCount === 1 || car.hasFlipReset)) {
+  const isDefenderClose = oppCar && !oppCar.isDemoed && Math.hypot(oppCar.x - ball.x, oppCar.y - ball.y) < 180;
+  const isBallDropping = ball.vy > 60 || ball.y > env.k - 160;
+  const canDodge = car.jumpCount === 1 || car.hasFlipReset;
+
+  if (canDodge && dist <= contactDist + 28 && (goalDist < 580 || isDefenderClose || isBallDropping)) {
     const shootAng = Math.atan2(targetCornerY - ball.y, oppGoalX - ball.x);
-    startBotJumpSeq(car, "dodge", Math.cos(shootAng), Math.sin(shootAng) * 0.82);
+    startBotJumpSeq(car, "dodge", Math.cos(shootAng), Math.sin(shootAng) * 0.85);
     if (evtObj && Math.random() < 0.6) evtObj.chatMessage = "Air dribble dunk! 💥";
   }
 }
