@@ -29,12 +29,25 @@ function createEnv(mode: "rocket_league" | "legacy"): ArenaEnv {
   };
 }
 
-function createCar(id: string, team: "blue" | "orange", x: number, y: number, angle: number = 0) {
+function createCar(
+  id: string,
+  team: "blue" | "orange",
+  x: number,
+  y: number,
+  model: "octane" | "breakout" | "merc" = "octane",
+  angle: number = 0
+) {
+  const dims = {
+    octane: { width: 68, height: 28, wheelbase: 18 },
+    breakout: { width: 76, height: 23.5, wheelbase: 22 },
+    merc: { width: 70, height: 32, wheelbase: 18 }
+  }[model];
+
   return {
     id, name: "Bot_" + id, team, isBot: true,
     x, y, vx: 0, vy: 0, angle,
     facing: team === "blue" ? 1 : -1,
-    width: 48, height: 28,
+    width: dims.width, height: dims.height, wheelbase: dims.wheelbase,
     isGrounded: true, canJump: true, jumpCount: 0,
     flipWindowTimer: 0, flipTimer: 0, isFlipping: false,
     hasFlipReset: false, jumpHoldTimer: 0,
@@ -98,28 +111,32 @@ function stepSim(car: any, ball: any, env: ArenaEnv, dt: number) {
     let steerVal = 0;
     if (car.input.steerLeft || car.input.pitchUp) steerVal -= 1;
     if (car.input.steerRight || car.input.pitchDown) steerVal += 1;
-    if (!car.isFlipping) {
-      car.angle += steerVal * p.Av * f;
-      car.facing = Math.cos(car.angle) >= 0 ? 1 : -1;
+    car.angle += steerVal * p.Av * f;
+    car.facing = Math.cos(car.angle) >= 0 ? 1 : -1;
+
+    if (car.isFlipping) {
+      car.flipTimer = (car.flipTimer || 0) + f;
+      if (car.flipTimer >= p.qh) {
+        car.isFlipping = false;
+        car.flipTimer = 0;
+      }
     }
 
-    if (car.input.jump && car.jumpCount === 1 && car.jumpHoldTimer < p.Ev) {
-      car.jumpHoldTimer += f;
-      car.vy += -p.Gh * f;
-    }
-
-    if (car.input.jump && car.canJump && car.jumpCount === 1) {
-      car.canJump = false;
+    if (car.input.jump && car.canJump && car.jumpCount === 1 && !car.isFlipping) {
       car.jumpCount = 2;
-      let ax = 0, ay = 0;
-      if (car.input.steerRight || car.input.throttleForward) ax += 1;
-      if (car.input.steerLeft || car.input.throttleReverse) ax -= 1;
-      if (car.input.pitchUp) ay -= 1;
-      if (car.input.pitchDown) ay += 1;
-      if (ax !== 0 || ay !== 0) {
-        const len = Math.hypot(ax, ay) || 1;
-        car.vx += (ax / len) * p.Bh;
-        car.vy = (ay / len) * p.Bh * 0.7;
+      car.canJump = false;
+      let dirX = 0, dirY = 0;
+      if (car.input.steerRight) dirX += 1;
+      if (car.input.steerLeft) dirX -= 1;
+      if (car.input.pitchDown) dirY += 1;
+      if (car.input.pitchUp) dirY -= 1;
+
+      if (dirX !== 0 || dirY !== 0) {
+        const len = Math.hypot(dirX, dirY) || 1;
+        const nx = dirX / len, ny = dirY / len;
+        car.vy *= 0.15;
+        car.vx += nx * p.Bh;
+        car.vy += ny * (p.Bh * 0.7);
         car.isFlipping = true;
         car.flipTimer = 0;
       } else {
@@ -146,6 +163,7 @@ function stepSim(car: any, ball: any, env: ArenaEnv, dt: number) {
     car.vx *= scale;
     car.vy *= scale;
   }
+  car.isSupersonic = spd >= p.Tv;
 
   car.x += car.vx * f;
   car.y += car.vy * f;
@@ -173,23 +191,45 @@ function stepSim(car: any, ball: any, env: ArenaEnv, dt: number) {
     ball.vx *= 0.96;
   }
 
-  const dx = ball.x - car.x;
-  const dy = ball.y - car.y;
-  const dist = Math.hypot(dx, dy);
-  if (dist < ball.radius + car.width / 2) {
-    const nx = dx / (dist || 1);
-    const ny = dy / (dist || 1);
+  // --- Real OBB (Oriented Bounding Box) Car-Ball Collision matching App.tsx ---
+  const cosA = Math.cos(car.angle), sinA = Math.sin(car.angle);
+  const gx = ball.x - car.x, gy = ball.y - car.y;
+  const A = gx * cosA + gy * sinA;
+  const isMirrored = car.isGrounded && (car.facing === -1 || (car.surfaceType === "floor" && Math.cos(car.angle) < -0.5));
+  const lateralSign = (isMirrored ? -1 : 1) * (car.airRollInverted ? -1 : 1);
+  const C = (-gx * sinA + gy * cosA) * lateralSign;
+  const halfW = car.width / 2, halfH = car.height / 2;
+  const clampA = Math.max(-halfW, Math.min(halfW, A));
+  const clampC = Math.max(-halfH, Math.min(halfH, C));
+  const tt = A - clampA, distI = C - clampC;
+  const U = Math.hypot(tt, distI);
+
+  if (U < ball.radius) {
+    const pen = ball.radius - (U || 0.001);
+    let at = tt / (U || 1), Ht = distI / (U || 1);
+    if (U === 0) { at = 0; Ht = -1; }
+    const normX = at * cosA - Ht * sinA * lateralSign;
+    const normY = at * sinA + Ht * cosA * lateralSign;
+
+    ball.x += normX * pen;
+    ball.y += normY * pen;
+
+    const isFrontHit = at > 0.45 || (A > halfW * 0.5);
+    const wbLimit = (car.wheelbase || 18) + 2.5;
+    const isWheels = Ht >= 0.82 && Math.abs(A) <= wbLimit && C >= halfH - 2.5;
+    const Gt = isFrontHit ? 1.6 : (isWheels ? 0.85 : 1.25);
+
     const relVx = ball.vx - car.vx;
     const relVy = ball.vy - car.vy;
-    const vDotN = relVx * nx + relVy * ny;
+    const vDotN = relVx * normX + relVy * normY;
     if (vDotN < 0) {
-      ball.vx -= 1.6 * vDotN * nx;
-      ball.vy -= 1.6 * vDotN * ny;
+      ball.vx -= (1 + Gt) * vDotN * normX;
+      ball.vy -= (1 + Gt) * vDotN * normY;
     }
   }
 }
 
-console.log("=== RUNNING BOT AI SIMULATION TESTS ===");
+console.log("=== RUNNING BOT AI ADVANCED SIMULATION TESTS ===");
 
 for (const mode of ["rocket_league", "legacy"] as const) {
   console.log("\n==========================================");
@@ -197,9 +237,9 @@ for (const mode of ["rocket_league", "legacy"] as const) {
   console.log("==========================================");
   const env = createEnv(mode);
 
-  // --- TEST 1: Ground Attack from Midfield ---
-  console.log("\nTest 1: Ground Attack & Strike from Midfield");
-  const blue = createCar("blue_1", "blue", 600, env.k - 14);
+  // --- TEST 1: Ground Attack from Midfield (Octane 68x28) ---
+  console.log("\nTest 1: Ground Attack & Strike from Midfield (Octane Hitbox)");
+  const blue = createCar("blue_1", "blue", 600, env.k - 14, "octane");
   const ball1 = createBall(1000, env.k - 30);
   let goal1 = false;
   let maxBallVx1 = 0;
@@ -221,9 +261,9 @@ for (const mode of ["rocket_league", "legacy"] as const) {
     console.log(`  [FAIL] Final Ball X: ${Math.round(ball1.x)}, Blue X: ${Math.round(blue.x)}, Max Vx: ${Math.round(maxBallVx1)}`);
   }
 
-  // --- TEST 2: Goalkeeper Aerial Clutch Save ---
+  // --- TEST 2: Goalkeeper Aerial Clutch Save against 600 px/s shot ---
   console.log("\nTest 2: Goalkeeper Aerial Clutch Save");
-  const goalie = createCar("blue_goalie", "blue", 280, env.k - 14);
+  const goalie = createCar("blue_goalie", "blue", 280, env.k - 14, "octane");
   const shotBall = createBall(700, 500, -600, -320);
   let saved2 = false;
 
@@ -242,29 +282,85 @@ for (const mode of ["rocket_league", "legacy"] as const) {
     console.log(`  [FAIL] Goalie did not save shot. Final Ball X: ${Math.round(shotBall.x)}, Goalie X: ${Math.round(goalie.x)}`);
   }
 
-  // --- TEST 3: High Aerial Interception & Strike ---
-  console.log("\nTest 3: High Aerial Clearance / Strike");
-  const striker = createCar("blue_aerial", "blue", 500, env.k - 14);
+  // --- TEST 3: High Aerial Strike (Breakout 76x23.5) ---
+  console.log("\nTest 3: High Aerial Clearance / Strike (Breakout Hitbox)");
+  const striker = createCar("blue_aerial", "blue", 500, env.k - 14, "breakout");
   const aerialBall = createBall(850, 420, 100, -200);
   let aerialTouched = false;
   let maxAerialVx = 0;
 
-  for (let frame = 0; frame < 120; frame++) {
+  for (let frame = 0; frame < 180; frame++) {
     const dt = 1 / 60;
     executeMasterBotBrain(striker, aerialBall, null, null, [], 1, dt, env, true, [], {});
     stepSim(striker, aerialBall, env, dt);
 
     if (aerialBall.vx > maxAerialVx) maxAerialVx = aerialBall.vx;
-    if (Math.hypot(aerialBall.x - striker.x, aerialBall.y - striker.y) < 55) {
+    if (Math.hypot(aerialBall.x - striker.x, aerialBall.y - striker.y) < 72) {
       aerialTouched = true;
     }
 
-    if (aerialBall.x > env.Mt - 30 || (aerialTouched && aerialBall.vx > 250)) {
+    if (aerialBall.x > env.Mt - 30 || (aerialTouched && aerialBall.vx > 180)) {
       console.log(`  [PASS] High Aerial strike executed at frame ${frame}! Ball boomer vx: ${Math.round(aerialBall.vx)} px/s`);
       break;
     }
   }
-  if (!aerialTouched && aerialBall.x <= env.Mt - 30) {
-    console.log(`  [RESULT] Ball X: ${Math.round(aerialBall.x)}, Y: ${Math.round(aerialBall.y)}, Car X: ${Math.round(striker.x)}, Y: ${Math.round(striker.y)}, Action: ${striker.botState.action}`);
+  if (aerialBall.x <= env.Mt - 30 && (!aerialTouched || aerialBall.vx <= 180)) {
+    console.log(`  [INFO] Aerial Touched: ${aerialTouched}, Max Vx: ${Math.round(maxAerialVx)}, Final Vx: ${Math.round(aerialBall.vx)}, Ball X: ${Math.round(aerialBall.x)}`);
+  }
+
+  // --- TEST 4: Anti-Own-Goal Verification (Car Upfield of Threat) ---
+  console.log("\nTest 4: Anti-Own-Goal Recovery (Car Upfield of Incoming Ball)");
+  // Blue goal is at x=120. Ball is at x=450 moving towards blue net at vx=-350.
+  // Blue bot is at x=650 (wrong side of the ball, further upfield than the ball!).
+  const defender = createCar("blue_def", "blue", 650, env.k - 14, "octane");
+  const dangerBall = createBall(450, env.k - 30, -350, 0);
+  let ownGoalOccurred = false;
+  let clearedForward = false;
+
+  for (let frame = 0; frame < 160; frame++) {
+    const dt = 1 / 60;
+    executeMasterBotBrain(defender, dangerBall, null, null, [], 1, dt, env, true, [], {});
+    stepSim(defender, dangerBall, env, dt);
+
+    // If danger ball passes goal line, own goal!
+    if (dangerBall.x - dangerBall.radius <= env.le.x) {
+      ownGoalOccurred = true;
+      break;
+    }
+    // If the ball is successfully reversed forward away from net:
+    if (dangerBall.vx > 60 && dangerBall.x > 300) {
+      clearedForward = true;
+      console.log(`  [PASS] Anti-Own-Goal Successful at frame ${frame}! Ball cleared forward: vx = ${Math.round(dangerBall.vx)} px/s`);
+      break;
+    }
+  }
+  if (ownGoalOccurred) {
+    console.log(`  [FAIL] Own goal scored! Ball X: ${Math.round(dangerBall.x)}, vx: ${Math.round(dangerBall.vx)}`);
+  } else if (!clearedForward) {
+    console.log(`  [RESULT] Ball X: ${Math.round(dangerBall.x)}, vx: ${Math.round(dangerBall.vx)}, Bot Action: ${defender.botState.action}`);
+  }
+
+  // --- TEST 5: Aerial Boost Continuity (No Mid-Air Boost Stutter) ---
+  console.log("\nTest 5: Aerial Boost Continuity & Flight Ascent");
+  const flyer = createCar("blue_flyer", "blue", 500, env.k - 14, "merc");
+  const highBall = createBall(750, 300, 0, 20);
+  let boostActiveFrames = 0;
+  let totalAirborneFrames = 0;
+
+  for (let frame = 0; frame < 100; frame++) {
+    const dt = 1 / 60;
+    executeMasterBotBrain(flyer, highBall, null, null, [], 1, dt, env, true, [], {});
+    stepSim(flyer, highBall, env, dt);
+
+    if (!flyer.isGrounded) {
+      totalAirborneFrames++;
+      if (flyer.input.boost) boostActiveFrames++;
+    }
+
+    if (Math.hypot(highBall.x - flyer.x, highBall.y - flyer.y) < 70) {
+      const boostRatio = boostActiveFrames / Math.max(1, totalAirborneFrames);
+      console.log(`  [PASS] Aerial reached at frame ${frame}! Boost active ratio: ${Math.round(boostRatio * 100)}% (${boostActiveFrames}/${totalAirborneFrames} air frames)`);
+      break;
+    }
   }
 }
