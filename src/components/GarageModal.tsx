@@ -17,7 +17,12 @@ import {
   ChevronRight,
   Zap,
   Shield,
-  Layers
+  Layers,
+  Cpu,
+  Bot,
+  CheckCircle2,
+  Crosshair,
+  Gauge
 } from "lucide-react";
 import {
   CustomizationItem,
@@ -43,24 +48,41 @@ import {
   drawCustomWheel,
   drawCarTopper
 } from "../customization/customizationRenderer";
+import {
+  getBotUpgrades,
+  upgradeBotAttribute,
+  setBotArchetype,
+  setBotName,
+  getBotOverallLevel
+} from "../bot/botUpgradeStorage";
+import {
+  BotUpgradeAttribute,
+  BotArchetype,
+  ARCHETYPE_CONFIG,
+  UPGRADE_COSTS
+} from "../bot/botUpgradeTypes";
 
 interface GarageModalProps {
   isOpen: boolean;
   onClose: () => void;
   onOpenCrates: () => void;
   onLoadoutChange?: () => void;
+  initialTab?: ItemSlot | "upgrade" | "bot_upgrade";
 }
 
 export const GarageModal: React.FC<GarageModalProps> = ({
   isOpen,
   onClose,
   onOpenCrates,
-  onLoadoutChange
+  onLoadoutChange,
+  initialTab = "body"
 }) => {
   const [inventory, setInventory] = useState<PlayerInventory>(getPlayerInventory);
-  const [activeSlot, setActiveSlot] = useState<ItemSlot | "upgrade">("body");
+  const [activeSlot, setActiveSlot] = useState<ItemSlot | "upgrade" | "bot_upgrade">(initialTab);
   const [previewItem, setPreviewItem] = useState<CustomizationItem | null>(null);
   const [upgradeMsg, setUpgradeMsg] = useState<string | null>(null);
+  const [botUpgrades, setBotUpgrades] = useState(getBotUpgrades);
+  const [editingBotName, setEditingBotName] = useState(botUpgrades.botName);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const animFrameRef = useRef<number>(0);
 
@@ -68,8 +90,14 @@ export const GarageModal: React.FC<GarageModalProps> = ({
     if (isOpen) {
       setInventory(getPlayerInventory());
       setUpgradeMsg(null);
+      const bUp = getBotUpgrades();
+      setBotUpgrades(bUp);
+      setEditingBotName(bUp.botName);
+      if (initialTab) {
+        setActiveSlot(initialTab);
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, initialTab]);
 
   // Current active equipped items
   const equippedBody = ITEM_CATALOG[inventory.loadout.body] || ITEM_CATALOG.body_octane;
@@ -96,36 +124,28 @@ export const GarageModal: React.FC<GarageModalProps> = ({
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       const cx = canvas.width / 2;
-      const cy = canvas.height / 2 + 18;
-
-      // Draw futuristic metallic stage podium
-      ctx.save();
-      ctx.translate(cx, cy + 24);
+      const cy = canvas.height / 2 + 14;
 
       // Stage glow
-      const glowGrad = ctx.createRadialGradient(0, 0, 10, 0, 0, 130);
+      ctx.save();
+      ctx.translate(cx, cy + 20);
+
+      const glowGrad = ctx.createRadialGradient(0, 0, 10, 0, 0, 110);
       glowGrad.addColorStop(0, "rgba(56, 189, 248, 0.25)");
       glowGrad.addColorStop(0.7, "rgba(56, 189, 248, 0.05)");
       glowGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
       ctx.fillStyle = glowGrad;
       ctx.beginPath();
-      ctx.ellipse(0, 0, 130, 26, 0, 0, Math.PI * 2);
+      ctx.ellipse(0, 0, 110, 22, 0, 0, Math.PI * 2);
       ctx.fill();
 
       // Stage disk
       ctx.fillStyle = "#0f172a";
       ctx.strokeStyle = "#38bdf8";
-      ctx.lineWidth = 2.5;
+      ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.ellipse(0, 0, 110, 18, 0, 0, Math.PI * 2);
+      ctx.ellipse(0, 0, 95, 15, 0, 0, Math.PI * 2);
       ctx.fill();
-      ctx.stroke();
-
-      // Internal rings
-      ctx.strokeStyle = "rgba(56, 189, 248, 0.35)";
-      ctx.lineWidth = 1.2;
-      ctx.beginPath();
-      ctx.ellipse(0, 0, 75, 12, 0, 0, Math.PI * 2);
       ctx.stroke();
       ctx.restore();
 
@@ -133,59 +153,61 @@ export const GarageModal: React.FC<GarageModalProps> = ({
       ctx.save();
       ctx.translate(cx, cy);
 
-      const carW = 72;
-      const carH = 28;
+      const carW = 68;
+      const carH = 26;
       const halfW = carW / 2;
       const halfH = carH / 2;
-      const rearX = -20;
-      const frontX = 20;
-      const wheelY = 8;
-      const wheelRadius = 8.5;
+      const rearX = -18;
+      const frontX = 18;
+      const wheelY = halfH + 2;
+      const wheelRadius = 7.5;
 
-      // Boost exhaust idle flame
-      ctx.save();
-      ctx.translate(-halfW - 4, -1);
-      const boostFlameLen = 14 + Math.sin(Date.now() / 100) * 4;
-      const flameGrad = ctx.createLinearGradient(0, 0, -boostFlameLen, 0);
-      flameGrad.addColorStop(0, equippedBoost.visualData.boostColor || "#38bdf8");
-      flameGrad.addColorStop(1, "rgba(0,0,0,0)");
-      ctx.fillStyle = flameGrad;
+      const targetBody =
+        previewItem && previewItem.slot === "body" ? previewItem : equippedBody;
+      const primaryColor = targetBody.visualData.primaryColor || "#0284c7";
+      const accentColor = targetBody.visualData.accentColor || "#38bdf8";
+
+      // Background wheel shadows
+      ctx.fillStyle = "#020617";
       ctx.beginPath();
-      ctx.moveTo(0, -3);
-      ctx.lineTo(-boostFlameLen, 0);
-      ctx.lineTo(0, 3);
-      ctx.closePath();
+      ctx.arc(rearX, wheelY - 2, wheelRadius, 0, Math.PI * 2);
+      ctx.arc(frontX, wheelY - 2, wheelRadius, 0, Math.PI * 2);
       ctx.fill();
-      ctx.restore();
 
-      // Car body silhouette
-      ctx.fillStyle = equippedBody.accentColor || "#3b82f6";
-      ctx.strokeStyle = "#1e293b";
+      // Car body chassis
+      ctx.save();
+      ctx.fillStyle = primaryColor;
+      ctx.strokeStyle = "#0f172a";
       ctx.lineWidth = 2;
+
       ctx.beginPath();
-      ctx.roundRect(-halfW, -halfH, carW, carH - 4, 6);
+      ctx.roundRect(-halfW, -halfH, carW, carH, [8, 12, 4, 4]);
       ctx.fill();
       ctx.stroke();
 
-      // Car cabin / windshield
-      ctx.fillStyle = "#020617";
+      // Cabin windshield
+      ctx.fillStyle = "#0f172a";
       ctx.beginPath();
-      ctx.moveTo(-4, -halfH + 1);
-      ctx.lineTo(16, -halfH + 1);
-      ctx.lineTo(12, -1);
-      ctx.lineTo(-8, -1);
-      ctx.closePath();
+      ctx.roundRect(-halfW + 12, -halfH - 8, carW - 24, 10, [6, 8, 0, 0]);
       ctx.fill();
 
-      // Decal overlay
+      // Tint glass
+      ctx.fillStyle = "rgba(56, 189, 248, 0.4)";
+      ctx.beginPath();
+      ctx.roundRect(-halfW + 14, -halfH - 6, carW - 28, 8, [4, 6, 0, 0]);
+      ctx.fill();
+
+      // Equipped Decal
       const targetDecal =
         previewItem && previewItem.slot === "decal" ? previewItem : equippedDecal;
-      drawCarDecal(ctx, {}, halfW, halfH, targetDecal);
+      drawCarDecal(ctx, null, halfW, halfH, targetDecal);
 
-      // Topper
+      // Equipped Topper
       const targetTopper =
         previewItem && previewItem.slot === "topper" ? previewItem : equippedTopper;
-      drawCarTopper(ctx, {}, halfW, halfH, targetTopper);
+      drawCarTopper(ctx, 0, -halfH - 8, targetTopper);
+
+      ctx.restore();
 
       // Foreground wheels
       wheelRotation += 0.04;
@@ -208,22 +230,25 @@ export const GarageModal: React.FC<GarageModalProps> = ({
 
   if (!isOpen) return null;
 
-  const totalCratesCount = Object.values(inventory.unopenedCrates).reduce((a, b) => a + b, 0);
+  const totalCratesCount: number = Object.values(inventory.unopenedCrates).reduce<number>(
+    (a, b) => a + (Number(b) || 0),
+    0
+  );
 
-  const slotTabs: { id: ItemSlot | "upgrade"; label: string; icon: React.ReactNode }[] = [
-    { id: "body", label: "Chassis", icon: <Car className="w-4 h-4" /> },
-    { id: "decal", label: "Decals", icon: <Palette className="w-4 h-4" /> },
-    { id: "wheels", label: "Wheels", icon: <Disc className="w-4 h-4" /> },
-    { id: "boost", label: "Boost", icon: <Flame className="w-4 h-4" /> },
-    { id: "goal_explosion", label: "Goal Boom", icon: <Sparkles className="w-4 h-4" /> },
-    { id: "topper", label: "Toppers", icon: <Crown className="w-4 h-4" /> },
-    { id: "title", label: "Titles", icon: <Trophy className="w-4 h-4" /> },
-    { id: "upgrade", label: "Mastery", icon: <ArrowUpCircle className="w-4 h-4" /> }
+  const slotTabs: { id: ItemSlot | "upgrade" | "bot_upgrade"; label: string; icon: React.ReactNode }[] = [
+    { id: "body", label: "Chassis", icon: <Car className="w-3.5 h-3.5" /> },
+    { id: "decal", label: "Decals", icon: <Palette className="w-3.5 h-3.5" /> },
+    { id: "wheels", label: "Wheels", icon: <Disc className="w-3.5 h-3.5" /> },
+    { id: "boost", label: "Boost", icon: <Flame className="w-3.5 h-3.5" /> },
+    { id: "goal_explosion", label: "Boom", icon: <Sparkles className="w-3.5 h-3.5" /> },
+    { id: "topper", label: "Toppers", icon: <Crown className="w-3.5 h-3.5" /> },
+    { id: "title", label: "Titles", icon: <Trophy className="w-3.5 h-3.5" /> },
+    { id: "upgrade", label: "Mastery", icon: <ArrowUpCircle className="w-3.5 h-3.5" /> },
+    { id: "bot_upgrade", label: "🤖 Bot AI", icon: <Cpu className="w-3.5 h-3.5 text-purple-400" /> }
   ];
 
-  // Filter items by active slot
   const currentSlotItems =
-    activeSlot === "upgrade"
+    activeSlot === "upgrade" || activeSlot === "bot_upgrade"
       ? []
       : Object.values(ITEM_CATALOG).filter(item => item.slot === activeSlot);
 
@@ -251,22 +276,46 @@ export const GarageModal: React.FC<GarageModalProps> = ({
     setUpgradeMsg(res.message);
   };
 
+  const handleBotAttributeUpgrade = (attr: BotUpgradeAttribute) => {
+    const res = upgradeBotAttribute(attr);
+    if (res.success) {
+      setBotUpgrades(getBotUpgrades());
+      setInventory(getPlayerInventory());
+      setUpgradeMsg(`Upgraded ${attr} to Level ${res.newLevel}!`);
+    } else {
+      setUpgradeMsg(res.error || "Upgrade failed");
+    }
+  };
+
+  const handleArchetypeSelect = (arch: BotArchetype) => {
+    setBotArchetype(arch);
+    setBotUpgrades(getBotUpgrades());
+    setUpgradeMsg(`Tactical archetype set to ${ARCHETYPE_CONFIG[arch].name}`);
+  };
+
+  const handleSaveBotName = () => {
+    setBotName(editingBotName);
+    setBotUpgrades(getBotUpgrades());
+    setUpgradeMsg(`Bot designated as "${editingBotName.trim()}"`);
+  };
+
   const upgradeCost = getCarUpgradeCost(carMastery.level);
+  const botLevel = getBotOverallLevel(botUpgrades);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-1.5 sm:p-4 animate-fade-in font-sans select-none">
-      <div className="bg-slate-950/95 border border-slate-700/80 rounded-2xl sm:rounded-3xl w-full max-w-5xl h-[94dvh] sm:h-[92vh] max-h-[840px] shadow-2xl flex flex-col overflow-hidden text-slate-100">
+      <div className="bg-slate-950/95 border border-slate-700/80 rounded-2xl sm:rounded-3xl w-full max-w-5xl h-[94dvh] sm:h-[90vh] max-h-[820px] shadow-2xl flex flex-col overflow-hidden text-slate-100">
         {/* Header Bar */}
-        <div className="p-3 sm:px-6 py-2.5 sm:py-3.5 border-b border-slate-800 flex items-center justify-between bg-slate-900/60 shrink-0 gap-2">
+        <div className="px-3 sm:px-5 py-2 sm:py-3 border-b border-slate-800 flex items-center justify-between bg-slate-900/60 shrink-0 gap-2">
           <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
             <div className="p-1.5 sm:p-2 rounded-xl bg-sky-500/20 text-sky-400 border border-sky-500/30 shrink-0">
               <Car className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
             <div className="min-w-0">
-              <h2 className="text-sm sm:text-xl font-gaming font-black tracking-wide text-white truncate">
+              <h2 className="text-xs sm:text-base font-gaming font-black tracking-wide text-white truncate">
                 GARAGE & WORKSHOP
               </h2>
-              <p className="text-[10px] sm:text-xs text-slate-400 flex items-center gap-1.5 truncate">
+              <p className="text-[10px] text-slate-400 hidden sm:flex items-center gap-1.5 truncate">
                 <span>Title:</span>
                 <span className="text-amber-400 font-bold truncate">{equippedTitle.name}</span>
               </p>
@@ -274,32 +323,32 @@ export const GarageModal: React.FC<GarageModalProps> = ({
           </div>
 
           {/* Economy & Crates Bar */}
-          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             {/* Coins Balance */}
-            <div className="flex items-center gap-1 sm:gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs font-mono font-bold text-amber-300">
-              <Coins className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400" />
-              <span>{inventory.coins.toLocaleString()} <span className="hidden sm:inline">Coins</span></span>
+            <div className="flex items-center gap-1 px-2 py-1 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[11px] sm:text-xs font-mono font-bold text-amber-300">
+              <Coins className="w-3.5 h-3.5 text-amber-400" />
+              <span>{inventory.coins.toLocaleString()} 🪙</span>
             </div>
 
             {/* Daily Bonus Button */}
             <button
               onClick={handleClaimBonus}
-              className="flex items-center gap-1 px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-yellow-500/20 hover:from-amber-500/30 text-amber-300 border border-amber-500/40 text-[11px] font-gaming font-bold transition cursor-pointer active:scale-95"
+              className="flex items-center gap-1 px-2 py-1 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-[10px] sm:text-[11px] font-gaming font-bold transition cursor-pointer active:scale-95"
               title="Claim daily bonus +500 Coins"
             >
               <Sparkles className="w-3 h-3 text-amber-400" />
-              <span>+500 🪙</span>
+              <span>+500</span>
             </button>
 
             {/* Crates Button */}
             <button
               onClick={onOpenCrates}
-              className="flex items-center gap-1 sm:gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 text-white font-gaming font-bold text-xs shadow-md transition cursor-pointer active:scale-95"
+              className="flex items-center gap-1 px-2 py-1 sm:px-2.5 sm:py-1 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 text-white font-gaming font-bold text-[11px] sm:text-xs shadow-sm transition cursor-pointer active:scale-95"
             >
-              <Package className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-300" />
-              <span className="hidden md:inline">Crates</span>
+              <Package className="w-3.5 h-3.5 text-amber-300" />
+              <span className="hidden sm:inline">Crates</span>
               {totalCratesCount > 0 && (
-                <span className="px-1.5 py-0.2 rounded-full bg-amber-400 text-slate-950 font-black text-[10px]">
+                <span className="px-1 py-0.2 rounded-full bg-amber-400 text-slate-950 font-black text-[9px]">
                   {totalCratesCount}
                 </span>
               )}
@@ -314,66 +363,77 @@ export const GarageModal: React.FC<GarageModalProps> = ({
           </div>
         </div>
 
+        {/* Notification Toast */}
+        {upgradeMsg && (
+          <div className="px-4 py-1.5 bg-sky-950/80 border-b border-sky-500/30 text-sky-200 text-xs font-gaming flex items-center justify-between shrink-0">
+            <span>{upgradeMsg}</span>
+            <button onClick={() => setUpgradeMsg(null)} className="text-slate-400 hover:text-white text-xs">
+              ✕
+            </button>
+          </div>
+        )}
+
         {/* Content Body: Left Stage + Right Catalog */}
         <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
           {/* Left: 2D Live Stage & Current Car Specs */}
-          <div className="md:w-5/12 border-b md:border-b-0 md:border-r border-slate-800/80 p-4 flex flex-col justify-between bg-gradient-to-b from-slate-950 via-slate-900/40 to-slate-950 shrink-0">
+          <div className="md:w-5/12 border-b md:border-b-0 md:border-r border-slate-800/80 p-2 sm:p-3 md:p-4 flex flex-col justify-between bg-gradient-to-b from-slate-950 via-slate-900/40 to-slate-950 shrink-0">
             <div className="flex flex-col items-center">
-              <div className="relative w-full max-w-[320px] aspect-[4/3] rounded-2xl bg-radial from-slate-900/90 to-slate-950 border border-slate-800/80 flex items-center justify-center shadow-inner overflow-hidden">
+              {/* Compact Responsive Canvas Stage */}
+              <div className="relative w-full max-w-[280px] sm:max-w-[320px] aspect-[16/9] sm:aspect-[4/3] rounded-2xl bg-radial from-slate-900/90 to-slate-950 border border-slate-800/80 flex items-center justify-center shadow-inner overflow-hidden">
                 <canvas
                   ref={canvasRef}
-                  width={320}
-                  height={240}
+                  width={300}
+                  height={200}
                   className="w-full h-full block"
                 />
 
                 {/* Equipped Badge Tag */}
-                <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-950/80 border border-slate-700/60 backdrop-blur-md text-[11px] font-gaming">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <div className="absolute top-2 left-2 flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-slate-950/80 border border-slate-700/60 backdrop-blur-md text-[10px] font-gaming">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                   <span className="font-bold text-white">{equippedBody.name}</span>
                 </div>
               </div>
 
-              {/* Quick Spec Pills */}
-              <div className="grid grid-cols-2 gap-2 w-full mt-3">
-                <div className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 text-xs flex flex-col">
-                  <span className="text-[10px] uppercase font-bold text-slate-400">Decal</span>
+              {/* Quick Spec Pills (Hidden on mobile phones to save vertical space) */}
+              <div className="hidden md:grid grid-cols-2 gap-2 w-full mt-3">
+                <div className="p-2 rounded-xl bg-slate-900/60 border border-slate-800 text-xs flex flex-col">
+                  <span className="text-[9px] uppercase font-bold text-slate-400">Decal</span>
                   <span className="font-semibold text-slate-200 truncate">{equippedDecal.name}</span>
                 </div>
-                <div className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 text-xs flex flex-col">
-                  <span className="text-[10px] uppercase font-bold text-slate-400">Wheels</span>
+                <div className="p-2 rounded-xl bg-slate-900/60 border border-slate-800 text-xs flex flex-col">
+                  <span className="text-[9px] uppercase font-bold text-slate-400">Wheels</span>
                   <span className="font-semibold text-slate-200 truncate">{equippedWheels.name}</span>
                 </div>
-                <div className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 text-xs flex flex-col">
-                  <span className="text-[10px] uppercase font-bold text-slate-400">Boost</span>
+                <div className="p-2 rounded-xl bg-slate-900/60 border border-slate-800 text-xs flex flex-col">
+                  <span className="text-[9px] uppercase font-bold text-slate-400">Boost</span>
                   <span className="font-semibold text-slate-200 truncate">{equippedBoost.name}</span>
                 </div>
-                <div className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 text-xs flex flex-col">
-                  <span className="text-[10px] uppercase font-bold text-slate-400">Topper</span>
+                <div className="p-2 rounded-xl bg-slate-900/60 border border-slate-800 text-xs flex flex-col">
+                  <span className="text-[9px] uppercase font-bold text-slate-400">Topper</span>
                   <span className="font-semibold text-slate-200 truncate">{equippedTopper.name}</span>
                 </div>
               </div>
             </div>
 
             {/* Quick Car Mastery Level Widget */}
-            <div className="mt-3 p-3 rounded-2xl bg-gradient-to-r from-amber-500/10 via-slate-900/90 to-purple-500/10 border border-amber-500/30">
-              <div className="flex items-center justify-between text-xs mb-1.5">
+            <div className="mt-2 p-2 sm:p-2.5 rounded-xl bg-gradient-to-r from-amber-500/10 via-slate-900/90 to-purple-500/10 border border-amber-500/30">
+              <div className="flex items-center justify-between text-xs mb-1">
                 <div className="flex items-center gap-1.5">
-                  <Crown className="w-4 h-4 text-amber-400" />
-                  <span className="font-gaming font-bold text-amber-300">
-                    Mastery Level {carMastery.level}
+                  <Crown className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="font-gaming font-bold text-amber-300 text-[11px]">
+                    Mastery Lvl {carMastery.level}
                   </span>
                   {carMastery.prestige > 0 && (
-                    <span className="px-1.5 py-0.2 rounded bg-purple-900 border border-purple-400 text-[10px] font-black text-purple-200">
+                    <span className="px-1 py-0.2 rounded bg-purple-900 border border-purple-400 text-[9px] font-black text-purple-200">
                       ★ P{carMastery.prestige}
                     </span>
                   )}
                 </div>
-                <span className="text-slate-400 font-mono text-[11px]">
-                  {carMastery.wins} Wins • {carMastery.goals} Goals
+                <span className="text-slate-400 font-mono text-[10px]">
+                  {carMastery.wins}W • {carMastery.goals}G
                 </span>
               </div>
-              <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+              <div className="w-full h-1 bg-slate-800 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-gradient-to-r from-amber-400 to-amber-500 rounded-full"
                   style={{ width: `${Math.min(100, (carMastery.xp % 600) / 6)}%` }}
@@ -382,10 +442,10 @@ export const GarageModal: React.FC<GarageModalProps> = ({
             </div>
           </div>
 
-          {/* Right: Category Tabs & Items Grid / Upgrade View */}
+          {/* Right: Category Tabs & Items Grid / Sub-views */}
           <div className="md:w-7/12 flex flex-col flex-1 overflow-hidden bg-slate-950/60">
             {/* Slot Tabs */}
-            <div className="flex items-center gap-1.5 p-3 border-b border-slate-800/80 overflow-x-auto no-scrollbar shrink-0 bg-slate-900/40">
+            <div className="flex items-center gap-1 p-2 sm:p-2.5 border-b border-slate-800/80 overflow-x-auto no-scrollbar shrink-0 bg-slate-900/40">
               {slotTabs.map(tab => {
                 const isActive = activeSlot === tab.id;
                 return (
@@ -395,9 +455,11 @@ export const GarageModal: React.FC<GarageModalProps> = ({
                       setActiveSlot(tab.id);
                       setPreviewItem(null);
                     }}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-gaming font-bold text-xs transition shrink-0 cursor-pointer ${
+                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl font-gaming font-bold text-xs transition shrink-0 cursor-pointer ${
                       isActive
-                        ? "bg-sky-500 text-slate-950 shadow-md shadow-sky-500/20"
+                        ? tab.id === "bot_upgrade"
+                          ? "bg-purple-500 text-slate-950 shadow-md shadow-purple-500/20 font-black"
+                          : "bg-sky-500 text-slate-950 shadow-md shadow-sky-500/20 font-black"
                         : "bg-slate-900/80 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800"
                     }`}
                   >
@@ -408,159 +470,316 @@ export const GarageModal: React.FC<GarageModalProps> = ({
               })}
             </div>
 
-            {/* Sub-view: Mastery Upgrades */}
-            {activeSlot === "upgrade" ? (
-              <div className="flex-1 p-5 overflow-y-auto space-y-4">
-                <div className="p-4 rounded-2xl bg-gradient-to-br from-amber-950/40 via-slate-900/80 to-slate-950 border border-amber-500/40">
+            {/* Sub-view 1: BOT AI LAB */}
+            {activeSlot === "bot_upgrade" && (
+              <div className="flex-1 p-3 sm:p-5 overflow-y-auto space-y-3.5">
+                {/* Bot Identity Card */}
+                <div className="p-3 sm:p-4 rounded-2xl bg-gradient-to-br from-purple-950/50 via-slate-900/90 to-slate-950 border border-purple-500/40 space-y-2.5">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 rounded-xl bg-purple-500/20 text-purple-400 border border-purple-400/40">
+                        <Bot className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="font-gaming font-black text-sm sm:text-base text-purple-200">
+                          PERSONAL BOT AI LAB
+                        </h3>
+                        <p className="text-[10px] text-slate-400">
+                          Upgrade neural stats & combat protocol with Gold Coins
+                        </p>
+                      </div>
+                    </div>
+                    <div className="px-2.5 py-1 rounded-xl bg-purple-500/20 border border-purple-400/50 text-purple-200 font-mono font-black text-xs">
+                      COMBAT LVL {botLevel} / 20
+                    </div>
+                  </div>
+
+                  {/* Name Editor */}
+                  <div className="flex items-center gap-2 pt-1">
+                    <input
+                      type="text"
+                      maxLength={16}
+                      value={editingBotName}
+                      onChange={e => setEditingBotName(e.target.value)}
+                      placeholder="Bot Designation Name"
+                      className="flex-1 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-white font-gaming text-xs focus:outline-none focus:border-purple-400"
+                    />
+                    <button
+                      onClick={handleSaveBotName}
+                      className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-gaming font-bold text-xs cursor-pointer transition active:scale-95"
+                    >
+                      Rename
+                    </button>
+                  </div>
+                </div>
+
+                {/* Tactical Archetypes */}
+                <div>
+                  <label className="text-[11px] font-gaming font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5 mb-2">
+                    <Shield className="w-3.5 h-3.5 text-purple-400" />
+                    <span>Tactical Archetype (Combat Protocol)</span>
+                  </label>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {(Object.keys(ARCHETYPE_CONFIG) as BotArchetype[]).map(arch => {
+                      const cfg = ARCHETYPE_CONFIG[arch];
+                      const isSelected = botUpgrades.tacticalArchetype === arch;
+                      return (
+                        <button
+                          key={arch}
+                          onClick={() => handleArchetypeSelect(arch)}
+                          className={`p-2.5 rounded-xl border text-left transition cursor-pointer flex flex-col justify-between ${
+                            isSelected
+                              ? "bg-purple-950/60 border-purple-400 ring-1 ring-purple-400/50 text-white shadow-md"
+                              : "bg-slate-900/60 border-slate-800 hover:border-slate-700 text-slate-300"
+                          }`}
+                        >
+                          <div>
+                            <div className={`font-gaming font-black text-xs ${cfg.color}`}>
+                              {cfg.name}
+                            </div>
+                            <p className="text-[10px] text-slate-400 mt-1 leading-tight line-clamp-2">
+                              {cfg.desc}
+                            </p>
+                          </div>
+                          <div className="mt-2 flex items-center justify-between">
+                            <span className="text-[9px] uppercase font-bold text-slate-500">{cfg.badge}</span>
+                            {isSelected && <Check className="w-3.5 h-3.5 text-purple-400" />}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 4 Upgrade Attributes */}
+                <div>
+                  <label className="text-[11px] font-gaming font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5 mb-2">
+                    <Zap className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Neural Attributes & Upgrades</span>
+                  </label>
+
+                  <div className="space-y-2">
+                    {[
+                      {
+                        id: "reactionSpeed" as BotUpgradeAttribute,
+                        title: "Reflexes & Reads",
+                        desc: "Cuts decision delay down to 10ms, improves wall reads & kickoff jump timing.",
+                        icon: <Gauge className="w-4 h-4 text-sky-400" />
+                      },
+                      {
+                        id: "boostThrift" as BotUpgradeAttribute,
+                        title: "Boost Efficiency",
+                        desc: "Conserves boost once supersonic, feathers in flight, smart pad pathing.",
+                        icon: <Flame className="w-4 h-4 text-amber-400" />
+                      },
+                      {
+                        id: "aerialFlight" as BotUpgradeAttribute,
+                        title: "Aerial & Fast Double-Jump",
+                        desc: "Fast aerial double-jumps, air-roll recovery, higher aerial commit height.",
+                        icon: <Sparkles className="w-4 h-4 text-cyan-400" />
+                      },
+                      {
+                        id: "strikerPower" as BotUpgradeAttribute,
+                        title: "Shot Accuracy & Power",
+                        desc: "Top-corner target calculation, high-impulse dodge powershots, corner pinches.",
+                        icon: <Crosshair className="w-4 h-4 text-rose-400" />
+                      }
+                    ].map(attr => {
+                      const lvl = botUpgrades[attr.id];
+                      const isMax = lvl >= 5;
+                      const nextCost = !isMax ? UPGRADE_COSTS[lvl + 1] : 0;
+                      const canAfford = inventory.coins >= nextCost;
+
+                      return (
+                        <div
+                          key={attr.id}
+                          className="p-3 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="p-2 rounded-xl bg-slate-800 text-slate-300 shrink-0">
+                              {attr.icon}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="font-gaming font-black text-xs sm:text-sm text-white truncate">
+                                  {attr.title}
+                                </span>
+                                <span className="text-[10px] font-mono font-bold text-amber-400">
+                                  LVL {lvl}/5
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-slate-400 truncate mt-0.5 max-w-sm">
+                                {attr.desc}
+                              </p>
+                              {/* 5-pip progress meter */}
+                              <div className="flex gap-1 mt-1.5">
+                                {[1, 2, 3, 4, 5].map(step => (
+                                  <div
+                                    key={step}
+                                    className={`h-1.5 w-6 rounded-full ${
+                                      step <= lvl ? "bg-purple-400 shadow-sm" : "bg-slate-800"
+                                    }`}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+
+                          <button
+                            onClick={() => handleBotAttributeUpgrade(attr.id)}
+                            disabled={isMax || !canAfford}
+                            className={`px-3 py-2 rounded-xl font-gaming font-black text-xs uppercase tracking-wider transition shrink-0 cursor-pointer ${
+                              isMax
+                                ? "bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 cursor-default"
+                                : canAfford
+                                ? "bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 shadow-md shadow-amber-500/20 active:scale-95"
+                                : "bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed"
+                            }`}
+                          >
+                            {isMax ? (
+                              <span className="flex items-center gap-1">
+                                <Check className="w-3.5 h-3.5" /> MAX
+                              </span>
+                            ) : (
+                              <span>Upgrade: {nextCost.toLocaleString()} 🪙</span>
+                            )}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Sub-view 2: Mastery Upgrades */}
+            {activeSlot === "upgrade" && (
+              <div className="flex-1 p-3 sm:p-5 overflow-y-auto space-y-3.5">
+                <div className="p-3 sm:p-4 rounded-2xl bg-gradient-to-br from-amber-950/40 via-slate-900/80 to-slate-950 border border-amber-500/40">
                   <div className="flex items-start justify-between">
                     <div>
-                      <h3 className="text-base font-gaming font-black text-amber-300 flex items-center gap-2">
-                        <Crown className="w-5 h-5 text-amber-400" />
+                      <h3 className="text-sm sm:text-base font-gaming font-black text-amber-300 flex items-center gap-2">
+                        <Crown className="w-4 h-4 text-amber-400" />
                         {equippedBody.name} Mastery Workshop
                       </h3>
-                      <p className="text-xs text-slate-400 mt-1">
-                        Level up car mastery to unlock cosmetic prestige glowing auras, title honors, and certified stat badges.
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Level up car mastery to unlock cosmetic prestige glowing auras and title honors.
                       </p>
                     </div>
-                    <div className="px-3 py-1.5 rounded-xl bg-amber-500/20 border border-amber-400/50 text-amber-300 font-black font-mono text-sm">
+                    <div className="px-2.5 py-1 rounded-xl bg-amber-500/20 border border-amber-400/50 text-amber-300 font-black font-mono text-xs sm:text-sm">
                       LVL {carMastery.level} / 50
                     </div>
                   </div>
 
-                  {/* Certified Stats Counters */}
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 mt-4">
-                    <div className="p-3 rounded-xl bg-slate-900/90 border border-slate-800 text-center">
-                      <div className="text-[10px] uppercase font-bold text-slate-400">Goals Scored</div>
-                      <div className="text-xl font-mono font-black text-sky-400 mt-0.5">{carMastery.goals}</div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
+                    <div className="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800 text-center">
+                      <div className="text-[9px] uppercase font-bold text-slate-400">Goals Scored</div>
+                      <div className="text-base sm:text-lg font-mono font-black text-sky-400 mt-0.5">
+                        {carMastery.goals}
+                      </div>
                     </div>
-                    <div className="p-3 rounded-xl bg-slate-900/90 border border-slate-800 text-center">
-                      <div className="text-[10px] uppercase font-bold text-slate-400">Epic Saves</div>
-                      <div className="text-xl font-mono font-black text-emerald-400 mt-0.5">{carMastery.saves}</div>
+                    <div className="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800 text-center">
+                      <div className="text-[9px] uppercase font-bold text-slate-400">Epic Saves</div>
+                      <div className="text-base sm:text-lg font-mono font-black text-emerald-400 mt-0.5">
+                        {carMastery.saves}
+                      </div>
                     </div>
-                    <div className="p-3 rounded-xl bg-slate-900/90 border border-slate-800 text-center">
-                      <div className="text-[10px] uppercase font-bold text-slate-400">Total Shots</div>
-                      <div className="text-xl font-mono font-black text-amber-400 mt-0.5">{carMastery.shots}</div>
+                    <div className="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800 text-center">
+                      <div className="text-[9px] uppercase font-bold text-slate-400">Total Shots</div>
+                      <div className="text-base sm:text-lg font-mono font-black text-amber-400 mt-0.5">
+                        {carMastery.shots}
+                      </div>
                     </div>
-                    <div className="p-3 rounded-xl bg-slate-900/90 border border-slate-800 text-center">
-                      <div className="text-[10px] uppercase font-bold text-slate-400">Matches Won</div>
-                      <div className="text-xl font-mono font-black text-purple-400 mt-0.5">{carMastery.wins}</div>
-                    </div>
-                    <div className="p-3 rounded-xl bg-slate-900/90 border border-slate-800 text-center">
-                      <div className="text-[10px] uppercase font-bold text-slate-400">MVP Honors</div>
-                      <div className="text-xl font-mono font-black text-rose-400 mt-0.5">{carMastery.mvps}</div>
-                    </div>
-                    <div className="p-3 rounded-xl bg-slate-900/90 border border-slate-800 text-center">
-                      <div className="text-[10px] uppercase font-bold text-slate-400">Prestige Tier</div>
-                      <div className="text-xl font-mono font-black text-fuchsia-400 mt-0.5">P{carMastery.prestige}</div>
+                    <div className="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800 text-center">
+                      <div className="text-[9px] uppercase font-bold text-slate-400">Matches Won</div>
+                      <div className="text-base sm:text-lg font-mono font-black text-purple-400 mt-0.5">
+                        {carMastery.wins}
+                      </div>
                     </div>
                   </div>
 
-                  {/* Upgrade Button */}
-                  <div className="mt-5 pt-4 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
-                    <div>
-                      <div className="text-xs text-slate-300">
-                        Next Level: <span className="font-bold text-amber-400">Level {carMastery.level + 1}</span>
-                      </div>
-                      <div className="text-[11px] text-slate-400 font-mono">
-                        Cost: <span className="text-amber-400 font-bold">{upgradeCost.toLocaleString()} Coins</span> (You have {inventory.coins.toLocaleString()})
-                      </div>
-                    </div>
-
+                  <div className="mt-3 flex items-center justify-between pt-2 border-t border-slate-800/80">
+                    <span className="text-xs text-slate-400">
+                      Upgrade Cost: <strong className="text-amber-300 font-mono">{upgradeCost.toLocaleString()} 🪙</strong>
+                    </span>
                     <button
                       onClick={handleUpgradeClick}
-                      disabled={inventory.coins < upgradeCost && carMastery.level < 50}
-                      className={`px-5 py-2.5 rounded-xl font-gaming font-bold text-xs uppercase transition shadow-lg flex items-center gap-2 cursor-pointer ${
-                        inventory.coins >= upgradeCost || carMastery.level >= 50
-                          ? "bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 shadow-amber-500/25 active:scale-95"
-                          : "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700"
+                      disabled={inventory.coins < upgradeCost}
+                      className={`px-4 py-2 rounded-xl font-gaming font-black text-xs uppercase tracking-wide transition cursor-pointer ${
+                        inventory.coins >= upgradeCost
+                          ? "bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 shadow-md active:scale-95"
+                          : "bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed"
                       }`}
                     >
-                      <ArrowUpCircle className="w-4 h-4" />
-                      <span>{carMastery.level >= 50 ? "Prestige Reset (Free)" : `Upgrade (${upgradeCost.toLocaleString()} 🪙)`}</span>
+                      Upgrade Level
                     </button>
                   </div>
-
-                  {upgradeMsg && (
-                    <div className="mt-3 p-2 rounded-lg bg-slate-900 border border-slate-700 text-xs text-center font-bold text-amber-300 animate-fade-in">
-                      {upgradeMsg}
-                    </div>
-                  )}
                 </div>
               </div>
-            ) : (
-              /* Items Catalog Grid */
-              <div className="flex-1 p-4 overflow-y-auto">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            )}
+
+            {/* Sub-view 3: Item Catalog Grid */}
+            {activeSlot !== "upgrade" && activeSlot !== "bot_upgrade" && (
+              <div className="flex-1 p-2 sm:p-4 overflow-y-auto">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 gap-2">
                   {currentSlotItems.map(item => {
-                    const isOwned =
-                      inventory.ownedItemIds.includes(item.id) ||
-                      item.id === "decal_none" ||
-                      item.id === "topper_none";
-                    const isEquipped = inventory.loadout[activeSlot as ItemSlot] === item.id;
-                    const rarityInfo = RARITY_CONFIG[item.rarity] || RARITY_CONFIG.common;
+                    const isEquipped = inventory.loadout[item.slot] === item.id;
+                    const isOwned = inventory.ownedItemIds.includes(item.id);
+                    const rarity = RARITY_CONFIG[item.rarity] || RARITY_CONFIG.common;
 
                     return (
                       <div
                         key={item.id}
-                        onMouseEnter={() => setPreviewItem(item)}
-                        onMouseLeave={() => setPreviewItem(null)}
-                        className={`p-3 rounded-2xl border text-left transition flex flex-col justify-between relative overflow-hidden ${
+                        onClick={() => {
+                          if (isOwned) {
+                            handleEquip(item);
+                          } else {
+                            setPreviewItem(item);
+                          }
+                        }}
+                        className={`p-2 rounded-xl border-2 transition cursor-pointer flex flex-col justify-between relative group ${
                           isEquipped
-                            ? "bg-sky-950/40 border-sky-400 ring-1 ring-sky-400/50 shadow-lg"
+                            ? "bg-sky-950/60 border-sky-400 shadow-md ring-1 ring-sky-400/50"
                             : isOwned
-                            ? "bg-slate-900/70 border-slate-800 hover:border-slate-700"
-                            : "bg-slate-950/40 border-slate-900/90 opacity-60"
-                        }`}
+                            ? "bg-slate-900/70 border-slate-800 hover:border-slate-700 text-slate-200"
+                            : "bg-slate-950/40 border-slate-900/80 opacity-50 hover:opacity-75"
+                        } ${rarity.borderColor}`}
                       >
-                        <div>
-                          {/* Card Header: Name & Rarity badge */}
-                          <div className="flex items-start justify-between gap-1.5 mb-1.5">
-                            <div>
-                              <div className="font-gaming font-bold text-sm text-white flex items-center gap-1.5">
-                                <span>{item.name}</span>
-                                {isEquipped && <Check className="w-4 h-4 text-sky-400 shrink-0" />}
-                              </div>
-                              <span
-                                className={`text-[9px] font-bold px-1.5 py-0.2 rounded border font-gaming uppercase ${rarityInfo.badgeBg}`}
-                              >
-                                {rarityInfo.name}
-                              </span>
-                            </div>
-
-                            {!isOwned && (
-                              <div className="p-1 rounded bg-slate-900/90 border border-slate-800 text-slate-500">
-                                <Lock className="w-3.5 h-3.5" />
-                              </div>
-                            )}
-                          </div>
-
-                          <p className="text-[11px] text-slate-400 line-clamp-2 leading-relaxed">
-                            {item.description}
-                          </p>
+                        <div className="flex items-center justify-between">
+                          <span
+                            className={`text-[8px] font-gaming font-black px-1.5 py-0.2 rounded uppercase ${rarity.badgeBg}`}
+                          >
+                            {rarity.name}
+                          </span>
+                          {isEquipped ? (
+                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                          ) : !isOwned ? (
+                            <Lock className="w-3 h-3 text-slate-500" />
+                          ) : null}
                         </div>
 
-                        {/* Card Footer: Action */}
-                        <div className="mt-3 pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs">
-                          {isEquipped ? (
-                            <span className="text-[11px] font-gaming font-bold text-sky-400">
-                              EQUIPPED
-                            </span>
-                          ) : isOwned ? (
-                            <button
-                              onClick={() => handleEquip(item)}
-                              className="px-3 py-1 rounded-lg bg-sky-600/30 hover:bg-sky-600/50 text-sky-300 border border-sky-500/40 font-gaming font-bold text-[11px] transition cursor-pointer active:scale-95"
-                            >
-                              EQUIP
-                            </button>
-                          ) : (
-                            <button
-                              onClick={onOpenCrates}
-                              className="text-[10px] font-gaming font-bold text-amber-400 hover:underline cursor-pointer flex items-center gap-1"
-                            >
-                              <span>Get in Crates</span>
-                              <ChevronRight className="w-3 h-3" />
-                            </button>
-                          )}
+                        <div className="my-2 flex flex-col items-center justify-center">
+                          <div
+                            className="w-9 h-9 rounded-xl flex items-center justify-center shadow-md"
+                            style={{
+                              backgroundColor: item.accentColor
+                                ? `${item.accentColor}25`
+                                : "rgba(56, 189, 248, 0.15)",
+                              color: item.accentColor || "#38bdf8"
+                            }}
+                          >
+                            <Sparkles className="w-4 h-4" />
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="font-gaming font-bold text-xs text-white truncate">
+                            {item.name}
+                          </div>
+                          <div className="text-[9px] text-slate-400 truncate mt-0.5">
+                            {isEquipped ? "Equipped" : isOwned ? "Owned" : "In Crates"}
+                          </div>
                         </div>
                       </div>
                     );

@@ -21,6 +21,21 @@ const COMPETITIVE_NAMES = [
   "Shadow_Dribbler"
 ];
 
+const BOT_LEAGUE_NAMES = [
+  "Nexus_AI",
+  "CyberValkyrie",
+  "TitanCore_v4",
+  "Sentinel_X",
+  "ZeroCool_Bot",
+  "Aegis_Matrix",
+  "Quantum_Core",
+  "Vortex_Unit",
+  "Overclock_v9",
+  "HyperPulse_AI",
+  "Omega_Zero",
+  "Shadow_Protocol"
+];
+
 const CAR_POOL = ["octane", "fennec", "dominus", "skyline", "breakout", "merc"];
 const AVATAR_COLORS = [
   "#ef4444",
@@ -33,13 +48,15 @@ const AVATAR_COLORS = [
   "#ec4899"
 ];
 
-export function generateRankedOpponent(playerMmr: number): RankedBotProfile {
+export function generateRankedOpponent(playerMmr: number, track: "player" | "bot" = "player"): RankedBotProfile {
   // Opponent MMR matches player within a ±35 range
   const variance = Math.floor((Math.random() * 70) - 35);
   const oppMmr = Math.max(120, playerMmr + variance);
 
   const rank = calculateRankDetails(oppMmr);
-  const name = COMPETITIVE_NAMES[Math.floor(Math.random() * COMPETITIVE_NAMES.length)];
+  const pool = track === "bot" ? BOT_LEAGUE_NAMES : COMPETITIVE_NAMES;
+  const rawName = pool[Math.floor(Math.random() * pool.length)];
+  const name = track === "bot" ? `🤖 ${rawName}` : rawName;
   const carModel = CAR_POOL[Math.floor(Math.random() * CAR_POOL.length)];
   const avatarColor = AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
 

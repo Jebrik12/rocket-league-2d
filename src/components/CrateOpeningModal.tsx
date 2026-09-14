@@ -324,27 +324,27 @@ export const CrateOpeningModal: React.FC<CrateOpeningModalProps> = ({
         </div>
 
         {/* Main Crate Opening Stage */}
-        <div className="flex-1 p-4 sm:p-6 flex flex-col items-center justify-center relative overflow-hidden bg-radial from-purple-950/20 via-slate-950 to-slate-950">
+        <div className="flex-1 p-2 sm:p-5 flex flex-col items-center justify-center relative overflow-hidden bg-radial from-purple-950/20 via-slate-950 to-slate-950">
           {/* Unboxing Spinner Strip Container */}
           <div
             ref={spinnerContainerRef}
-            className="w-full max-w-3xl h-44 rounded-3xl bg-slate-900/90 border-2 border-slate-800 relative overflow-hidden shadow-2xl flex items-center"
+            className="w-full max-w-2xl h-32 sm:h-40 rounded-2xl sm:rounded-3xl bg-slate-900/90 border-2 border-slate-800 relative overflow-hidden shadow-xl flex items-center"
           >
             {/* Center Pointer Needle */}
-            <div className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 z-30 pointer-events-none flex flex-col items-center justify-between py-1">
-              <div className="w-0 h-0 border-l-[9px] border-l-transparent border-r-[9px] border-r-transparent border-t-[14px] border-t-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.8)]" />
+            <div className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 z-30 pointer-events-none flex flex-col items-center justify-between py-0.5 sm:py-1">
+              <div className="w-0 h-0 border-l-[7px] sm:border-l-[9px] border-l-transparent border-r-[7px] sm:border-r-[9px] border-r-transparent border-t-[10px] sm:border-t-[14px] border-t-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.8)]" />
               <div className="w-0.5 h-full bg-amber-400/80 shadow-[0_0_10px_rgba(251,191,36,0.9)]" />
-              <div className="w-0 h-0 border-l-[9px] border-l-transparent border-r-[9px] border-r-transparent border-b-[14px] border-b-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.8)]" />
+              <div className="w-0 h-0 border-l-[7px] sm:border-l-[9px] border-l-transparent border-r-[7px] sm:border-r-[9px] border-r-transparent border-b-[10px] sm:border-b-[14px] border-b-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.8)]" />
             </div>
 
             {/* Side Vignette Fades */}
-            <div className="absolute top-0 bottom-0 left-0 w-24 bg-gradient-to-r from-slate-950 to-transparent z-20 pointer-events-none" />
-            <div className="absolute top-0 bottom-0 right-0 w-24 bg-gradient-to-l from-slate-950 to-transparent z-20 pointer-events-none" />
+            <div className="absolute top-0 bottom-0 left-0 w-16 sm:w-24 bg-gradient-to-r from-slate-950 to-transparent z-20 pointer-events-none" />
+            <div className="absolute top-0 bottom-0 right-0 w-16 sm:w-24 bg-gradient-to-l from-slate-950 to-transparent z-20 pointer-events-none" />
 
             {/* Spinner Items Strip */}
             {spinnerItems.length > 0 ? (
               <div
-                className="flex items-center gap-3 px-4 will-change-transform"
+                className="flex items-center gap-2.5 px-3 will-change-transform"
                 style={{
                   transform: `translateX(-${spinTranslateX}px)`
                 }}
@@ -355,21 +355,21 @@ export const CrateOpeningModal: React.FC<CrateOpeningModalProps> = ({
                     <div
                       key={idx}
                       style={{ width: `${CARD_WIDTH}px` }}
-                      className={`h-36 rounded-2xl border-2 p-2.5 flex flex-col justify-between shrink-0 transition bg-slate-950/90 ${rarity.borderColor}`}
+                      className={`h-26 sm:h-32 rounded-xl sm:rounded-2xl border-2 p-2 flex flex-col justify-between shrink-0 transition bg-slate-950/90 ${rarity.borderColor}`}
                     >
                       <div className="flex items-center justify-between">
                         <span
-                          className={`text-[8px] font-gaming font-black px-1.5 py-0.2 rounded uppercase ${rarity.badgeBg}`}
+                          className={`text-[7px] sm:text-[8px] font-gaming font-black px-1 py-0.2 rounded uppercase ${rarity.badgeBg}`}
                         >
                           {rarity.name}
                         </span>
-                        <span className="text-[9px] text-slate-400 capitalize">{item.slot}</span>
+                        <span className="text-[8px] sm:text-[9px] text-slate-400 capitalize">{item.slot}</span>
                       </div>
 
-                      {/* Icon preview / Color preview */}
+                      {/* Icon preview */}
                       <div className="my-auto flex flex-col items-center justify-center">
                         <div
-                          className="w-10 h-10 rounded-xl flex items-center justify-center shadow-lg"
+                          className="w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl flex items-center justify-center shadow-md"
                           style={{
                             backgroundColor: item.accentColor
                               ? `${item.accentColor}30`
@@ -377,11 +377,11 @@ export const CrateOpeningModal: React.FC<CrateOpeningModalProps> = ({
                             color: item.accentColor || "#38bdf8"
                           }}
                         >
-                          <Sparkles className="w-5 h-5" />
+                          <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                         </div>
                       </div>
 
-                      <div className="font-gaming font-bold text-xs text-white truncate text-center">
+                      <div className="font-gaming font-bold text-[10px] sm:text-xs text-white truncate text-center">
                         {item.name}
                       </div>
                     </div>
@@ -389,13 +389,13 @@ export const CrateOpeningModal: React.FC<CrateOpeningModalProps> = ({
                 })}
               </div>
             ) : (
-              /* Idle Standby Screen in the Crate Window */
-              <div className="w-full flex flex-col items-center justify-center text-center p-6 space-y-2">
-                <Package className="w-12 h-12 text-purple-400 animate-bounce" />
-                <div className="font-gaming font-black text-base text-white">
+              /* Idle Standby Screen */
+              <div className="w-full flex flex-col items-center justify-center text-center p-3 sm:p-5 space-y-1.5">
+                <Package className="w-8 h-8 sm:w-10 sm:h-10 text-purple-400 animate-bounce" />
+                <div className="font-gaming font-black text-xs sm:text-sm text-white">
                   {selectedCrate.name}
                 </div>
-                <p className="text-xs text-slate-400 max-w-md">
+                <p className="text-[10px] sm:text-xs text-slate-400 max-w-xs sm:max-w-md">
                   {selectedCrate.description}
                 </p>
               </div>
@@ -403,11 +403,11 @@ export const CrateOpeningModal: React.FC<CrateOpeningModalProps> = ({
           </div>
 
           {/* Crate Action / Open Button */}
-          <div className="mt-6 flex flex-col sm:flex-row items-center gap-4">
+          <div className="mt-3 sm:mt-5 flex flex-col sm:flex-row items-center gap-2 sm:gap-3 w-full sm:w-auto px-4">
             <button
               onClick={handleStartOpen}
               disabled={isSpinning || !canOpen}
-              className={`px-8 py-3.5 rounded-2xl font-gaming font-black text-sm uppercase tracking-wider transition shadow-2xl flex items-center gap-2.5 cursor-pointer ${
+              className={`w-full sm:w-auto px-5 py-2.5 sm:px-7 sm:py-3 rounded-xl sm:rounded-2xl font-gaming font-black text-xs sm:text-sm uppercase tracking-wider transition shadow-lg flex items-center justify-center gap-2 cursor-pointer ${
                 isSpinning
                   ? "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700"
                   : canOpen
@@ -417,17 +417,17 @@ export const CrateOpeningModal: React.FC<CrateOpeningModalProps> = ({
             >
               {isSpinning ? (
                 <>
-                  <RotateCw className="w-4 h-4 animate-spin" />
+                  <RotateCw className="w-3.5 h-3.5 animate-spin" />
                   <span>Unboxing...</span>
                 </>
               ) : ownedCrateCount > 0 ? (
                 <>
-                  <Package className="w-4 h-4" />
+                  <Package className="w-3.5 h-3.5" />
                   <span>Open Crate (1 of {ownedCrateCount})</span>
                 </>
               ) : canAffordWithCoins ? (
                 <>
-                  <Coins className="w-4 h-4 text-amber-400" />
+                  <Coins className="w-3.5 h-3.5 text-amber-400" />
                   <span>Unlock for {crateCost.toLocaleString()} Coins</span>
                 </>
               ) : (
@@ -438,9 +438,9 @@ export const CrateOpeningModal: React.FC<CrateOpeningModalProps> = ({
             <button
               onClick={onOpenGarage}
               disabled={isSpinning}
-              className="px-5 py-3 rounded-2xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-slate-300 font-gaming font-bold text-xs uppercase transition cursor-pointer"
+              className="w-full sm:w-auto px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-slate-300 font-gaming font-bold text-xs uppercase transition cursor-pointer"
             >
-              Back to Garage
+              Garage
             </button>
           </div>
         </div>

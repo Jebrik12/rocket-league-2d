@@ -93,6 +93,7 @@ export const RANK_TIERS: Record<RankTier, RankTierInfo> = {
 };
 
 const STORAGE_KEY = "rl_ranked_profile_v1";
+const BOT_STORAGE_KEY = "rl_bot_ranked_profile_v1";
 
 const DEFAULT_PROFILE: PlayerRankProfile = {
   mmr: 600, // Starts at Ironclad III
@@ -105,6 +106,19 @@ const DEFAULT_PROFILE: PlayerRankProfile = {
   streak: 0,
   matchesPlayed: 0,
   seasonName: "Season 1: Aero Origins"
+};
+
+const DEFAULT_BOT_PROFILE: PlayerRankProfile = {
+  mmr: 500, // Starts at Ironclad I for Bot League
+  peakMmr: 500,
+  tier: "ironclad",
+  subTier: 1,
+  division: 1,
+  wins: 0,
+  losses: 0,
+  streak: 0,
+  matchesPlayed: 0,
+  seasonName: "Bot League Season 1: Cyber Arena"
 };
 
 export function calculateRankDetails(mmr: number): {
@@ -257,6 +271,107 @@ export function processRankedMatchEnd(
       : newRank.subTier < oldRank.subTier || newRank.division < oldRank.division;
 
   return {
+    track: "player",
+    isWin,
+    oldMmr,
+    newMmr,
+    deltaMmr: delta,
+    oldTier: oldRank.tier,
+    oldSubTier: oldRank.subTier,
+    oldDiv: oldRank.division,
+    newTier: newRank.tier,
+    newSubTier: newRank.subTier,
+    newDiv: newRank.division,
+    isPromotion,
+    isDemotion,
+    streak: profile.streak
+  };
+}
+
+export function getBotRankedProfile(): PlayerRankProfile {
+  try {
+    const raw = localStorage.getItem(BOT_STORAGE_KEY);
+    if (!raw) {
+      const details = calculateRankDetails(DEFAULT_BOT_PROFILE.mmr);
+      const prof: PlayerRankProfile = {
+        ...DEFAULT_BOT_PROFILE,
+        tier: details.tier,
+        subTier: details.subTier,
+        division: details.division
+      };
+      saveBotRankedProfile(prof);
+      return prof;
+    }
+    const parsed = JSON.parse(raw);
+    const details = calculateRankDetails(parsed.mmr || 500);
+    return {
+      ...DEFAULT_BOT_PROFILE,
+      ...parsed,
+      tier: details.tier,
+      subTier: details.subTier,
+      division: details.division
+    };
+  } catch (e) {
+    return { ...DEFAULT_BOT_PROFILE };
+  }
+}
+
+export function saveBotRankedProfile(profile: PlayerRankProfile): void {
+  try {
+    localStorage.setItem(BOT_STORAGE_KEY, JSON.stringify(profile));
+  } catch (e) {
+    console.error("Failed to save bot ranked profile", e);
+  }
+}
+
+export function processBotRankedMatchEnd(
+  isWin: boolean,
+  opponentMmr?: number
+): RankedMatchResult {
+  const profile = getBotRankedProfile();
+  const oldMmr = profile.mmr;
+  const oldRank = calculateRankDetails(oldMmr);
+
+  const oppMmr = opponentMmr || oldMmr;
+  const mmrDiff = oppMmr - oldMmr;
+  const expectedProb = 1 / (1 + Math.pow(10, -mmrDiff / 400));
+
+  let delta = 0;
+  if (isWin) {
+    profile.wins += 1;
+    profile.streak = profile.streak > 0 ? profile.streak + 1 : 1;
+    const streakBonus = Math.min(1.4, 1.0 + (profile.streak > 2 ? (profile.streak - 2) * 0.1 : 0));
+    delta = Math.round(Math.max(14, Math.min(36, 24 * (1 - expectedProb) * 2 * streakBonus)));
+  } else {
+    profile.losses += 1;
+    profile.streak = profile.streak < 0 ? profile.streak - 1 : -1;
+    delta = -Math.round(Math.max(12, Math.min(30, 22 * expectedProb * 2)));
+  }
+
+  const newMmr = Math.max(100, oldMmr + delta);
+  profile.mmr = newMmr;
+  profile.peakMmr = Math.max(profile.peakMmr, newMmr);
+  profile.matchesPlayed += 1;
+
+  const newRank = calculateRankDetails(newMmr);
+  profile.tier = newRank.tier;
+  profile.subTier = newRank.subTier;
+  profile.division = newRank.division;
+
+  saveBotRankedProfile(profile);
+
+  const isPromotion =
+    newRank.tier !== oldRank.tier
+      ? Object.keys(RANK_TIERS).indexOf(newRank.tier) > Object.keys(RANK_TIERS).indexOf(oldRank.tier)
+      : newRank.subTier > oldRank.subTier || newRank.division > oldRank.division;
+
+  const isDemotion =
+    newRank.tier !== oldRank.tier
+      ? Object.keys(RANK_TIERS).indexOf(newRank.tier) < Object.keys(RANK_TIERS).indexOf(oldRank.tier)
+      : newRank.subTier < oldRank.subTier || newRank.division < oldRank.division;
+
+  return {
+    track: "bot",
     isWin,
     oldMmr,
     newMmr,

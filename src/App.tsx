@@ -85,6 +85,7 @@ import {
   getPlayerInventory,
   recordMatchMastery
 } from "./customization/customizationStorage";
+import { ItemSlot } from "./customization/customizationTypes";
 import { ITEM_CATALOG } from "./customization/customizationData";
 import {
   drawCarDecal,
@@ -93,11 +94,14 @@ import {
 } from "./customization/customizationRenderer";
 import {
   getRankedProfile,
+  getBotRankedProfile,
   processRankedMatchEnd,
+  processBotRankedMatchEnd,
   calculateRankDetails,
   RANK_TIERS
 } from "./ranked/rankedStorage";
-import { RankedBotProfile } from "./ranked/rankedTypes";
+import { RankedBotProfile, RankedTrack } from "./ranked/rankedTypes";
+import { getBotUpgrades, getBotUpgradesModifiers } from "./bot/botUpgradeStorage";
 
 
 
@@ -3727,6 +3731,65 @@ function Uv(u:any,f:any,r:number,s:any){
     case "ssl": case "unfair":
       Zv(u, f, oppCar, ownGoal, oppGoal, teamDir, m, p, y === "unfair", g, tmCar, s);
       break;
+  }
+
+  // Apply personal bot upgrades and tactical combat protocol
+  if (u.isPlayerBot) {
+    const mods = getBotUpgradesModifiers(u.botUpgrades || getBotUpgrades());
+
+    // 1. Boost Thrift: Stop wasting boost if already supersonic
+    if (mods.boostFeatherEfficiency && u.isSupersonic) {
+      u.input.boost = false;
+    }
+
+    // 2. Reflexes: Instant steering tracking when ball changes direction
+    if (mods.reactionDelaySec < 0.08) {
+      const dxToBall = f.x - u.x;
+      if (Math.abs(dxToBall) > 20) {
+        if (dxToBall > 0 && !u.input.steerLeft) u.input.steerRight = true;
+        if (dxToBall < 0 && !u.input.steerRight) u.input.steerLeft = true;
+      }
+    }
+
+    // 3. Aerial Flight: Fast aerial double-jump commit when ball is high
+    if (u.isGrounded && f.y < k - mods.aerialCommitHeight && Math.abs(f.x - u.x) < 140) {
+      if (u.canJump && (!u.botState.jumpSeq || u.botState.jumpSeq.stage === "idle")) {
+        Oe(u, "aerial");
+      }
+    }
+
+    // 4. Tactical Archetypes
+    if (mods.archetype === "striker") {
+      if (u.team === "blue" && u.x < Kt / 2 && f.x > u.x) {
+        u.input.throttleForward = true;
+        u.input.throttleReverse = false;
+      } else if (u.team === "orange" && u.x > Kt / 2 && f.x < u.x) {
+        u.input.throttleForward = true;
+        u.input.throttleReverse = false;
+      }
+    } else if (mods.archetype === "goalkeeper") {
+      const isDefending = u.team === "blue" ? f.x > Kt / 2 : f.x < Kt / 2;
+      const netX = u.team === "blue" ? At + 120 : Mt - 120;
+      if (isDefending && Math.abs(u.x - netX) > 80) {
+        if (u.x > netX) {
+          u.input.steerLeft = true;
+          u.input.steerRight = false;
+        } else {
+          u.input.steerRight = true;
+          u.input.steerLeft = false;
+        }
+      }
+    } else if (mods.archetype === "menace") {
+      if (u.isSupersonic && oppCar && !oppCar.isDemoed) {
+        const dToOpp = Math.hypot(oppCar.x - u.x, oppCar.y - u.y);
+        if (dToOpp < 220) {
+          const dx = oppCar.x - u.x;
+          u.input.steerRight = dx > 0;
+          u.input.steerLeft = dx < 0;
+          u.input.throttleForward = true;
+        }
+      }
+    }
   }
 
   // Preserve rocket launch thrust during fast-aerial double jump
@@ -12110,8 +12173,10 @@ function r2(){
   const [rankedMatchResult, setRankedMatchResult] = st.useState<any>(null);
   const [matchRewards, setMatchRewards] = st.useState<any>(null);
   const [isCurrentMatchRanked, setIsCurrentMatchRanked] = st.useState(false);
+  const [currentRankedTrack, setCurrentRankedTrack] = st.useState<RankedTrack>("player");
   const [currentOpponentMmr, setCurrentOpponentMmr] = st.useState<number | undefined>(undefined);
   const [pilotMode, setPilotMode] = st.useState<PilotMode>("human");
+  const [garageInitialTab, setGarageInitialTab] = st.useState<ItemSlot | "upgrade" | "bot_upgrade">("body");
   const [loadoutVersion, setLoadoutVersion] = st.useState(0);
   const lastSnapshotBroadcastRef = st.useRef(0);
   const hasSavedMatchRef = st.useRef(false);
@@ -12193,6 +12258,9 @@ function r2(){
   const pTopper = ITEM_CATALOG[activeLoadout.topper];
   const pLoadout = { decal: pDecal, wheels: pWheels, boost: pBoost, topper: pTopper };
 
+  const bUpgrades = getBotUpgrades();
+  const botPilotName = bUpgrades.botName || "My Bot";
+
   if (peerNetwork.isConnected && peerNetwork.roomState && peerNetwork.roomState.status === "in_game") {
     const room = peerNetwork.roomState;
     const occupiedSlots = room.slots.filter((s: any) => s.isOccupied);
@@ -12203,13 +12271,14 @@ function r2(){
         const carId = slot.peerId || slot.id;
         const isMySlot = slot.peerId === peerNetwork.myPeerId;
         const pName = isMySlot
-          ? (slot.pilotMode === "bot" ? `🤖 ${currentPilotName} (Bot)` : (currentPilotName || slot.playerName || "Player"))
+          ? (slot.pilotMode === "bot" ? `🤖 ${botPilotName}` : (currentPilotName || slot.playerName || "Player"))
           : (slot.pilotMode === "bot" ? `🤖 ${slot.playerName} (Bot)` : (slot.playerName || (isBot ? "Bot" : "Player")));
         const team = slot.team;
         const diff = slot.botDifficulty || room.settings.botDifficulty || "ssl";
         const carModel = slot.carModel || "octane";
         const carLoadout = isMySlot ? pLoadout : undefined;
-        w.push(ut(carId, pName, team, isBot, diff, carModel, carLoadout));
+        const isPlayerBot = isMySlot && slot.pilotMode === "bot";
+        w.push(ut(carId, pName, team, isBot, diff, carModel, carLoadout, isPlayerBot, isPlayerBot ? bUpgrades : undefined));
       }
       return w;
     }
@@ -12217,13 +12286,14 @@ function r2(){
   const w = [];
   const pCar = playerCarModel || "octane";
   const isP1Bot = pMode === "place_bot";
+  const p1DisplayName = isP1Bot ? `🤖 ${botPilotName}` : currentPilotName;
 
   if (H === "1v1") {
-    w.push(ut("p1", currentPilotName, "blue", isP1Bot, isP1Bot ? Z : "ssl", pCar, pLoadout));
+    w.push(ut("p1", p1DisplayName, "blue", isP1Bot, isP1Bot ? Z : "ssl", pCar, pLoadout, isP1Bot, isP1Bot ? bUpgrades : undefined));
     const q = Z === "unfair" ? getRandomMemeName("☠️") : Z === "ssl" ? getRandomMemeName("🔥") : getRandomMemeName();
     w.push(ut("b1", q, "orange", !0, Z, getBotCarModel(q)));
   } else if (H === "2v2") {
-    w.push(ut("p1", currentPilotName, "blue", isP1Bot, isP1Bot ? Z : "ssl", pCar, pLoadout));
+    w.push(ut("p1", p1DisplayName, "blue", isP1Bot, isP1Bot ? Z : "ssl", pCar, pLoadout, isP1Bot, isP1Bot ? bUpgrades : undefined));
     const tm = getRandomMemeName("🤝");
     w.push(ut("tm", tm, "blue", !0, Z, getBotCarModel(tm)));
     const q = Z === "unfair" ? getRandomMemeName("☠️") : Z === "ssl" ? getRandomMemeName("👾") : getRandomMemeName(),
@@ -12231,7 +12301,7 @@ function r2(){
     w.push(ut("b1", q, "orange", !0, Z, getBotCarModel(q)));
     w.push(ut("b2", Wt, "orange", !0, Z, getBotCarModel(Wt)));
   } else if (H === "3v3") {
-    w.push(ut("p1", currentPilotName, "blue", isP1Bot, isP1Bot ? Z : "ssl", pCar, pLoadout));
+    w.push(ut("p1", p1DisplayName, "blue", isP1Bot, isP1Bot ? Z : "ssl", pCar, pLoadout, isP1Bot, isP1Bot ? bUpgrades : undefined));
     const tm1 = getRandomMemeName("🤝");
     const tm2 = getRandomMemeName("⚡");
     w.push(ut("tm1", tm1, "blue", !0, Z, getBotCarModel(tm1)));
@@ -12266,7 +12336,7 @@ function r2(){
     w.push(ut("o3", o3, "orange", !0, "ssl", getBotCarModel(o3)));
   }
   return w;
-}function ut(H: string, Z: string, w: string, q: boolean, Wt: string = "ssl", carModelId: string = "octane", customLoadout?: any){const il=w==="blue",xt=il?At+280:Mt-280;const def=CAR_DEFINITIONS[carModelId]||CAR_DEFINITIONS.octane;const carWidth=def.width,carHeight=def.height;return{id:H,name:Z,team:w,isBot:q,botDifficulty:Wt,carModel:carModelId,hitboxClass:def.hitboxClass,wheelbase:def.wheelbase,wheelRadius:def.wheelRadius,customDecal:customLoadout?.decal,customWheels:customLoadout?.wheels,customBoost:customLoadout?.boost,customTopper:customLoadout?.topper,x:xt,y:k-carHeight/2,vx:0,vy:0,angle:il?0:Math.PI,facing:il?1:-1,airRollInverted:!1,angularVel:0,width:carWidth,height:carHeight,isGrounded:!0,surfaceNormal:{x:0,y:-1},surfaceType:"floor",boost:33,isBoosting:!1,isSupersonic:!1,supersonicTimer:0,canJump:!0,jumpCount:0,jumpHoldTimer:0,flipWindowTimer:0,isFlipping:!1,flipDirection:{x:0,y:0},flipTimer:0,isDemoed:!1,demoRespawnTimer:0,score:0,goals:0,saves:0,shots:0,demos:0,input:{steerLeft:!1,steerRight:!1,throttleForward:!1,throttleReverse:!1,pitchUp:!1,pitchDown:!1,jump:!1,boost:!1,handbrake:!1}}}const be=st.useCallback(()=>{
+}function ut(H: string, Z: string, w: string, q: boolean, Wt: string = "ssl", carModelId: string = "octane", customLoadout?: any, isPlayerBot: boolean = false, botUpgrades?: any){const il=w==="blue",xt=il?At+280:Mt-280;const def=CAR_DEFINITIONS[carModelId]||CAR_DEFINITIONS.octane;const carWidth=def.width,carHeight=def.height;return{id:H,name:Z,team:w,isBot:q,isPlayerBot:!!isPlayerBot,botUpgrades:botUpgrades||(isPlayerBot?getBotUpgrades():undefined),botDifficulty:Wt,carModel:carModelId,hitboxClass:def.hitboxClass,wheelbase:def.wheelbase,wheelRadius:def.wheelRadius,customDecal:customLoadout?.decal,customWheels:customLoadout?.wheels,customBoost:customLoadout?.boost,customTopper:customLoadout?.topper,x:xt,y:k-carHeight/2,vx:0,vy:0,angle:il?0:Math.PI,facing:il?1:-1,airRollInverted:!1,angularVel:0,width:carWidth,height:carHeight,isGrounded:!0,surfaceNormal:{x:0,y:-1},surfaceType:"floor",boost:33,isBoosting:!1,isSupersonic:!1,supersonicTimer:0,canJump:!0,jumpCount:0,jumpHoldTimer:0,flipWindowTimer:0,isFlipping:!1,flipDirection:{x:0,y:0},flipTimer:0,isDemoed:!1,demoRespawnTimer:0,score:0,goals:0,saves:0,shots:0,demos:0,input:{steerLeft:!1,steerRight:!1,throttleForward:!1,throttleReverse:!1,pitchUp:!1,pitchDown:!1,jump:!1,boost:!1,handbrake:!1}}}const be=st.useCallback(()=>{
     ht.current=$(),Yt.current=[],Xt.current=0,ot(null),resetAutoCam(Kt/2,(Qt+k)/2);
     if(ne.current){
       ne.current.forEach((p:any)=>{p.active=!0;p.cooldownTimer=0;});
@@ -12560,14 +12630,16 @@ st.useEffect(()=>{
       setMatchRewards(masteryRewards);
 
       if (isCurrentMatchRanked) {
-        const rResult = processRankedMatchEnd(isPlayerWin, currentOpponentMmr);
+        const rResult = currentRankedTrack === "bot"
+          ? processBotRankedMatchEnd(isPlayerWin, currentOpponentMmr)
+          : processRankedMatchEnd(isPlayerWin, currentOpponentMmr);
         setRankedMatchResult(rResult);
         setIsRankProgressionOpen(true);
       }
     } else if (p === "kickoff" || p === "playing") {
       hasSavedMatchRef.current = false;
     }
-  }, [p, C, N, I, f.mode, f.selectedMap, f.matchDuration, f.selectedCar, X, isCurrentMatchRanked, currentOpponentMmr]),st.useEffect(()=>{Me.setMuted(!f.soundEnabled),Me.setVolume(f.soundVolume)},[f.soundEnabled,f.soundVolume]);const Se=st.useRef({});st.useEffect(()=>{const H=xt=>{if(xt.target.tagName==="INPUT")return;const et=xt.code.toLowerCase(),Et=xt.key.toLowerCase();if(et==="keyf"||Et==="f"||Et==="а"){if(p!=="goal_replay"&&!m){xt.preventDefault(),toggleFullscreen();return}}if(et==="keym"||Et==="m"||Et==="ь"){xt.preventDefault(),toggleSteeringControl();return}if(et==="tab"||Et==="tab"){xt.preventDefault();setIsScoreboardOpen(prev=>!prev);return;}if(et==="keyh"||Et==="h"||Et==="р"){xt.preventDefault(),toggleHitbox();return}
+  }, [p, C, N, I, f.mode, f.selectedMap, f.matchDuration, f.selectedCar, X, isCurrentMatchRanked, currentRankedTrack, currentOpponentMmr]),st.useEffect(()=>{Me.setMuted(!f.soundEnabled),Me.setVolume(f.soundVolume)},[f.soundEnabled,f.soundVolume]);const Se=st.useRef({});st.useEffect(()=>{const H=xt=>{if(xt.target.tagName==="INPUT")return;const et=xt.code.toLowerCase(),Et=xt.key.toLowerCase();if(et==="keyf"||Et==="f"||Et==="а"){if(p!=="goal_replay"&&!m){xt.preventDefault(),toggleFullscreen();return}}if(et==="keym"||Et==="m"||Et==="ь"){xt.preventDefault(),toggleSteeringControl();return}if(et==="tab"||Et==="tab"){xt.preventDefault();setIsScoreboardOpen(prev=>!prev);return;}if(et==="keyh"||Et==="h"||Et==="р"){xt.preventDefault(),toggleHitbox();return}
       if(et==="keyc"||Et==="c"||Et==="с"){xt.preventDefault(),toggleAutoCam();return}
       if(et==="keyy"||Et==="y"||Et==="н"){xt.preventDefault(),toggleTrajectory();return}(["space","arrowup","arrowdown","arrowleft","arrowright"].includes(et)||[" ","arrowup","arrowdown","arrowleft","arrowright"].includes(Et))&&xt.preventDefault(),Se.current[et]=!0,Se.current[Et]=!0;if((p==="goal_replay"||goalReplayRef.current)){if(et==="space"||Et===" "||Et==="escape"){xt.preventDefault(),skipGoalReplay();return}if(xt.key==="ArrowLeft"||xt.key==="["){xt.preventDefault(),handleGoalReplayStep(-0.5);return}if(xt.key==="ArrowRight"||xt.key==="]"){xt.preventDefault(),handleGoalReplayStep(0.5);return}if(et==="keyp"||Et==="p"||Et==="з"){xt.preventDefault(),handleGoalReplayTogglePause();return}if(et==="keyr"||Et==="r"||Et==="к"){xt.preventDefault(),handleGoalReplayRestart();return}}      const isSpectatorMode = f.mode === "bot_vs_bot" || f.mode.startsWith("spectator");
       if(isSpectatorMode||m||dvrRef.current.active){
@@ -12889,11 +12961,11 @@ d.jsx(u2,{messages:J,onSendMessage:H=>x(H,pilotName,"blue")}),d.jsx(s2,{jumpKey:
 d.jsx(ScoreboardModal,{isOpen:isScoreboardOpen,onClose:()=>setIsScoreboardOpen(false),cars:Gt.current,blueScore:C,orangeScore:N,gameMode:f.mode,arenaName:(activeMapDef||MAP_DEFINITIONS[f.selectedMap||"standard"]||MAP_DEFINITIONS.standard).name}),
 d.jsx(MatchHistoryModal,{isOpen:isMatchHistoryOpen,onClose:()=>setIsMatchHistoryOpen(false),onWatchReplay:handleWatchPastReplay}),
 d.jsx(MultiplayerModal,{isOpen:isMultiplayerOpen,onClose:()=>setIsMultiplayerOpen(false),onStartMatch:()=>{setIsMultiplayerOpen(false);ie();},playerCarModel:f.selectedCar||"octane",onSelectCarModel:(cm:string)=>handleUpdateSettings({...f,selectedCar:cm}),currentMap:f.selectedMap||"standard",onPlayerNameChange:handleUpdatePilotName}),
-d.jsx(GarageModal,{isOpen:isGarageOpen,onClose:()=>setIsGarageOpen(false),onOpenCrates:()=>{setIsGarageOpen(false);setIsCratesOpen(true);},onLoadoutChange:()=>{setLoadoutVersion(v=>v+1);const inv=getPlayerInventory();const p1=Gt.current.find((c:any)=>c.id==="p1"||!c.isBot);if(p1){p1.customDecal=ITEM_CATALOG[inv.loadout.decal];p1.customWheels=ITEM_CATALOG[inv.loadout.wheels];p1.customBoost=ITEM_CATALOG[inv.loadout.boost];p1.customTopper=ITEM_CATALOG[inv.loadout.topper];const bodyItem=ITEM_CATALOG[inv.loadout.body];if(bodyItem?.visualData?.modelId){p1.carModel=bodyItem.visualData.modelId;}}}}),
-d.jsx(CrateOpeningModal,{isOpen:isCratesOpen,onClose:()=>setIsCratesOpen(false),onOpenGarage:()=>{setIsCratesOpen(false);setIsGarageOpen(true);},onItemEquipped:()=>{setLoadoutVersion(v=>v+1);}}),
+d.jsx(GarageModal,{isOpen:isGarageOpen,onClose:()=>setIsGarageOpen(false),initialTab:garageInitialTab,onOpenCrates:()=>{setIsGarageOpen(false);setIsCratesOpen(true);},onLoadoutChange:()=>{setLoadoutVersion(v=>v+1);const inv=getPlayerInventory();const p1=Gt.current.find((c:any)=>c.id==="p1"||!c.isBot);if(p1){p1.customDecal=ITEM_CATALOG[inv.loadout.decal];p1.customWheels=ITEM_CATALOG[inv.loadout.wheels];p1.customBoost=ITEM_CATALOG[inv.loadout.boost];p1.customTopper=ITEM_CATALOG[inv.loadout.topper];const bodyItem=ITEM_CATALOG[inv.loadout.body];if(bodyItem?.visualData?.modelId){p1.carModel=bodyItem.visualData.modelId;}}}}),
+d.jsx(CrateOpeningModal,{isOpen:isCratesOpen,onClose:()=>setIsCratesOpen(false),onOpenGarage:()=>{setIsCratesOpen(false);setGarageInitialTab("body");setIsGarageOpen(true);},onItemEquipped:()=>{setLoadoutVersion(v=>v+1);}}),
 d.jsx(MatchSetupModal,{isOpen:isMatchSetupOpen,onClose:()=>setIsMatchSetupOpen(false),currentSettings:f,onStartMatch:(cfg:MatchSetupConfig)=>{setPilotMode(cfg.pilotMode);setIsCurrentMatchRanked(false);handleUpdateSettings({...f,mode:cfg.pilotMode==="just_bots"?(cfg.teamFormat==="1v1"?"bot_vs_bot":cfg.teamFormat==="2v2"?"spectator_2v2":"spectator_3v3"):cfg.teamFormat,botDifficulty:cfg.botDifficulty,selectedMap:cfg.selectedMap,matchDuration:cfg.matchDuration});setTimeout(()=>ie(),50);}}),
-d.jsx(RankedMatchmakingModal,{isOpen:isRankedModalOpen,onClose:()=>setIsRankedModalOpen(false),onStartRankedMatch:(playlist,opp)=>{setIsCurrentMatchRanked(true);setCurrentOpponentMmr(opp.mmr);setPilotMode("human");handleUpdateSettings({...f,mode:playlist,botDifficulty:opp.difficulty});setTimeout(()=>ie(),50);}}),
-d.jsx(RankProgressionOverlay,{isOpen:isRankProgressionOpen,onClose:()=>setIsRankProgressionOpen(false),result:rankedMatchResult,rewards:matchRewards,onOpenCrate:()=>{setIsRankProgressionOpen(false);setIsCratesOpen(true);},onOpenGarage:()=>{setIsRankProgressionOpen(false);setIsGarageOpen(true);}}),
+d.jsx(RankedMatchmakingModal,{isOpen:isRankedModalOpen,onClose:()=>setIsRankedModalOpen(false),onOpenBotUpgrades:()=>{setGarageInitialTab("bot_upgrade");setIsRankedModalOpen(false);setIsGarageOpen(true);},onStartRankedMatch:(playlist,opp,track)=>{setIsCurrentMatchRanked(true);setCurrentRankedTrack(track);setCurrentOpponentMmr(opp.mmr);if(track==="bot"){setPilotMode("place_bot");}else{setPilotMode("human");}handleUpdateSettings({...f,mode:playlist,botDifficulty:opp.difficulty});setTimeout(()=>ie(),50);}}),
+d.jsx(RankProgressionOverlay,{isOpen:isRankProgressionOpen,onClose:()=>setIsRankProgressionOpen(false),result:rankedMatchResult,rewards:matchRewards,onOpenCrate:()=>{setIsRankProgressionOpen(false);setIsCratesOpen(true);},onOpenGarage:()=>{setIsRankProgressionOpen(false);setGarageInitialTab("body");setIsGarageOpen(true);}}),
 !isSpectator&&!isMobileDevice&&d.jsxs("div",{className:"absolute bottom-3 left-4 z-20 pointer-events-none hidden md:flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-slate-950/70 border border-slate-800/80 text-[11px] font-medium text-slate-300 backdrop-blur-sm shadow-md",children:[d.jsxs("div",{className:"flex items-center gap-1",children:[d.jsx("kbd",{className:"px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-sky-300 font-bold text-[10px]",children:"W A S D"}),d.jsx("span",{children:"Drive"})]}),d.jsx("span",{className:"text-slate-600",children:"•"}),d.jsxs("div",{className:"flex items-center gap-1",children:[d.jsx("kbd",{className:"px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-amber-300 font-bold text-[10px]",children:"Q / E"}),d.jsx("span",{children:"Air Roll (180° Flip)"})]}),d.jsx("span",{className:"text-slate-600",children:"•"}),d.jsxs("div",{className:"flex items-center gap-1",children:[d.jsx("kbd",{className:"px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-sky-300 font-bold text-[10px]",children:f.jumpKey==="rmb"?"RMB / Space":"Space"}),d.jsx("span",{children:"Jump"})]}),d.jsx("span",{className:"text-slate-600",children:"•"}),d.jsxs("div",{className:"flex items-center gap-1",children:[d.jsx("kbd",{className:"px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-amber-300 font-bold text-[10px]",children:"Shift / LMB"}),d.jsx("span",{children:"Boost"})]}),d.jsx("span",{className:"text-slate-600",children:"•"}),d.jsxs("div",{className:"flex items-center gap-1",children:[d.jsx("kbd",{className:"px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-amber-300 font-bold text-[10px]",children:"H"}),d.jsx("span",{children:"Hitbox"})]}),d.jsx("span",{className:"text-slate-600",children:"•"}),d.jsxs("div",{className:"flex items-center gap-1",children:[d.jsx("kbd",{className:"px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-purple-300 font-bold text-[10px]",children:"C"}),d.jsx("span",{children:"Auto Cam"})]}),d.jsx("span",{className:"text-slate-600",children:"•"}),d.jsxs("div",{className:"flex items-center gap-1 cursor-pointer",onClick:()=>setIsScoreboardOpen(prev=>!prev),children:[d.jsx("kbd",{className:"px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-amber-300 font-bold text-[10px]",children:"Tab"}),d.jsx("span",{children:"Scoreboard"})]}),
 d.jsx("span",{className:"text-slate-600",children:"•"}),
 d.jsxs("div",{className:"flex items-center gap-1",children:[

@@ -33,7 +33,10 @@ export interface PlayerRankProfile {
   seasonName: string;
 }
 
+export type RankedTrack = "player" | "bot";
+
 export interface RankedMatchResult {
+  track?: RankedTrack;
   isWin: boolean;
   oldMmr: number;
   newMmr: number;
