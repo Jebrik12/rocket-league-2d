@@ -326,6 +326,81 @@ export function simulateBallSubstep(
   }
 }
 
+export function calcKinematicDriveTime(
+  curX: number,
+  curVx: number,
+  targetX: number,
+  hasBoost: boolean,
+  isLegacy: boolean,
+  isSupersonic: boolean
+): number {
+  const dx = targetX - curX;
+  const dist = Math.abs(dx);
+  if (dist < 3) return 0.005;
+
+  const dir = dx > 0 ? 1 : -1;
+  const vAlong = curVx * dir;
+  const aDrive = 1000;
+  const aBoost = isLegacy ? 1600 : 1100;
+  const a = hasBoost ? aDrive + aBoost : aDrive;
+  const maxDrive = isLegacy ? 650 : 460;
+  const maxBoost = isLegacy ? 1250 : 750;
+  const vMax = hasBoost ? maxBoost : (isSupersonic ? 1280 : maxDrive);
+
+  if (vAlong < -20) {
+    const aBrake = 1400;
+    const tStop = -vAlong / aBrake;
+    const dStop = (vAlong * vAlong) / (2 * aBrake);
+    const distRem = dist + dStop;
+    const tAccel = vMax / a;
+    const dAccel = 0.5 * a * tAccel * tAccel;
+    if (distRem <= dAccel) {
+      return tStop + Math.sqrt(Math.max(0, (2 * distRem) / a));
+    } else {
+      return tStop + tAccel + (distRem - dAccel) / vMax;
+    }
+  } else {
+    const vInit = Math.max(0, Math.min(vAlong, vMax));
+    const tAccel = (vMax - vInit) / a;
+    const dAccel = Math.max(0, (vMax * vMax - vInit * vInit) / (2 * a));
+    if (dist <= dAccel) {
+      return (Math.sqrt(Math.max(0, vInit * vInit + 2 * a * dist)) - vInit) / a;
+    } else {
+      return tAccel + (dist - dAccel) / vMax;
+    }
+  }
+}
+
+export function calcKinematicClimbTime(
+  curY: number,
+  curVy: number,
+  isGrounded: boolean,
+  targetY: number,
+  hasBoost: boolean,
+  env: ArenaEnv
+): number {
+  const heightClimb = curY - targetY;
+  if (heightClimb <= 4) return 0.02;
+
+  if (isGrounded) {
+    const jumpReach = (env.cc * env.cc) / (2 * (env.pv || 720));
+    if (heightClimb <= jumpReach) {
+      const vAvg = Math.max(200, env.cc * 0.72);
+      return 0.05 + heightClimb / vAvg;
+    } else {
+      if (!hasBoost) return 999;
+      const boostForce = env.isLegacy ? 1600 : 1100;
+      const climbSpeed = Math.max(360, (boostForce - (env.pv || 720) * 0.42) * 0.96);
+      return 0.08 + heightClimb / climbSpeed;
+    }
+  } else {
+    const boostForce = env.isLegacy ? 1600 : 1100;
+    const climbSpeed = hasBoost ? Math.max(400, (boostForce - (env.pv || 720) * 0.4) * 0.96) : 280;
+    const vyContrib = Math.max(0, curVy * 0.22);
+    return Math.max(0.04, (heightClimb + vyContrib) / climbSpeed);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // 2. DEEP ANALYTICAL BALL INTERCEPT SOLVER (Multi-Car & Multi-Physics Aware)
 // ---------------------------------------------------------------------------
@@ -425,28 +500,32 @@ export function solveBestIntercept(
     const dy = strikeTargetY - car.y;
     const heightClimb = Math.max(0, car.y - strikeTargetY);
 
-    // Kinematic ground travel model
-    const isReversing = (car.vx > 80 && (strikeTargetX - car.x) < -30) || (car.vx < -80 && (strikeTargetX - car.x) > 30);
-    const turnDelay = isReversing ? (car.isGrounded ? 0.06 : 0.12) : 0.005;
-    const maxSpeed = car.boost > 8 ? (env.isLegacy ? 1250 : 1280) : (car.isSupersonic ? 1280 : (env.isLegacy ? 650 : 460));
-    const avgSpeed = Math.max(460, (Math.abs(car.vx) + maxSpeed) * 0.58);
-    const reqTx = turnDelay + horizDist / avgSpeed;
+    // Exact kinematic ground travel model
+    const reqTx = calcKinematicDriveTime(
+      car.x,
+      car.vx,
+      strikeTargetX,
+      car.boost > 6,
+      env.isLegacy,
+      !!car.isSupersonic
+    );
 
-    // Vertical climb model scaled dynamically to physics mode (env.pv, env.Gh, env.cc)
+    // Exact vertical climb model scaled dynamically to physics mode (env.pv, env.Gh, env.cc)
     const isAerial = py < env.k - 110;
     const isFloating = py >= env.k - 110 && py < env.k - 35;
     let reqTy = 0;
     if (isAerial) {
-      const jumpReach = (env.cc / (env.pv || 720)) * 200;
-      const aerialClimb = Math.max(0, heightClimb - jumpReach);
-      const minBoostNeeded = aerialClimb / 36;
-      if (car.boost < minBoostNeeded && car.isGrounded && heightClimb > 160) {
+      reqTy = calcKinematicClimbTime(
+        car.y,
+        car.vy,
+        car.isGrounded,
+        strikeTargetY,
+        car.boost > 6,
+        env
+      );
+      if (reqTy > 900) {
         continue; // Cannot reach this high without boost
       }
-      const climbSpeed = env.isLegacy ? (car.boost > 6 ? 840 : 540) : (car.boost > 6 ? 680 : 420);
-      reqTy = car.isGrounded
-        ? 0.10 + heightClimb / climbSpeed
-        : Math.max(0.04, (heightClimb + Math.max(0, car.vy * 0.25)) / (climbSpeed * 1.05));
     } else if (isFloating) {
       reqTy = car.isGrounded ? 0.05 + heightClimb / 540 : 0.02;
     }
@@ -974,6 +1053,34 @@ export function botDriveGround(
     car.input.throttleForward = true;
   }
 
+  // 3. Proactive Teammate Collision Avoidance (Prevent Clustering & Bumping)
+  if (car._teammates && car._teammates.length > 0) {
+    for (const tm of car._teammates) {
+      if (tm.isDemoed) continue;
+      const dxTm = tm.x - car.x;
+      const dyTm = tm.y - car.y;
+      const isAheadInLane = dxTm * driveDir > 0;
+      const distTmX = Math.abs(dxTm);
+      const distTmY = Math.abs(dyTm);
+      if (isAheadInLane && distTmX < 110 && distTmY < 40) {
+        // Do NOT boost into teammate directly ahead
+        allowBoost = false;
+        car.input.boost = false;
+
+        // If very close to teammate's rear (< 55px), hop over or yield throttle
+        if (distTmX < 55 && car.isGrounded) {
+          if (car.canJump && !car.isFlipping && Math.abs(car.vx) > 180) {
+            startBotJumpSeq(car, "dodge", driveDir, -0.40);
+            return;
+          } else {
+            car.input.throttleForward = false;
+            car.input.throttleReverse = false;
+          }
+        }
+      }
+    }
+  }
+
   // Boost acceleration: boost through contact when attacking or accelerating
   const curSpd = Math.hypot(car.vx, car.vy);
   const canBoost = allowBoost && isAligned && car.boost > 0 && (distX < 240 || curSpd < 715 || !car.isSupersonic);
@@ -1081,6 +1188,8 @@ export function executeMasterBotBrain(
   const distToBall = Math.hypot(ball.x - car.x, ball.y - car.y);
   const contactDist = specs.halfW + (ball.radius || 30);
   const oppList: any[] = (allOpponents && allOpponents.length > 0) ? allOpponents : (oppCar ? [oppCar] : []);
+  car._teammates = allTeammates || [];
+  car._opponents = oppList;
 
   // 1. ACTIVE SEQUENCE CHECK (Jump / Fast Aerial / Jump Strike / Dodge)
   if (z.jumpSeq && z.jumpSeq.stage !== "idle") {
@@ -1240,10 +1349,23 @@ export function executeMasterBotBrain(
   // 4. ROTATIONAL HIERARCHY IN 2v2 & 3v3 (1st Man, 2nd Man, 3rd Man)
   let rank = 0;
   if (allTeammates && allTeammates.length > 0) {
+    const myGoalSide = (ball.x - car.x) * teamDir >= -15;
+    const myFacing = (car.facing || 1) * teamDir > 0;
+    const myScore = distToBall - (myGoalSide ? 80 : 0) - (myFacing ? 40 : 0);
+
     for (const tm of allTeammates) {
       if (tm.isDemoed) continue;
-      const d = Math.hypot(ball.x - tm.x, ball.y - tm.y);
-      if (d < distToBall - 25) {
+      const tmDist = Math.hypot(ball.x - tm.x, ball.y - tm.y);
+      const tmGoalSide = (ball.x - tm.x) * teamDir >= -15;
+      const tmFacing = (tm.facing || 1) * teamDir > 0;
+      const tmScore = tmDist - (tmGoalSide ? 80 : 0) - (tmFacing ? 40 : 0);
+
+      // Deterministic tie-breaking on near-identical scores eliminates double-commits:
+      if (Math.abs(tmScore - myScore) < 20) {
+        if (String(tm.id || "") < String(car.id || "")) {
+          rank++;
+        }
+      } else if (tmScore < myScore) {
         rank++;
       }
     }
@@ -2027,9 +2149,8 @@ function executeShadowRecovery(car: any, ball: any, ownGoal: GoalDef, teamDir: n
           return;
         }
 
-        // 2. Anti-Own-Goal Braking: If dangerously close, moving towards ball, or ball heading to own net, brake hard!
-        const isBallMovingToOwnGoal = ball.vx * teamDir < -30;
-        if ((isMovingTowardBall && distToBallX < 340) || distToBallX < 180 || isBallMovingToOwnGoal) {
+        // 2. Anti-Own-Goal Braking: If moving towards ball in own path, brake hard to prevent own-goal ramming!
+        if (isMovingTowardBall && distToBallX < 340) {
           car.input.throttleForward = false;
           car.input.throttleReverse = true;
           car.input.jump = false;
@@ -2039,15 +2160,15 @@ function executeShadowRecovery(car: any, ball: any, ownGoal: GoalDef, teamDir: n
           return;
         }
 
-        // 3. Proactive High Leap-Over: When stationary or moving away with safe clearance (180-420px) over neutral ball:
-        const canLeapOver = !isMovingTowardBall && distToBallX >= 180 && distToBallX <= 420 && car.canJump && !car.isFlipping;
+        // 3. Proactive High Leap-Over: When stationary or moving away with clearance over ball:
+        const canLeapOver = !isMovingTowardBall && distToBallX >= 40 && distToBallX <= 420 && car.canJump && !car.isFlipping;
         if (canLeapOver) {
           startBotJumpSeq(car, "fast_aerial", -teamDir * 0.35, -0.94);
           return;
         }
 
-        // 4. Smooth Rotation: Drive smoothly to safeGoalPostX
-        botDriveGround(car, safeGoalPostX, false, false, env);
+        // 4. Smooth Rotation: Drive quickly to safeGoalPostX to establish goal-side stance
+        botDriveGround(car, safeGoalPostX, true, false, env);
       }
     } else {
       // Goal-side: face outward into field to challenge attack

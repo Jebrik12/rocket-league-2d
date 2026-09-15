@@ -292,6 +292,23 @@ function checkBallCarCollision(ball: any, car: any, stats: any, env: ArenaEnv) {
         const impulse = -(1 + 0.70) * vDotN + (car.input.boost ? 320 : 180) + flipBonus;
         ball.vx += nx * Math.max(140, impulse);
         ball.vy += ny * Math.max(140, impulse);
+
+        // Engine front bumper lift: matches App.tsx line 2277
+        const isFront = (car.facing === 1 ? dx > 0 : dx < 0) && Math.abs(dx) > specs.halfW * 0.45;
+        if (isFront && ball.y > env.k - 110) {
+          const fwdSpeed = Math.max(0, car.vx * (car.facing || 1));
+          const liftImpulse = Math.min(680, Math.max(280, fwdSpeed * 0.52 + Math.abs(vDotN) * 0.38));
+          ball.vy = Math.min(ball.vy, -liftImpulse);
+        }
+
+        // Engine Musty flick boost: matches App.tsx line 2282
+        const isMustyAngle = (Math.cos(car.angle) < -0.15 && Math.abs(Math.sin(car.angle)) > 0.25) || Math.abs(car.angle) > 1.75;
+        const isMusty = isMustyAngle && car.isFlipping && !car.isGrounded && ball.y < car.y + 15;
+        if (isMusty) {
+          const flDir = car.team === "blue" ? 1 : -1;
+          ball.vx = flDir * Math.max(Math.abs(ball.vx) + 550, 950);
+          ball.vy = -Math.max(Math.abs(ball.vy) + 380, 550);
+        }
       }
 
       ball.lastTouchTeam = car.team;
@@ -570,7 +587,109 @@ export function run2v2PlaytestSimulation(ticks: number = 2000) {
   }
 }
 
+export function run3v3PlaytestSimulation(ticks: number = 2000) {
+  const env = rlEnv;
+  const dt = 0.016;
+
+  console.log(`\n======================================================`);
+  console.log(`RUNNING 3v3 BOT PLAYTEST SIMULATION (${ticks} TICKS)`);
+  console.log(`======================================================\n`);
+
+  const blue1 = createSimCar("blue-1", "Alpha1", "blue", env.At + 420, 1);
+  const blue2 = createSimCar("blue-2", "Alpha2", "blue", env.At + 280, 1);
+  const blue3 = createSimCar("blue-3", "Alpha3", "blue", env.At + 140, 1);
+  const orange1 = createSimCar("orange-1", "Beta1", "orange", env.Mt - 420, -1);
+  const orange2 = createSimCar("orange-2", "Beta2", "orange", env.Mt - 280, -1);
+  const orange3 = createSimCar("orange-3", "Beta3", "orange", env.Mt - 140, -1);
+
+  const cars = [blue1, blue2, blue3, orange1, orange2, orange3];
+
+  let ball = {
+    x: env.Kt / 2,
+    y: env.k - 30,
+    vx: 0,
+    vy: 0,
+    radius: 30,
+    lastTouchTeam: null as string | null,
+    lastTouchId: null as string | null
+  };
+
+  const stats: any = {
+    blueGoals: 0,
+    orangeGoals: 0,
+    ownGoals: 0,
+    passes: 0,
+    oneTimers: 0,
+    thirdManAnchors: 0,
+    totalTouches: 0,
+    mechanics: {}
+  };
+
+  for (let tick = 0; tick < ticks; tick++) {
+    stats.currentTick = tick;
+    const evt: any = {};
+
+    executeMasterBotBrain(blue1, ball, orange1, blue2, [blue2, blue3], 1, dt, env, true, [], evt, [orange1, orange2, orange3]);
+    executeMasterBotBrain(blue2, ball, orange1, blue1, [blue1, blue3], 1, dt, env, true, [], evt, [orange1, orange2, orange3]);
+    executeMasterBotBrain(blue3, ball, orange1, blue1, [blue1, blue2], 1, dt, env, true, [], evt, [orange1, orange2, orange3]);
+    executeMasterBotBrain(orange1, ball, blue1, orange2, [orange2, orange3], -1, dt, env, true, [], evt, [blue1, blue2, blue3]);
+    executeMasterBotBrain(orange2, ball, blue1, orange1, [orange1, orange3], -1, dt, env, true, [], evt, [blue1, blue2, blue3]);
+    executeMasterBotBrain(orange3, ball, blue1, orange1, [orange1, orange2], -1, dt, env, true, [], evt, [blue1, blue2, blue3]);
+
+    if (blue1.botState.action === "infield_pass" || orange1.botState.action === "infield_pass") stats.passes++;
+    if (blue2.botState.action === "score_pass" || orange2.botState.action === "score_pass") stats.oneTimers++;
+    if (blue3.botState.action === "third_man_anchor" || orange3.botState.action === "third_man_anchor") stats.thirdManAnchors++;
+
+    for (const car of cars) updateCarKinematics(car, dt, env);
+    simulateBallSubstep(ball, dt / 2, env);
+    simulateBallSubstep(ball, dt / 2, env);
+
+    for (const car of cars) checkBallCarCollision(ball, car, stats, env);
+
+    if (ball.x <= env.At && ball.y >= 380 && ball.y <= 680) {
+      if (ball.lastTouchTeam === "blue") {
+        console.warn(`[3v3 OWN GOAL ALERT] Blue scored into own net at tick ${tick}!`);
+        stats.ownGoals++;
+      } else {
+        stats.orangeGoals++;
+      }
+      ball.x = env.Kt / 2; ball.y = env.k - 30; ball.vx = 0; ball.vy = 0; ball.lastTouchTeam = null;
+      blue1.x = env.At + 420; blue1.vx = 0; blue1.vy = 0; blue1.facing = 1;
+      blue2.x = env.At + 280; blue2.vx = 0; blue2.vy = 0; blue2.facing = 1;
+      blue3.x = env.At + 140; blue3.vx = 0; blue3.vy = 0; blue3.facing = 1;
+      orange1.x = env.Mt - 420; orange1.vx = 0; orange1.vy = 0; orange1.facing = -1;
+      orange2.x = env.Mt - 280; orange2.vx = 0; orange2.vy = 0; orange2.facing = -1;
+      orange3.x = env.Mt - 140; orange3.vx = 0; orange3.vy = 0; orange3.facing = -1;
+    } else if (ball.x >= env.Mt && ball.y >= 380 && ball.y <= 680) {
+      if (ball.lastTouchTeam === "orange") {
+        console.warn(`[3v3 OWN GOAL ALERT] Orange scored into own net at tick ${tick}!`);
+        stats.ownGoals++;
+      } else {
+        stats.blueGoals++;
+      }
+      ball.x = env.Kt / 2; ball.y = env.k - 30; ball.vx = 0; ball.vy = 0; ball.lastTouchTeam = null;
+      blue1.x = env.At + 420; blue1.vx = 0; blue1.vy = 0; blue1.facing = 1;
+      blue2.x = env.At + 280; blue2.vx = 0; blue2.vy = 0; blue2.facing = 1;
+      blue3.x = env.At + 140; blue3.vx = 0; blue3.vy = 0; blue3.facing = 1;
+      orange1.x = env.Mt - 420; orange1.vx = 0; orange1.vy = 0; orange1.facing = -1;
+      orange2.x = env.Mt - 280; orange2.vx = 0; orange2.vy = 0; orange2.facing = -1;
+      orange3.x = env.Mt - 140; orange3.vx = 0; orange3.vy = 0; orange3.facing = -1;
+    }
+  }
+
+  console.log(`3v3 MATCH RESULT: Blue ${stats.blueGoals} - ${stats.orangeGoals} Orange`);
+  console.log(`INFIELD PASSES: ${stats.passes}`);
+  console.log(`ONE-TIMER ATTEMPTS: ${stats.oneTimers}`);
+  console.log(`3RD MAN ANCHOR CYCLES: ${stats.thirdManAnchors}`);
+  console.log(`OWN GOALS: ${stats.ownGoals} (Expected: 0)`);
+
+  if (stats.ownGoals > 0) {
+    throw new Error(`3v3 Playtest failed with ${stats.ownGoals} own goals!`);
+  }
+}
+
 runPlaytestSimulation(4000, "rl_pro");
 runPlaytestSimulation(4000, "legacy");
 run2v2PlaytestSimulation(4000);
+run3v3PlaytestSimulation(3000);
 
