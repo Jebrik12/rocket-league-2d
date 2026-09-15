@@ -2,6 +2,7 @@ import {
   ArenaEnv,
   simulateBallSubstep,
   executeMasterBotBrain,
+  updateBotJumpSeq,
   getCarHitboxSpecs
 } from "../src/bot/botBrain";
 
@@ -199,6 +200,14 @@ function updateCarKinematics(car: any, dt: number, env: ArenaEnv) {
     if (car.input.steerRight && !car.input.steerLeft) steerDir = 1;
     else if (car.input.steerLeft && !car.input.steerRight) steerDir = -1;
     else if (car.input.throttleForward) steerDir = car.facing;
+    else if (car.input.throttleReverse) {
+      if (car.vx * car.facing > 20) {
+        // Active brake
+        car.vx -= car.facing * 1400 * dt;
+      } else {
+        steerDir = -car.facing;
+      }
+    }
 
     if (steerDir !== 0) {
       car.facing = steerDir;
@@ -271,7 +280,7 @@ function checkBallCarCollision(ball: any, car: any, stats: any, env: ArenaEnv) {
     const rvy = ball.vy - car.vy;
     const vDotN = rvx * nx + rvy * ny;
 
-    if (vDotN < 0 || Math.hypot(car.vx, car.vy) > 80 || car.isFlipping) {
+    if (vDotN < 0) {
       const isRoofContact = dy < -10 && Math.abs(dx) < specs.halfW * 0.85;
       if (isRoofContact) {
         // Damped roof collision allows carrying and flicking
@@ -310,7 +319,8 @@ export function runPlaytestSimulation(ticks: number = 2400, mode: "rl_pro" | "le
   console.log(`RUNNING HEADLESS BOT PLAYTEST SIMULATION (${mode.toUpperCase()}, ${ticks} TICKS / ${(ticks * dt).toFixed(1)}s)`);
   console.log(`======================================================\n`);
 
-  const stats = {
+  const stats: any = {
+    currentTick: 0,
     blueGoals: 0,
     orangeGoals: 0,
     ownGoals: 0,
@@ -323,6 +333,7 @@ export function runPlaytestSimulation(ticks: number = 2400, mode: "rl_pro" | "le
       mustyFlicks: 0,
       wallPinches: 0,
       doubleTaps: 0,
+      repossessions: 0,
       saves: 0
     }
   };
@@ -369,6 +380,7 @@ export function runPlaytestSimulation(ticks: number = 2400, mode: "rl_pro" | "le
   };
 
   for (let tick = 0; tick < ticks; tick++) {
+    stats.currentTick = tick;
     const evtBlue: any = {};
     const evtOrange: any = {};
 
@@ -384,7 +396,8 @@ export function runPlaytestSimulation(ticks: number = 2400, mode: "rl_pro" | "le
     if (blueCar.botState.action === "air_dribble" || orangeCar.botState.action === "air_dribble") stats.mechanics.airDribbles++;
     if (blueCar.botState.action === "flip_reset_dunk" || orangeCar.botState.action === "flip_reset_dunk") stats.mechanics.flipResets++;
     if (blueCar.botState.action === "wall_pinch" || orangeCar.botState.action === "wall_pinch") stats.mechanics.wallPinches++;
-    if (blueCar.botState.action === "double_tap" || orangeCar.botState.action === "double_tap") stats.mechanics.doubleTaps++;
+    if (blueCar.botState.action === "double_tap" || orangeCar.botState.action === "double_tap" || blueCar.botState.action === "double_tap_setup" || orangeCar.botState.action === "double_tap_setup") stats.mechanics.doubleTaps++;
+    if (blueCar.botState.action === "repossess" || orangeCar.botState.action === "repossess") stats.mechanics.repossessions = (stats.mechanics.repossessions || 0) + 1;
     if (blueCar.botState.action === "save" || orangeCar.botState.action === "save") stats.mechanics.saves++;
 
     // Track flicks
@@ -439,6 +452,7 @@ export function runPlaytestSimulation(ticks: number = 2400, mode: "rl_pro" | "le
   console.log(`  - Musty Flick jumps:   ${stats.mechanics.mustyFlicks}`);
   console.log(`  - Wall Pinch attempts: ${stats.mechanics.wallPinches}`);
   console.log(`  - Double Tap tracking: ${stats.mechanics.doubleTaps}`);
+  console.log(`  - Repossessions:       ${stats.mechanics.repossessions || 0}`);
   console.log(`  - Saves / Clearances:  ${stats.mechanics.saves}`);
 
   if (stats.ownGoals > 0) {
@@ -487,15 +501,20 @@ export function run2v2PlaytestSimulation(ticks: number = 2000) {
     stats.currentTick = tick;
     const evt: any = {};
 
-    executeMasterBotBrain(blue1, ball, orange1, blue2, [blue2], 1, dt, env, true, [], evt);
-    executeMasterBotBrain(blue2, ball, orange1, blue1, [blue1], 1, dt, env, true, [], evt);
-    executeMasterBotBrain(orange1, ball, blue1, orange2, [orange2], -1, dt, env, true, [], evt);
-    executeMasterBotBrain(orange2, ball, blue1, orange1, [orange1], -1, dt, env, true, [], evt);
+    executeMasterBotBrain(blue1, ball, orange1, blue2, [blue2], 1, dt, env, true, [], evt, [orange1, orange2]);
+    executeMasterBotBrain(blue2, ball, orange1, blue1, [blue1], 1, dt, env, true, [], evt, [orange1, orange2]);
+    executeMasterBotBrain(orange1, ball, blue1, orange2, [orange2], -1, dt, env, true, [], evt, [blue1, blue2]);
+    executeMasterBotBrain(orange2, ball, blue1, orange1, [orange1], -1, dt, env, true, [], evt, [blue1, blue2]);
 
     if (blue1.botState.action === "infield_pass" || orange1.botState.action === "infield_pass") stats.passes++;
     if (blue2.botState.action === "score_pass" || orange2.botState.action === "score_pass") stats.oneTimers++;
+    if (blue1.botState.action === "crease_demo" || blue2.botState.action === "crease_demo" || orange1.botState.action === "crease_demo" || orange2.botState.action === "crease_demo") {
+      stats.creaseDemos = (stats.creaseDemos || 0) + 1;
+    }
 
-    for (const car of cars) updateCarKinematics(car, dt, env);
+    for (const car of cars) {
+      updateCarKinematics(car, dt, env);
+    }
     simulateBallSubstep(ball, dt / 2, env);
     simulateBallSubstep(ball, dt / 2, env);
 
@@ -532,6 +551,7 @@ export function run2v2PlaytestSimulation(ticks: number = 2000) {
   console.log(`2v2 MATCH RESULT: Blue ${stats.blueGoals} - ${stats.orangeGoals} Orange`);
   console.log(`INFIELD PASSES INITIATED: ${stats.passes}`);
   console.log(`ONE-TIMER REDIRECT ATTEMPTS: ${stats.oneTimers}`);
+  console.log(`CREASE DEMO ATTEMPTS: ${stats.creaseDemos || 0}`);
   console.log(`OWN GOALS: ${stats.ownGoals} (Expected: 0)`);
 
   if (stats.ownGoals > 0) {

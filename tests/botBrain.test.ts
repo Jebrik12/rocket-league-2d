@@ -1011,6 +1011,76 @@ function runTests() {
       assert(shadowCar.input.throttleReverse === true, "Car upfield of low ball actively brakes forward momentum");
       assert(shadowCar.input.jump === false, "Car upfield of low ball does NOT hop or flip into ball");
     }
+
+    // =========================================================================
+    // 26. GRAND CHAMPION ATTACK & OFFENSIVE CREASE TACTICS
+    // =========================================================================
+    console.log(`\n--- 26. Grand Champion Attack & Offensive Crease Tactics ---`);
+    {
+      // 26.1 Upfield Goalie Sprint-Back on High Crossbar Clearance
+      const upfieldGoalie = createMockCar({
+        x: 650,
+        y: testEnv.k - 14.5,
+        vx: 0,
+        team: "blue"
+      });
+      const highClearanceShot = { x: 300, y: 320, vx: -400, vy: -50, radius: 30 };
+      executeMasterBotBrain(upfieldGoalie, highClearanceShot, null, null, [], 1, 0.016, testEnv, true, [], {});
+      assert(upfieldGoalie.botState.action === "save", "Upfield goalie recognizes high save opportunity");
+      assert(upfieldGoalie.input.throttleForward === true, "Upfield goalie with clearance sprints back to crease");
+
+      // 26.2 Ground Strike Elevation
+      const striker = createMockCar({
+        x: 900,
+        y: testEnv.k - 14.5,
+        vx: 400,
+        team: "blue",
+        boost: 40
+      });
+      const groundBall = { x: 930, y: testEnv.k - 15, vx: 100, vy: 0, radius: 30 };
+      executeMasterBotBrain(striker, groundBall, null, null, [], 1, 0.016, testEnv, true, [], {});
+      assert(striker.botState.action === "attack", "Striker attacks open ground ball");
+      assert(striker.botState.jumpSeq.stage !== "idle" && striker.botState.jumpSeq.dodgeY < -0.15,
+        "Ground strike dodge elevates vertical vector into elevated goal");
+
+      // 26.3 Intentional Backboard Double-Tap Setup
+      const doubleTapCar = createMockCar({
+        x: testEnv.Mt - 420,
+        y: testEnv.k - 14.5,
+        vx: 350,
+        team: "blue",
+        boost: 40
+      });
+      const doubleTapBall = { x: testEnv.Mt - 390, y: testEnv.k - 20, vx: 150, vy: 0, radius: 30 };
+      executeMasterBotBrain(doubleTapCar, doubleTapBall, null, null, [], 1, 0.016, testEnv, true, [], {});
+      assert(doubleTapCar.botState.action === "double_tap_setup", "Striker executes intentional backboard double-tap setup chip");
+
+      // 26.4 Tactical Crease Demolition in 2v2
+      const firstManPuck = createMockCar({
+        id: "blue-1",
+        x: testEnv.Mt - 300,
+        y: testEnv.k - 14.5,
+        vx: 450,
+        team: "blue",
+        boost: 50,
+        isSupersonic: true
+      });
+      const secondManTeammate = createMockCar({
+        id: "blue-2",
+        x: testEnv.Kt / 2 + 100,
+        y: testEnv.k - 14.5,
+        team: "blue"
+      });
+      const campingGoalie = createMockCar({
+        id: "orange-goalie",
+        x: testEnv.Mt - 120,
+        y: 530,
+        team: "orange"
+      });
+      const attackingBall = { x: testEnv.Kt / 2 + 200, y: testEnv.k - 20, vx: 200, vy: 0, radius: 30 };
+      executeMasterBotBrain(firstManPuck, attackingBall, campingGoalie, secondManTeammate, [secondManTeammate], 1, 0.016, testEnv, true, [], {});
+      assert(firstManPuck.botState.action === "crease_demo", "Upfield 1st man executes crease demo on camping goalkeeper");
+    }
   }
 
   // Summary

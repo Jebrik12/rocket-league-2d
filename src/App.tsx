@@ -3751,7 +3751,7 @@ function Uv(u:any,f:any,r:number,s:any){
     case "ssl":
     case "unfair":
     default:
-      Zv(u, f, oppCar, ownGoal, oppGoal, teamDir, m, p, y === "unfair", g, tmCar, s);
+      Zv(u, f, oppCar, ownGoal, oppGoal, teamDir, m, p, y === "unfair", g, tmCar, s, r);
       break;
   }
 
@@ -4716,7 +4716,8 @@ function Zv(
   isUnfair: boolean,
   boostPads: any,
   tmCar: any,
-  allTeammates?: any[]
+  allTeammates?: any[],
+  allOpponents?: any[]
 ) {
   const botEnv: ArenaEnv = {
     Kt,
@@ -4756,7 +4757,8 @@ function Zv(
     botEnv,
     isUnfair,
     boostPads,
-    evtObj
+    evtObj,
+    allOpponents || []
   );
 }
 
