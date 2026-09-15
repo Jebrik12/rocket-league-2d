@@ -389,6 +389,8 @@ export function solveBestIntercept(
     targetCornerY
   };
 
+  let bestCandidate: InterceptResult | null = null;
+  let bestCandidateScore = -Infinity;
   let found = false;
 
   for (let step = 1; step <= maxSteps; step++) {
@@ -452,8 +454,10 @@ export function solveBestIntercept(
     const totalReqT = Math.max(reqTx, reqTy);
 
     // Ball state classification
+    const isBallAlreadyAerial = ball.y < env.k - 110;
     const isRebound = (teamDir > 0 && px < env.Mt - 90 && b.vx < -80) || (teamDir < 0 && px > env.At + 90 && b.vx > 80);
-    const isHalfVolley = py > env.k - 75 && Math.abs(b.vy) > 80;
+    const isHalfVolley = !isBallAlreadyAerial && ball.y < env.k - 35 && ball.vy > 30 && py >= env.k - 85 && b.vy < -25;
+    const isApex = isAerial && Math.abs(b.vy) < 65;
 
     // Opponent contest evaluation
     let beatsOpponent = true;
@@ -467,23 +471,60 @@ export function solveBestIntercept(
     }
 
     const margin = isUnfair ? 1.20 : 1.08;
-    if (totalReqT <= t * margin && (beatsOpponent || !found)) {
-      return {
-        t,
-        x: px,
-        y: py,
-        vx: b.vx,
-        vy: b.vy,
-        isAerial,
-        isFloating,
-        isRebound,
-        isHalfVolley,
-        strikeTargetX,
-        strikeTargetY,
-        dist: Math.hypot(dx, dy),
-        isSafe: true,
-        targetCornerY
-      };
+    const isReachable = totalReqT <= t * margin;
+
+    if (isReachable && (beatsOpponent || !found)) {
+      // If the ball was already aerial or flat on the floor, the first valid reachable point is optimal
+      if (isBallAlreadyAerial || (!isHalfVolley && t < 0.6)) {
+        return {
+          t,
+          x: px,
+          y: py,
+          vx: b.vx,
+          vy: b.vy,
+          isAerial,
+          isFloating,
+          isRebound,
+          isHalfVolley,
+          strikeTargetX,
+          strikeTargetY,
+          dist: Math.hypot(dx, dy),
+          isSafe: true,
+          targetCornerY
+        };
+      }
+
+      // Analytical candidate quality score for bouncing balls:
+      let score = 100 - t * 25;
+      if (isHalfVolley) score += 60;
+      if (isRebound) score += 40;
+      if (!beatsOpponent) score -= 120;
+
+      if (score > bestCandidateScore) {
+        bestCandidateScore = score;
+        bestCandidate = {
+          t,
+          x: px,
+          y: py,
+          vx: b.vx,
+          vy: b.vy,
+          isAerial,
+          isFloating,
+          isRebound,
+          isHalfVolley,
+          strikeTargetX,
+          strikeTargetY,
+          dist: Math.hypot(dx, dy),
+          isSafe: true,
+          targetCornerY
+        };
+        found = true;
+      }
+
+      // If we found a top-tier candidate (half-volley or early apex) that beats opponent, lock it in immediately
+      if (beatsOpponent && isHalfVolley && t < 0.8) {
+        return bestCandidate;
+      }
     }
 
     if (!found || Math.hypot(dx, dy) < bestResult.dist) {
@@ -503,11 +544,10 @@ export function solveBestIntercept(
         isSafe: true,
         targetCornerY
       };
-      found = true;
     }
   }
 
-  return bestResult;
+  return bestCandidate || bestResult;
 }
 
 // ---------------------------------------------------------------------------
@@ -868,11 +908,29 @@ export function botDriveGround(
   targetX: number,
   allowBoost: boolean = true,
   allowWavedash: boolean = false,
-  env?: ArenaEnv
+  env?: ArenaEnv,
+  targetY?: number
 ) {
-  // 1. Wall Dismount Recovery: If bot accidentally touched wall or corner curve during ground drive,
-  // immediately jump and steer away from the wall towards pitch center/floor!
-  if (car.surfaceType === "left_wall" || car.surfaceType === "right_wall" || car.surfaceType === "curve") {
+  // 1. Wall Drive & Dismount:
+  if (car.surfaceType === "left_wall" || car.surfaceType === "right_wall") {
+    const isTargetHighOnWall = targetY !== undefined && targetY < (env ? env.k - 160 : 760);
+    if (isTargetHighOnWall && car.y > targetY + 25) {
+      // Climb up wall towards elevated ball/target
+      car.input.throttleForward = true;
+      car.input.throttleReverse = false;
+      car.input.jump = false;
+      if (allowBoost && car.boost > 10) car.input.boost = true;
+      return;
+    }
+    // Dismount towards center/floor
+    const exitDirX = car.x < (env ? env.Kt / 2 : 1000) ? 1 : -1;
+    car.input.jump = true;
+    car.input.throttleForward = true;
+    car.input.steerRight = exitDirX > 0;
+    car.input.steerLeft = exitDirX < 0;
+    if (car.boost > 10) car.input.boost = true;
+    return;
+  } else if (car.surfaceType === "curve") {
     const exitDirX = car.x < (env ? env.Kt / 2 : 1000) ? 1 : -1;
     car.input.jump = true;
     car.input.throttleForward = true;
@@ -923,9 +981,11 @@ export function botDriveGround(
     car.input.boost = true;
   }
 
-  // Straightaway speed flip when low on boost
-  if (allowWavedash && car.boost < 15 && car.isGrounded && car.canJump && !car.isFlipping && distX > 360 && isAligned && Math.abs(car.vx) > 140) {
-    startBotJumpSeq(car, "dodge", driveDir, -0.05);
+  // Straightaway speed flip when low on boost or wavedash across pitch
+  if (allowWavedash && car.isGrounded && car.canJump && !car.isFlipping && distX > 320 && isAligned && Math.abs(car.vx) > 130) {
+    if (car.boost < 20 || !car.isSupersonic) {
+      startBotJumpSeq(car, "dodge", driveDir, -0.06);
+    }
   }
 }
 
@@ -1028,10 +1088,31 @@ export function executeMasterBotBrain(
     if (active) return;
   }
 
-  // 1.5 WALL DISMOUNT WATCHDOG: If car ended up on wall or curve during ground play/defense,
-  // dismount immediately back to flat floor unless intentionally doing a wall aerial!
+  // 1.5 WALL PLAY & DISMOUNT WATCHDOG: If car ended up on wall or curve,
+  // either attack elevated ball near wall or dismount immediately back to flat floor!
   const isCarOnWallOrCurve = car.surfaceType === "left_wall" || car.surfaceType === "right_wall" || car.surfaceType === "curve";
   if (isCarOnWallOrCurve) {
+    const isBallNearMyWall = (car.surfaceType === "left_wall" && ball.x < env.At + 160) ||
+                             (car.surfaceType === "right_wall" && ball.x > env.Mt - 160);
+    const isBallHigh = ball.y < env.k - 140;
+
+    if (isBallNearMyWall && isBallHigh) {
+      z.action = "wall_strike";
+      const shootAng = Math.atan2((oppGoal.yMin || 380) + 40 - ball.y, oppGoalX - ball.x);
+      if (car.y > ball.y + 20) {
+        car.input.throttleForward = true;
+        car.input.throttleReverse = false;
+        if (car.boost > 10) car.input.boost = true;
+        return;
+      } else {
+        if (distToBall < contactDist + 45 && car.canJump && !car.isFlipping) {
+          startBotJumpSeq(car, "dodge", Math.cos(shootAng), Math.sin(shootAng) * 0.85);
+          if (evtObj && Math.random() < 0.7) evtObj.chatMessage = "🚀 WALL-TO-AIR STRIKE!";
+          return;
+        }
+      }
+    }
+
     const isBallFloorOrDefensive = ball.y > env.k - 150 || (ball.x - ownGoalX) * teamDir < 380;
     if (isBallFloorOrDefensive && car.canJump && !car.isFlipping) {
       const exitDirX = car.x < env.Kt / 2 ? 1 : -1;
@@ -1394,7 +1475,7 @@ export function executeMasterBotBrain(
       const hClimb = Math.max(0, car.y - undercarriageY);
       const climbSpeed = env.isLegacy ? 840 : 680;
       const climbT = 0.10 + hClimb / climbSpeed;
-      if (car.canJump && !car.isFlipping && Math.abs(car.x - ball.x) < 180) {
+      if (car.canJump && !car.isFlipping && Math.abs(car.x - ball.x) <= 320) {
         startBotJumpSeq(car, "fast_aerial");
       }
       return;
@@ -1452,7 +1533,7 @@ export function executeMasterBotBrain(
     // When approaching from behind to strike, drive THROUGH the ball towards opponent net!
     // (Never stop 60px short of the ball or steer away right before contact!)
     const groundAttackX = isApproachingBall ? oppGoalX : targetX;
-    botDriveGround(car, groundAttackX, true, false, env);
+    botDriveGround(car, groundAttackX, true, false, env, targetY);
     if (isApproachingBall) {
       car.input.throttleForward = true;
       car.facing = teamDir;
@@ -1470,14 +1551,25 @@ export function executeMasterBotBrain(
     }
 
     if (intercept.isAerial && ball.y < env.k - 165 && intercept.y < env.k - 165 && car.boost >= 8) {
-      // High Aerial Launch: Only for genuinely elevated balls with adequate boost
+      // High Aerial Launch: Launch from deep across the arena!
       const climbSpeed = env.isLegacy ? 840 : 680;
-      const climbT = 0.10 + hClimb / climbSpeed;
+      const climbT = 0.08 + hClimb / climbSpeed;
       const horizDist = Math.abs(car.x - targetX);
-      const maxLaunchDist = Math.max(90, Math.abs(car.vx) * climbT + specs.halfW + 70);
+      const maxLaunchDist = Math.max(260, Math.abs(car.vx) * climbT + 380);
       const isOrientedTowardsTarget = (targetX - car.x) * car.vx > -80 && (targetX - car.x) * (car.facing || 1) > -35;
-      if (car.canJump && !car.isFlipping && intercept.t <= climbT + 0.18 && horizDist <= maxLaunchDist && isOrientedTowardsTarget) {
+      if (car.canJump && !car.isFlipping && intercept.t <= climbT + 0.45 && horizDist <= maxLaunchDist && isOrientedTowardsTarget) {
         startBotJumpSeq(car, "fast_aerial", cosShoot, sinShoot);
+      }
+    } else if (intercept.isHalfVolley && isApproachingBall) {
+      // Half-Volley Boomer: Strike with supersonic front bumper right as ball rises off turf!
+      car.input.throttleForward = true;
+      car.facing = teamDir;
+      if (car.boost > 0 && Math.abs(car.x - ball.x) < 400) {
+        car.input.boost = true;
+      }
+      if (distToBall <= contactDist + 34 && car.canJump && !car.isFlipping) {
+        startBotJumpSeq(car, "dodge", cosShoot, strikeDodgeY);
+        if (evtObj && Math.random() < 0.6) evtObj.chatMessage = "🚀 HALF-VOLLEY BOOMER!";
       }
     } else if (hClimb > 20 || ball.y < env.k - 38) {
       // Waist-High & Floating Ball: PRECISION JUMP STRIKE with calibrated elevation (Never whiffs underneath!)
@@ -1892,6 +1984,7 @@ function executeSecondManSupport(
 
 function executeShadowRecovery(car: any, ball: any, ownGoal: GoalDef, teamDir: number, env: ArenaEnv) {
   const ownGoalX = ownGoal.x !== undefined ? ownGoal.x : (teamDir > 0 ? env.At : env.Mt);
+  const oppGoalX = teamDir > 0 ? env.Mt : env.At;
   const safeGoalPostX = teamDir > 0 ? env.At + 170 : env.Mt - 170;
 
   car.input.pitchUp = false;
@@ -1913,7 +2006,7 @@ function executeShadowRecovery(car: any, ball: any, ownGoal: GoalDef, teamDir: n
       // Upfield of ball: STRICTLY NEVER boost when ball is behind!
       car.input.boost = false;
 
-      const isBallSafelyHighAbove = ball.y < env.k - 260 && ball.vy < 40 && Math.abs(ball.vx) < 500;
+      const isBallSafelyHighAbove = ball.y < env.k - 80 && ball.vy < 60 && Math.abs(ball.vx) < 500;
       const distToBallX = Math.abs(car.x - ball.x);
 
       if (isBallSafelyHighAbove) {
@@ -1922,34 +2015,33 @@ function executeShadowRecovery(car: any, ball: any, ownGoal: GoalDef, teamDir: n
       } else {
         // Ball is low/grounded/falling: DO NOT drive through the ball into own net!
         const isMovingTowardBall = (ball.x - car.x) * car.vx > 0;
-        const isBallDeadOnFloor = ball.y > env.k - 70 && Math.abs(ball.vy) < 60 && Math.abs(ball.vx) < 140;
-        const canLeapOver = isBallDeadOnFloor && distToBallX >= 190 && distToBallX <= 380 && car.canJump && !car.isFlipping && !isMovingTowardBall;
 
+        // 1. Proactive Turnaround Attack: If ball is moving toward opponent net, follow it!
+        const isBallMovingToOppGoal = ball.vx * teamDir > 40;
+        if (isBallMovingToOppGoal && distToBallX > 140) {
+          botDriveGround(car, oppGoalX, true, true, env);
+          return;
+        }
+
+        // 2. Anti-Own-Goal Braking: If dangerously close and moving towards ball on ground, brake hard!
+        if (isMovingTowardBall && distToBallX < 220) {
+          car.input.throttleForward = false;
+          car.input.throttleReverse = true;
+          car.input.jump = false;
+          car.input.steerLeft = false;
+          car.input.steerRight = false;
+          return;
+        }
+
+        // 3. Proactive High Leap-Over: Jump high over the ball towards own goal to reset goal-side!
+        const canLeapOver = distToBallX >= 130 && distToBallX <= 420 && car.canJump && !car.isFlipping;
         if (canLeapOver) {
-          // High arching leap over stationary ground ball to re-establish goal-side positioning!
           startBotJumpSeq(car, "fast_aerial", -teamDir * 0.70, -0.71);
           return;
         }
 
-        if (distToBallX < 260) {
-          // Dangerous proximity: actively brake if moving toward ball from upfield!
-          if (isMovingTowardBall) {
-            car.input.throttleForward = false;
-            car.input.throttleReverse = true;
-            car.input.jump = false;
-            car.input.steerLeft = false;
-            car.input.steerRight = false;
-          } else {
-            // Stationary or moving away: drive to safe holding buffer 240px upfield of ball
-            const safeHoldingX = ball.x + teamDir * 240;
-            botDriveGround(car, safeHoldingX, false, false, env);
-            car.input.jump = false;
-          }
-        } else {
-          // Far enough: drive to safe holding buffer 240px upfield of ball
-          const safeHoldingX = ball.x + teamDir * 240;
-          botDriveGround(car, safeHoldingX, false, false, env);
-        }
+        // 4. Smooth Rotation: Drive smoothly to safeGoalPostX
+        botDriveGround(car, safeGoalPostX, false, false, env);
       }
     } else {
       // Goal-side: face outward into field to challenge attack

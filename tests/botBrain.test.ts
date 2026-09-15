@@ -1160,6 +1160,94 @@ function runTests() {
     assert(mustyTriggered, "Offensive ground attack can proactively trigger Musty flick jump sequence");
   }
 
+  // --- TEST GROUP 28: Masterful Reads, Boomer Half-Volleys & Zero-Pacing Flow ---
+  console.log("\n--- 28. Masterful Reads, Boomer Half-Volleys & Zero-Pacing Flow ---");
+  {
+    // 28.1 Half-Volley Trajectory Detection
+    const halfVolleyCar = createMockCar({
+      x: 1000,
+      y: testEnv.k - 14.5,
+      vx: 300,
+      team: "blue",
+      boost: 30
+    });
+    // Ball dropping fast towards the turf (will hit and pop)
+    const droppingBall = { x: 1200, y: testEnv.k - 90, vx: 50, vy: 350, radius: 30 };
+    const interceptHV = solveBestIntercept(halfVolleyCar, droppingBall, 1, testEnv, null, null, true, 2.0);
+    assert(
+      interceptHV.isHalfVolley === true,
+      "Predictive solver identifies half-volley window on dropping ball",
+      `isHalfVolley was ${interceptHV.isHalfVolley}`
+    );
+
+    // 28.2 Deep Fast Aerial Launch (> 250px away)
+    const deepAerialCar = createMockCar({
+      x: 800,
+      y: testEnv.k - 14.5,
+      vx: 300,
+      facing: 1,
+      angle: 0,
+      team: "blue",
+      boost: 40,
+      canJump: true
+    });
+    const highDeepBall = { x: 1100, y: testEnv.k - 240, vx: 50, vy: -20, radius: 30 };
+    executeMasterBotBrain(deepAerialCar, highDeepBall, null, null, [], 1, 0.016, testEnv, true, [], {});
+    assert(
+      deepAerialCar.botState.jumpSeq.stage !== "idle" && deepAerialCar.botState.jumpSeq.type === "fast_aerial",
+      "Launches deep fast aerial from 300px away across arena",
+      `stage=${deepAerialCar.botState.jumpSeq.stage}, type=${deepAerialCar.botState.jumpSeq.type}`
+    );
+
+    // 28.3 Proactive High Leap-Over Recovery (Zero Pacing Deadlock)
+    const recoveringCar = createMockCar({
+      x: 1200,
+      y: testEnv.k - 14.5,
+      vx: 0,
+      team: "blue",
+      boost: 30,
+      canJump: true
+    });
+    // Low ball behind car relative to team direction (car is upfield at 1200, ball at 950)
+    const groundBallBehind = { x: 950, y: testEnv.k - 20, vx: 0, vy: 0, radius: 30 };
+    executeMasterBotBrain(recoveringCar, groundBallBehind, null, null, [], 1, 0.016, testEnv, true, [], {});
+    assert(
+      recoveringCar.botState.action === "rotate_back",
+      "Upfield car enters rotate_back"
+    );
+    assert(
+      recoveringCar.botState.jumpSeq.stage !== "idle" && recoveringCar.botState.jumpSeq.type === "fast_aerial",
+      "Upfield car initiates high arching leap-over towards own goal (zero pacing buffer)",
+      `stage=${recoveringCar.botState.jumpSeq.stage}, type=${recoveringCar.botState.jumpSeq.type}`
+    );
+    assert(
+      recoveringCar.botState.jumpSeq.dodgeX < 0,
+      "Leap-over direction arches backwards towards own goal (dodgeX < 0)",
+      `dodgeX=${recoveringCar.botState.jumpSeq.dodgeX}`
+    );
+
+    // 28.4 Wall-to-Air Strike Execution
+    const wallCar = createMockCar({
+      x: testEnv.At + 14.5,
+      y: 600,
+      vx: 0,
+      vy: -200,
+      isGrounded: true,
+      surfaceType: "left_wall",
+      surfaceNormal: { x: 1, y: 0 },
+      team: "blue",
+      boost: 30,
+      canJump: true
+    });
+    const wallBall = { x: testEnv.At + 60, y: 580, vx: 0, vy: -50, radius: 30 };
+    executeMasterBotBrain(wallCar, wallBall, null, null, [], 1, 0.016, testEnv, true, [], {});
+    assert(
+      wallCar.botState.action === "wall_strike" || wallCar.botState.jumpSeq.stage !== "idle",
+      "Car on wall recognizes elevated wall strike opportunity",
+      `action=${wallCar.botState.action}`
+    );
+  }
+
   // Summary
   console.log(`\n========================================`);
   console.log(`TEST SUMMARY: ${passed} PASSED, ${failed} FAILED`);
