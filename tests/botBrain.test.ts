@@ -776,6 +776,241 @@ function runTests() {
       groundAttacker.input.jump === true || groundAttacker.botState.jumpSeq.stage !== "idle",
       "Attacker fires supersonic dodge flip through flat ground ball for 120+ km/h boomer shot"
     );
+    // --- TEST GROUP 23: Grand Champion Freestyle Initiators & Wall Dismount Protocol ---
+    console.log("\n--- 23. Grand Champion Freestyle Initiators & Wall Dismount Protocol ---");
+    {
+      // 23.1 Wall Dismount Recovery: Bot stuck on wall dismounts immediately to flat floor
+      const wallCar = createMockCar({
+        x: testEnv.At + 10,
+        y: 450,
+        surfaceType: "left_wall",
+        isGrounded: true,
+        canJump: true,
+        boost: 25
+      });
+      const floorBall = { x: 800, y: testEnv.k - 25, vx: 50, vy: 0, radius: 30 };
+      executeMasterBotBrain(wallCar, floorBall, null, null, [], 1, 0.016, testEnv, true, [], {});
+      assert(
+        wallCar.input.jump === true || wallCar.botState.jumpSeq.stage !== "idle",
+        "Bot on left wall initiates jump dismount towards flat floor"
+      );
+
+      // 23.2 Proactive Ground Scoop: Matches speed to scoop rolling ground ball onto roof
+      const scoopCar = createMockCar({
+        x: 600,
+        y: testEnv.k - 14.5,
+        vx: 60,
+        team: "blue",
+        boost: 35
+      });
+      const rollingBall = { x: 670, y: testEnv.k - 30, vx: 55, vy: 0, radius: 30 };
+      const distantOpp = createMockCar({ x: 1700, y: testEnv.k - 14.5, vx: 0, team: "orange" });
+      executeMasterBotBrain(scoopCar, rollingBall, distantOpp, null, [], 1, 0.016, testEnv, true, [], {});
+      assert(scoopCar.botState.action === "dribble", "Bot proactively initiates ground scoop into roof dribble carry");
+
+      // 23.3 Proactive Ground-to-Air Dribble Setup: Pops bouncing ball and launches fast aerial
+      const airDribbleSetupCar = createMockCar({
+        x: 1000,
+        y: testEnv.k - 14.5,
+        vx: 200,
+        team: "blue",
+        boost: 50,
+        canJump: true
+      });
+      const bouncingBall = { x: 1060, y: testEnv.k - 60, vx: 180, vy: -75, radius: 30 };
+      executeMasterBotBrain(airDribbleSetupCar, bouncingBall, distantOpp, null, [], 1, 0.016, testEnv, true, [], {});
+      assert(
+        airDribbleSetupCar.botState.action === "air_dribble" && airDribbleSetupCar.botState.jumpSeq.type === "fast_aerial",
+        "Bot initiates ground-to-air dribble launch from bouncing ball"
+      );
+
+      // 23.4 Proactive Flip Reset Hunt: Ball high in air triggers undercarriage approach
+      const resetHuntCar = createMockCar({
+        x: 1100,
+        y: testEnv.k - 14.5,
+        vx: 150,
+        team: "blue",
+        boost: 50,
+        canJump: true
+      });
+      const highFloatingBall = { x: 1200, y: testEnv.k - 260, vx: 40, vy: -20, radius: 30 };
+      executeMasterBotBrain(resetHuntCar, highFloatingBall, distantOpp, null, [], 1, 0.016, testEnv, true, [], {});
+      assert(
+        resetHuntCar.botState.action === "flip_reset_setup",
+        "Bot proactively sets up flip reset run underneath high airborne ball"
+      );
+
+      // 23.5 Flip Reset Dunk Finisher: When hasFlipReset is granted, executes clinical dunk
+      const dunkCar = createMockCar({
+        x: 1550,
+        y: testEnv.k - 250,
+        vx: 300,
+        vy: -20,
+        isGrounded: false,
+        hasFlipReset: true,
+        jumpCount: 0,
+        canJump: true,
+        boost: 20
+      });
+      const dunkBall = { x: 1590, y: testEnv.k - 260, vx: 80, vy: 0, radius: 30 };
+      executeMasterBotBrain(dunkCar, dunkBall, null, null, [], 1, 0.016, testEnv, true, [], {});
+      assert(
+        dunkCar.botState.action === "flip_reset_dunk" && dunkCar.botState.jumpSeq.type === "dodge",
+        "Bot executes clinical flip reset dunk into opponent goal"
+      );
+
+      // 23.6 Flawless Goalie Crease Positioning: Goalie stays goal-side and clears downfield
+      const creaseGoalie = createMockCar({
+        x: testEnv.At + 120,
+        y: testEnv.k - 14.5,
+        vx: 0,
+        team: "blue",
+        boost: 40
+      });
+      const slowTrickler = { x: testEnv.At + 240, y: 550, vx: -12, vy: 0, radius: 30 };
+      executeMasterBotBrain(creaseGoalie, slowTrickler, null, null, [], 1, 0.016, testEnv, true, [], {});
+      assert(creaseGoalie.botState.action === "save", "Goalie detects slow trickler as a goal threat");
+      assert(creaseGoalie.x < slowTrickler.x, "Goalie positions on goal-side between net and ball");
+    }
+
+    // --- TEST GROUP 24: Ultimate Freestyle & Zero-Whiff Intelligence ---
+    console.log("\n--- 24. Ultimate Freestyle & Zero-Whiff Intelligence ---");
+    {
+      // 24.1 Active Air Dribble Continuation
+      const airCar = createMockCar({
+        x: 1200,
+        y: testEnv.k - 180,
+        vx: 240,
+        vy: -50,
+        isGrounded: false,
+        team: "blue",
+        boost: 40
+      });
+      airCar.botState.action = "air_dribble";
+      const airBall = { x: 1240, y: testEnv.k - 200, vx: 220, vy: -40, radius: 30 };
+      executeMasterBotBrain(airCar, airBall, null, null, [], 1, 0.016, testEnv, true, [], {});
+      assert(airCar.botState.action === "air_dribble", "Ongoing air dribble persists across touches without flip reset preemption");
+
+      // 24.2 Musty Jump Neutralization in Stage press2
+      const mustyCar = createMockCar({
+        x: 1000,
+        y: testEnv.k - 150,
+        vx: 200,
+        isGrounded: false,
+        team: "blue"
+      });
+      mustyCar.botState.jumpSeq = { stage: "press2", timer: 0.01, type: "musty_jump", dodgeX: 1, dodgeY: -0.45 };
+      updateBotJumpSeq(mustyCar, 0.016, testEnv);
+      assert(mustyCar.input.throttleForward === false, "Musty jump clears throttleForward in press2");
+      assert(mustyCar.input.throttleReverse === false, "Musty jump clears throttleReverse in press2");
+      assert(mustyCar.input.mouseAim === true, "Musty jump maintains mouseAim in press2");
+
+      // 24.3 Zero-Whiff Aerial Launch Orientation
+      const reversingCar = createMockCar({
+        x: 1000,
+        y: testEnv.k - 14.5,
+        vx: -250,
+        facing: -1,
+        team: "blue",
+        boost: 50,
+        canJump: true
+      });
+      const highAheadBall = { x: 1300, y: testEnv.k - 200, vx: 50, vy: -50, radius: 30 };
+      executeMasterBotBrain(reversingCar, highAheadBall, null, null, [], 1, 0.016, testEnv, true, [], {});
+      assert(reversingCar.botState.jumpSeq.stage === "idle", "Car reversing away from aerial target does NOT jump backwards (zero-whiff)");
+
+      // 24.4 Midfield Infield Passing Play
+      const passerCar = createMockCar({
+        id: "passer",
+        x: 1100,
+        y: testEnv.k - 14.5,
+        vx: 300,
+        team: "blue"
+      });
+      const receiverCar = createMockCar({
+        id: "receiver",
+        x: 1350,
+        y: testEnv.k - 14.5,
+        vx: 300,
+        team: "blue"
+      });
+      const flankBall = { x: 1140, y: testEnv.k - 30, vx: 200, vy: 0, radius: 30 };
+      executeMasterBotBrain(passerCar, flankBall, null, receiverCar, [receiverCar], 1, 0.016, testEnv, true, [], {});
+      assert(passerCar.botState.action === "infield_pass", "1st man on flank initiates centering pass to central receiver");
+    }
+
+    // =========================================================================
+    // 25. MASTERCLASS 2V2 CHEMISTRY & ZERO-OWN-GOAL PROTOCOL
+    // =========================================================================
+    console.log(`\n--- 25. Masterclass 2v2 Chemistry & Zero-Own-Goal Protocol ---`);
+    {
+      // 25.1 Upfield Goalie Save Neutralization
+      const upfieldGoalie = createMockCar({
+        x: 300,
+        y: testEnv.k - 14.5,
+        vx: -300,
+        facing: -1,
+        team: "blue",
+        canJump: true
+      });
+      const incomingShot = { x: 220, y: 530, vx: -500, vy: 0, radius: 30 };
+      executeMasterBotBrain(upfieldGoalie, incomingShot, null, null, [], 1, 0.016, testEnv, true, [], {});
+      assert(upfieldGoalie.botState.action === "save", "Bot recognizes defensive save action");
+      assert(upfieldGoalie.input.throttleForward === false, "Upfield goalie NEVER accelerates forward towards own net");
+      assert(upfieldGoalie.input.throttleReverse === true, "Upfield goalie actively brakes momentum towards own net");
+      assert(upfieldGoalie.input.jump === false, "Upfield goalie does NOT jump-strike into own net");
+      assert(upfieldGoalie.botState.jumpSeq.stage === "idle", "Upfield goalie jumpSeq remains idle");
+
+      // 25.2 2v2 Defensive Threat Delegation
+      const goalSideTeammate = createMockCar({
+        id: "tm-goalie",
+        x: 180,
+        y: testEnv.k - 14.5,
+        vx: 0,
+        team: "blue"
+      });
+      const upfieldSecondMan = createMockCar({
+        id: "bot-second",
+        x: 420,
+        y: testEnv.k - 14.5,
+        vx: -150,
+        team: "blue"
+      });
+      const threatBall = { x: 280, y: 520, vx: -600, vy: 0, radius: 30 };
+      executeMasterBotBrain(upfieldSecondMan, threatBall, null, goalSideTeammate, [goalSideTeammate], 1, 0.016, testEnv, true, [], {});
+      assert(upfieldSecondMan.botState.action === "anchor_goal", "Upfield 2nd man yields save to goal-side teammate (action=anchor_goal)");
+
+      // 25.3 Second Man Defensive Zone Discipline (No Own-Net Redirects)
+      const defSecondCar = createMockCar({
+        id: "def-second",
+        x: testEnv.Mt - 100,
+        y: testEnv.k - 14.5,
+        team: "orange"
+      });
+      const upfieldTeammate = createMockCar({
+        id: "tm-upfield",
+        x: testEnv.At + 200,
+        y: testEnv.k - 14.5,
+        team: "orange"
+      });
+      const defensiveCreaseBall = { x: testEnv.Mt - 90, y: 550, vx: 50, vy: 0, radius: 30 };
+      executeMasterBotBrain(defSecondCar, defensiveCreaseBall, null, upfieldTeammate, [upfieldTeammate], -1, 0.016, testEnv, true, [], {});
+      assert(defSecondCar.botState.action !== "score_pass", "Second man NEVER initiates score_pass one-timer in own defensive zone");
+
+      // 25.4 Upfield Grounded Shadow Recovery Braking
+      const shadowCar = createMockCar({
+        x: 400,
+        y: testEnv.k - 14.5,
+        vx: -200,
+        team: "blue"
+      });
+      const groundBallAhead = { x: 300, y: testEnv.k - 20, vx: -50, vy: 0, radius: 30 };
+      executeMasterBotBrain(shadowCar, groundBallAhead, null, null, [], 1, 0.016, testEnv, true, [], {});
+      assert(shadowCar.botState.action === "rotate_back", "Car upfield of ball enters rotate_back");
+      assert(shadowCar.input.throttleForward === false, "Car upfield of low ball does NOT drive forward into ball");
+      assert(shadowCar.input.throttleReverse === true, "Car upfield of low ball actively brakes forward momentum");
+      assert(shadowCar.input.jump === false, "Car upfield of low ball does NOT hop or flip into ball");
+    }
   }
 
   // Summary
