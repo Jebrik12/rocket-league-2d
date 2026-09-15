@@ -855,7 +855,7 @@ function runTests() {
       const dunkBall = { x: 1590, y: testEnv.k - 260, vx: 80, vy: 0, radius: 30 };
       executeMasterBotBrain(dunkCar, dunkBall, null, null, [], 1, 0.016, testEnv, true, [], {});
       assert(
-        dunkCar.botState.action === "flip_reset_dunk" && dunkCar.botState.jumpSeq.type === "dodge",
+        dunkCar.botState.action === "flip_reset_dunk" && (dunkCar.botState.jumpSeq.type === "dodge" || dunkCar.botState.jumpSeq.type === "musty_jump"),
         "Bot executes clinical flip reset dunk into opponent goal"
       );
 
@@ -1081,6 +1081,83 @@ function runTests() {
       executeMasterBotBrain(firstManPuck, attackingBall, campingGoalie, secondManTeammate, [secondManTeammate], 1, 0.016, testEnv, true, [], {});
       assert(firstManPuck.botState.action === "crease_demo", "Upfield 1st man executes crease demo on camping goalkeeper");
     }
+  }
+
+  // --- TEST GROUP 27: Precision Scoring, Musty Flicks & Consecutive Freestyle Chains ---
+  console.log("\n--- 27. Precision Scoring, Musty Flicks & Consecutive Freestyle Chains ---");
+  {
+    // 27.1 Open Net Shot Targets Safe Center Mouth
+    const openNetCar = createMockCar({
+      x: 1400,
+      y: testEnv.k - 14.5,
+      vx: 300,
+      team: "blue",
+      boost: 30
+    });
+    const openNetBall = { x: 1480, y: testEnv.k - 14.5, vx: 100, vy: 0, radius: 30 };
+    const intercept = solveBestIntercept(openNetCar, openNetBall, 1, testEnv, null, null, true);
+    const goalCenterY = ((testEnv.ae.yMin || 380) + (testEnv.ae.yMax || 680)) / 2;
+    assert(
+      intercept.targetCornerY === goalCenterY,
+      "Open net shot targets safe center mouth (no crossbar ricochets)",
+      `expected ${goalCenterY}, got ${intercept.targetCornerY}`
+    );
+
+    // 27.2 Floating Ball Above Net Dunks Downward (strikeDodgeY > 0)
+    const floatingDunkCar = createMockCar({
+      x: 1650,
+      y: 350,
+      vx: 200,
+      vy: 0,
+      isGrounded: false,
+      jumpCount: 1,
+      canJump: true,
+      boost: 30
+    });
+    const floatingBall = { x: 1690, y: 350, vx: 50, vy: 0, radius: 30 };
+    executeMasterBotBrain(floatingDunkCar, floatingBall, null, null, [], 1, 0.016, testEnv, true, [], {});
+    assert(
+      floatingDunkCar.botState.jumpSeq.stage !== "idle" && floatingDunkCar.botState.jumpSeq.dodgeY > 0,
+      "Floating ball above net dunks downward with positive dodgeY",
+      `dodgeY=${floatingDunkCar.botState.jumpSeq.dodgeY}`
+    );
+
+    // 27.3 Ground Approach Drives Through Ball Toward Goal (No Handbrake or Reverse Steering)
+    const groundStriker = createMockCar({
+      x: 1400,
+      y: testEnv.k - 14.5,
+      vx: 450,
+      facing: 1,
+      angle: 0,
+      team: "blue",
+      boost: 40
+    });
+    const targetBall = { x: 1470, y: testEnv.k - 14.5, vx: 120, vy: 0, radius: 30 };
+    executeMasterBotBrain(groundStriker, targetBall, null, null, [], 1, 0.016, testEnv, true, [], {});
+    assert(
+      groundStriker.input.throttleForward === true && groundStriker.input.handbrake === false && groundStriker.input.steerLeft === false,
+      "Ground striker drives through ball with full throttle and zero handbrake"
+    );
+
+    // 27.4 Proactive Ground Attack Can Trigger Musty Jump
+    let mustyTriggered = false;
+    for (let i = 0; i < 20; i++) {
+      const attacker = createMockCar({
+        x: 1400,
+        y: testEnv.k - 14.5,
+        vx: 300,
+        facing: 1,
+        team: "blue",
+        boost: 30
+      });
+      const rollingBall = { x: 1445, y: testEnv.k - 14.5, vx: 100, vy: 0, radius: 30 };
+      executeMasterBotBrain(attacker, rollingBall, null, null, [], 1, 0.016, testEnv, true, [], {});
+      if (attacker.botState.jumpSeq && attacker.botState.jumpSeq.type === "musty_jump") {
+        mustyTriggered = true;
+        break;
+      }
+    }
+    assert(mustyTriggered, "Offensive ground attack can proactively trigger Musty flick jump sequence");
   }
 
   // Summary

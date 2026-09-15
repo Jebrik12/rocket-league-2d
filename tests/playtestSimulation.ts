@@ -511,6 +511,9 @@ export function run2v2PlaytestSimulation(ticks: number = 2000) {
     if (blue1.botState.action === "crease_demo" || blue2.botState.action === "crease_demo" || orange1.botState.action === "crease_demo" || orange2.botState.action === "crease_demo") {
       stats.creaseDemos = (stats.creaseDemos || 0) + 1;
     }
+    if (blue1.botState.jumpSeq.type === "musty_jump" || blue2.botState.jumpSeq.type === "musty_jump" || orange1.botState.jumpSeq.type === "musty_jump" || orange2.botState.jumpSeq.type === "musty_jump") {
+      stats.mustyFlicks = (stats.mustyFlicks || 0) + 1;
+    }
 
     for (const car of cars) {
       updateCarKinematics(car, dt, env);
@@ -551,6 +554,7 @@ export function run2v2PlaytestSimulation(ticks: number = 2000) {
   console.log(`2v2 MATCH RESULT: Blue ${stats.blueGoals} - ${stats.orangeGoals} Orange`);
   console.log(`INFIELD PASSES INITIATED: ${stats.passes}`);
   console.log(`ONE-TIMER REDIRECT ATTEMPTS: ${stats.oneTimers}`);
+  console.log(`MUSTY FLICK JUMPS: ${stats.mustyFlicks || 0}`);
   console.log(`CREASE DEMO ATTEMPTS: ${stats.creaseDemos || 0}`);
   console.log(`OWN GOALS: ${stats.ownGoals} (Expected: 0)`);
 
