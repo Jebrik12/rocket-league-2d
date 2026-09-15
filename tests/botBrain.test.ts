@@ -9,7 +9,10 @@ import {
   executeMasterBotBrain,
   checkDefensiveThreat,
   getCarHitboxSpecs,
-  CAR_HITBOX_MAP
+  CAR_HITBOX_MAP,
+  calcClinicalGoalTarget,
+  checkAndExecuteWallPinch,
+  checkAndExecuteCeilingPlay
 } from "../src/bot/botBrain";
 
 // Standard arena environment matching App.tsx default RL_PHYSICS
@@ -1246,6 +1249,72 @@ function runTests() {
       "Car on wall recognizes elevated wall strike opportunity",
       `action=${wallCar.botState.action}`
     );
+  }
+
+  // --- TEST GROUP 29: Superhuman Consecutive Freestyle Chaining & Clinical Sniping ---
+  console.log("\n--- 29. Superhuman Consecutive Freestyle Chaining & Clinical Sniping ---");
+  {
+    const ball = { x: 1400, y: testEnv.k - 200, vx: 0, vy: 0, radius: 30 };
+    const groundedKeeper = createMockCar({
+      x: testEnv.Mt - 40,
+      y: testEnv.k - 14.5,
+      isGrounded: true
+    });
+    const aerialKeeper = createMockCar({
+      x: testEnv.Mt - 40,
+      y: testEnv.ae.yMin + 20,
+      isGrounded: false
+    });
+
+    // 1. Clinical Goal Sniping: Upper 90 vs Grounded Goalie
+    const groundedTarget = calcClinicalGoalTarget(ball, testEnv.ae, testEnv.Mt, groundedKeeper, 1, true);
+    assert(groundedTarget.isUpper90 === true, "Targets upper-90 shelf when keeper is grounded low");
+    assert(groundedTarget.targetY <= testEnv.ae.yMin + 30, "Upper-90 target is within 30px of crossbar");
+
+    // 2. Clinical Goal Sniping: Low Skid Shot vs Airborne Goalie
+    const aerialTarget = calcClinicalGoalTarget(ball, testEnv.ae, testEnv.Mt, aerialKeeper, 1, true);
+    assert(aerialTarget.isUpper90 === false, "Does not target upper shelf when keeper is already high");
+    assert(aerialTarget.targetY >= testEnv.ae.yMax - 30, "Targets low bottom corner under airborne keeper's wheels");
+
+    // 3. Wall Pinch Execution (On solid wall above crossbar, y = 280)
+    const nearWallBall = { x: testEnv.At + 70, y: 280, vx: -50, vy: 0, radius: 30 };
+    const blueWallCar = createMockCar({
+      x: testEnv.At + 120,
+      y: 280,
+      vx: -240,
+      isGrounded: false,
+      boost: 40
+    });
+    const pinchTriggered = checkAndExecuteWallPinch(blueWallCar, nearWallBall, testEnv.Mt, 1, testEnv, {}, true);
+    assert(pinchTriggered === true, "checkAndExecuteWallPinch recognizes defensive wall pinch setup");
+    assert(blueWallCar.botState.action === "wall_pinch", "Bot enters wall_pinch action");
+
+    // 4. Ceiling Play Execution
+    const highCenterBall = { x: 1200, y: testEnv.Qt + 140, vx: 0, vy: 0, radius: 30 };
+    const ceilingCar = createMockCar({
+      x: 1200,
+      y: testEnv.Qt + 20,
+      isGrounded: true,
+      surfaceType: "ceiling",
+      boost: 30
+    });
+    const ceilingTriggered = checkAndExecuteCeilingPlay(ceilingCar, highCenterBall, testEnv.Mt, 1, testEnv, {}, true);
+    assert(ceilingTriggered === true, "checkAndExecuteCeilingPlay triggers when car is on ceiling above ball");
+    assert(ceilingCar.botState.action === "ceiling_shot", "Bot enters ceiling_shot action");
+    assert(ceilingCar.input.jump === false, "Ceiling car drops smoothly without jumping to preserve infinite dodge flip");
+
+    // 5. Zero-Whiff Terminal Guidance Strike Angle
+    const terminalCar = createMockCar({
+      x: 1000,
+      y: 600,
+      vx: 300,
+      vy: 0,
+      isGrounded: false
+    });
+    const strikeAng = -0.42;
+    botDriveAir(terminalCar, 1040, 600, testEnv, 0.1, false, strikeAng);
+    assert(terminalCar.input.mouseAim === true, "Terminal guidance engages high-rate mouseAim");
+    assert(terminalCar.input.mouseTargetAngle === strikeAng, "Terminal guidance sets exact strike angle on close approach (< 95px)");
   }
 
   // Summary

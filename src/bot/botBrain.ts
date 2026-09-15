@@ -75,6 +75,55 @@ export interface InterceptResult {
   targetCornerY: number;
 }
 
+export interface FreestyleChainState {
+  stage: "none" | "pop_setup" | "air_carry" | "reset_hunt" | "musty_prep" | "ceiling_climb" | "ceiling_drop" | "wall_pinch_run" | "double_tap_track";
+  timer: number;
+  touches: number;
+  targetCornerY: number;
+  sourceWall?: "left" | "right";
+}
+
+export function calcClinicalGoalTarget(
+  ball: any,
+  oppGoal: GoalDef,
+  oppGoalX: number,
+  oppCar: any,
+  teamDir: number,
+  isUnfair: boolean
+): { targetX: number; targetY: number; shootAngle: number; isUpper90: boolean } {
+  const yMin = oppGoal.yMin || 380;
+  const yMax = oppGoal.yMax || 680;
+  const midY = (yMin + yMax) / 2;
+
+  let targetY = midY;
+  let isUpper90 = false;
+
+  if (oppCar && !oppCar.isDemoed) {
+    const goalieY = oppCar.y;
+    const isGoalieGrounded = oppCar.isGrounded || goalieY > yMin + 140;
+    const isGoalieHigh = !oppCar.isGrounded && goalieY <= yMin + 140;
+
+    if (isGoalieGrounded) {
+      // Goalie defending low on turf: blast the upper-90 shelf right below crossbar
+      targetY = yMin + 26;
+      isUpper90 = true;
+    } else if (isGoalieHigh) {
+      // Goalie airborne defending high: laser the bottom corner under wheels
+      targetY = yMax - 26;
+    } else {
+      // Aim at whichever corner gives max angular separation
+      targetY = goalieY < midY ? yMax - 30 : yMin + 30;
+    }
+  } else {
+    // Open net: clinical center strike
+    targetY = midY;
+  }
+
+  const targetX = oppGoalX;
+  const shootAngle = Math.atan2(targetY - ball.y, targetX - ball.x);
+  return { targetX, targetY, shootAngle, isUpper90 };
+}
+
 // ---------------------------------------------------------------------------
 // 0. CAR SPECIFICATIONS & HITBOX GEOMETRY (ALL 6 VEHICLES)
 // ---------------------------------------------------------------------------
@@ -123,7 +172,7 @@ export function getCarHitboxSpecs(car: any): CarHitboxSpecs {
 // ---------------------------------------------------------------------------
 
 export function simulateBallSubstep(
-  b: { x: number; y: number; vx: number; vy: number; radius: number; isGoalScored?: boolean },
+  b: { x: number; y: number; vx: number; vy: number; radius: number; isGoalScored?: boolean; _backboardRebound?: any },
   subF: number,
   env: ArenaEnv
 ) {
@@ -262,11 +311,17 @@ export function simulateBallSubstep(
 
   if (!inBM && b.y >= env.Qt + env.F && b.y <= env.k - env.F && b.x - radius <= env.At) {
     b.x = env.At + radius;
-    if (b.vx < 0) b.vx = -b.vx * wallBounce;
+    if (b.vx < 0) {
+      b.vx = -b.vx * wallBounce;
+      b._backboardRebound = { targetTeam: "orange", sourceWall: "blue" };
+    }
   }
   if (!inOM && b.y >= env.Qt + env.F && b.y <= env.k - env.F && b.x + radius >= env.Mt) {
     b.x = env.Mt - radius;
-    if (b.vx > 0) b.vx = -b.vx * wallBounce;
+    if (b.vx > 0) {
+      b.vx = -b.vx * wallBounce;
+      b._backboardRebound = { targetTeam: "blue", sourceWall: "orange" };
+    }
   }
 
   // 5. Goal Detection
@@ -1110,15 +1165,28 @@ export function botDriveAir(
   const dist = Math.hypot(dx, dy);
 
   let desiredAngle = 0;
-  const directAngle = Math.atan2(dy, dx);
 
-  // Close approach (< 130px): point nose directly at strike target / ball intercept point
-  // Far approach: Newtonian kinematic climb compensation
-  if (dist < 130 || (explicitT !== undefined && explicitT < 0.18)) {
-    desiredAngle = directAngle;
+  // 1. Zero-Whiff Terminal Guidance (< 95px):
+  // Directly point front bumper along desired strike angle with fine gravity feedforward
+  if (dist < 95) {
+    if (strikeAngle !== undefined) {
+      desiredAngle = strikeAngle;
+    } else {
+      const terminalDt = Math.max(0.04, dist / Math.max(260, Math.hypot(car.vx, car.vy)));
+      const terminalAy = dy / terminalDt - env.pv * 0.45;
+      desiredAngle = Math.atan2(terminalAy, dx);
+    }
+  } else if (dist < 190 || (explicitT !== undefined && explicitT < 0.22)) {
+    // Intermediate guidance: closed-form climb compensation
+    const spd = Math.max(340, Math.hypot(car.vx, car.vy));
+    const estT = Math.max(0.12, Math.min(1.2, (explicitT && explicitT > 0.04) ? explicitT : (dist / spd)));
+    const needAx = 2 * (dx - car.vx * estT) / (estT * estT);
+    const needAy = 2 * (dy - car.vy * estT) / (estT * estT) - env.pv;
+    desiredAngle = Math.atan2(needAy, needAx);
   } else {
+    // Far approach: full ballistic arc
     const spd = Math.max(320, Math.hypot(car.vx, car.vy));
-    const estT = Math.max(0.18, Math.min(1.6, (explicitT && explicitT > 0.04) ? explicitT : (dist / spd)));
+    const estT = Math.max(0.20, Math.min(1.6, (explicitT && explicitT > 0.04) ? explicitT : (dist / spd)));
     const needAx = 2 * (dx - car.vx * estT) / (estT * estT);
     const needAy = 2 * (dy - car.vy * estT) / (estT * estT) - env.pv;
     desiredAngle = Math.atan2(needAy, needAx);
@@ -1151,14 +1219,136 @@ export function botDriveAir(
 
   // Boost alignment: boost towards flight vector
   const angleDiff = Math.atan2(Math.sin(desiredAngle - car.angle), Math.cos(desiredAngle - car.angle));
-  const isAligned = Math.abs(angleDiff) <= 0.30;
-  const isCloseStrike = dist < 140 && Math.abs(angleDiff) <= 0.60;
+  const isAligned = Math.abs(angleDiff) <= 0.28;
+  const isCloseStrike = dist < 120 && Math.abs(angleDiff) <= 0.55;
 
   if ((isAligned || isCloseStrike) && car.boost > 0) {
     car.input.boost = true;
   } else {
     car.input.boost = false;
   }
+}
+
+// ---------------------------------------------------------------------------
+// 4.5 MASTERCLASS FREESTYLE: WALL PINCHES, CEILING DROPS & KUXIR LASERS
+// ---------------------------------------------------------------------------
+
+export function checkAndExecuteWallPinch(
+  car: any,
+  ball: any,
+  oppGoalX: number,
+  teamDir: number,
+  env: ArenaEnv,
+  evtObj: any,
+  isUnfair: boolean
+): boolean {
+  const distToLeftWall = ball.x - env.At;
+  const distToRightWall = env.Mt - ball.x;
+  const isNearLeftWall = distToLeftWall < 150 && distToLeftWall > 10;
+  const isNearRightWall = distToRightWall < 150 && distToRightWall > 10;
+
+  if (!isNearLeftWall && !isNearRightWall) return false;
+
+  // Solid wall check: Goal mouth is OPEN NET, so pinches only occur on solid wall above crossbar or below post!
+  const yMin = env.le.yMin || 380;
+  const yMax = env.le.yMax || 680;
+  const isGoalMouthY = ball.y >= yMin - 20 && ball.y <= yMax + 20;
+  if (isGoalMouthY) return false;
+
+  const isLeftSolidWall = ball.y < yMin - 15 || ball.y > yMax + 15;
+  const isRightSolidWall = ball.y < (env.ae.yMin || 380) - 15 || ball.y > (env.ae.yMax || 680) + 15;
+
+  const isNearLeftSolid = isNearLeftWall && isLeftSolidWall;
+  const isNearRightSolid = isNearRightWall && isRightSolidWall;
+  if (!isNearLeftSolid && !isNearRightSolid) return false;
+
+  const isKuxirPinch = (isNearLeftSolid && teamDir > 0) || (isNearRightSolid && teamDir < 0);
+
+  // Ball must be above ground turf so it pinches cleanly against the vertical plane
+  if (ball.y > env.k - 25 && Math.abs(ball.vy) < 35) return false;
+
+  const distCarToBall = Math.hypot(ball.x - car.x, ball.y - car.y);
+  if (distCarToBall > 420) return false;
+
+  car.botState.action = "wall_pinch";
+  const pinchDirX = isNearLeftSolid ? -1 : 1;
+
+  if (car.isGrounded && car.surfaceType === "floor") {
+    botDriveGround(car, ball.x, true, false, env);
+    if (car.boost > 0) car.input.boost = true;
+
+    if (distCarToBall < 115 && car.canJump && !car.isFlipping) {
+      startBotJumpSeq(car, "jump_strike", pinchDirX * 0.95, -0.28, 0.08);
+      if (evtObj) evtObj.chatMessage = isKuxirPinch ? "⚡ KUXIR PINCH!" : "💥 WALL PINCH!";
+    }
+  } else {
+    botDriveAir(car, ball.x, ball.y, env, 0.15, false);
+    if (car.boost > 0) car.input.boost = true;
+
+    const specs = getCarHitboxSpecs(car);
+    const contactDist = specs.halfW + (ball.radius || 30);
+    if (distCarToBall <= contactDist + 22 && (car.canJump || car.hasFlipReset || car.jumpCount === 1) && !car.isFlipping) {
+      startBotJumpSeq(car, "dodge", pinchDirX, -0.15);
+      if (evtObj) evtObj.chatMessage = isKuxirPinch ? "⚡ KUXIR PINCH!" : "💥 WALL PINCH!";
+    }
+  }
+  return true;
+}
+
+export function checkAndExecuteCeilingPlay(
+  car: any,
+  ball: any,
+  oppGoalX: number,
+  teamDir: number,
+  env: ArenaEnv,
+  evtObj: any,
+  isUnfair: boolean
+): boolean {
+  const isHighBall = ball.y < env.k - 260 && ball.y > env.Qt + 90;
+  const isOffensiveBall = (ball.x - (teamDir > 0 ? env.At : env.Mt)) * teamDir > 340;
+  if (!isHighBall || !isOffensiveBall || car.boost < 12) return false;
+
+  const isOnCeiling = car.surfaceType === "ceiling" || car.y <= env.Qt + 45;
+  const isOnWall = car.surfaceType === "left_wall" || car.surfaceType === "right_wall";
+
+  if (isOnCeiling) {
+    car.botState.action = "ceiling_shot";
+    const targetX = ball.x + teamDir * 20;
+    if (Math.abs(car.x - targetX) > 40) {
+      car.input.throttleForward = (targetX > car.x) === (Math.cos(car.angle) > 0);
+      car.input.throttleReverse = !car.input.throttleForward;
+    } else {
+      car.input.jump = false;
+      car.input.throttleForward = true;
+    }
+    return true;
+  }
+
+  if (isOnWall && car.y < env.k - 280) {
+    car.botState.action = "ceiling_shot";
+    car.input.throttleForward = true;
+    if (car.boost > 0) car.input.boost = true;
+    return true;
+  }
+
+  const isCeilingFreefall = !car.isGrounded && car.jumpCount === 0 && car.vy > 0 && car.y > env.Qt + 40;
+  if (isCeilingFreefall) {
+    car.botState.action = "ceiling_shot";
+    const specs = getCarHitboxSpecs(car);
+    const contactDist = specs.halfW + (ball.radius || 30);
+    const distToBall = Math.hypot(ball.x - car.x, ball.y - car.y);
+
+    const shootAngle = Math.atan2(((env.ae.yMin || 380) + 40) - ball.y, oppGoalX - ball.x);
+    botDriveAir(car, ball.x, ball.y, env, 0.20, false, shootAngle);
+
+    if (distToBall <= contactDist + 24 && car.canJump && !car.isFlipping) {
+      startBotJumpSeq(car, "dodge", Math.cos(shootAngle), Math.sin(shootAngle) * 0.9);
+      if (evtObj) evtObj.chatMessage = "🌌 CEILING DUNK!";
+    }
+    return true;
+  }
+
+  return false;
 }
 
 // ---------------------------------------------------------------------------
@@ -1568,12 +1758,17 @@ export function executeMasterBotBrain(
     }
   }
 
-  // Ground-to-Air Dribble Setup: When ball bounces low or floats in offensive zone with space, pop and fast aerial!
-  const isBouncingInOffense = car.isGrounded && ball.y < env.k - 25 && ball.y > env.k - 260 && (Math.abs(ball.vy) > 20 || ball.y < env.k - 50);
-  const isAirDribbleLaunchZone = (ball.x - ownGoalX) * teamDir > 200;
-  if (isAirDribbleLaunchZone && isBouncingInOffense && car.boost >= 18 && oppDist > 160 && !car.isFlipping) {
+  // Check 2v2 & 3v3 Infield One-Timer Pass Reception:
+  const isOffensiveCorridor = (ball.x - ownGoalX) * teamDir > 380 && (car.x - ownGoalX) * teamDir > 300;
+  const isIncomingPass = isOffensiveCorridor && tmCar && !tmCar.isDemoed && ((tmCar.x - car.x) * teamDir > 80) && (ball.vx * teamDir < -10 || Math.abs(ball.vx) < 240);
+
+  // 10.5 GROUND-TO-AIR POP & FREESTYLE LAUNCH
+  // When ball bounces or rolls forward in offensive half (and not an incoming pass!), pop and launch into air dribble carry!
+  const isBouncingInOffense = (car.isGrounded || car.y > env.k - 40) && ball.y > env.k - 260 && (Math.abs(ball.vy) > 15 || ball.y < env.k - 38);
+  const isAirDribbleLaunchZone = (ball.x - ownGoalX) * teamDir > 180;
+  if (!isIncomingPass && isAirDribbleLaunchZone && isBouncingInOffense && car.boost >= 14 && oppDist > 140 && !car.isFlipping) {
     const ballAhead = (ball.x - car.x) * teamDir;
-    if (ballAhead > 0 && ballAhead < 140 && car.canJump) {
+    if (ballAhead > 0 && ballAhead < 160 && car.canJump) {
       z.action = "air_dribble";
       startBotJumpSeq(car, "fast_aerial");
       if (evtObj && Math.random() < 0.6) evtObj.chatMessage = "🚀 Air dribble launch!";
@@ -1611,14 +1806,13 @@ export function executeMasterBotBrain(
     }
   }
 
-  const canAirDribble = !car.isGrounded && distToBall < 150 && ball.y < env.k - 85 && ball.y > env.Qt + 90 && ((ball.x - car.x) * teamDir > -20);
-  if (isAirDribbleLaunchZone && canAirDribble && car.boost > 8 && ((teamDir > 0 && ball.x < oppGoalX - 80) || (teamDir < 0 && ball.x > oppGoalX + 80))) {
-    z.action = "air_dribble";
-    let targetCornerY = (oppGoal.yMin || 380) + 32;
-    if (oppCar && !oppCar.isDemoed) {
-      targetCornerY = oppCar.y < ((oppGoal.yMin || 380) + (oppGoal.yMax || 680)) / 2 ? (oppGoal.yMax || 680) - 32 : (oppGoal.yMin || 380) + 32;
-    }
-    executeAirDribble(car, ball, oppGoalX, targetCornerY, teamDir, dt, env, evtObj, oppCar);
+  // 11.5 WALL PINCHES & KUXIR PINCH LASERS
+  if (checkAndExecuteWallPinch(car, ball, oppGoalX, teamDir, env, evtObj, isUnfair)) {
+    return;
+  }
+
+  // 11.6 CEILING PLAYS & CEILING DROPS
+  if (checkAndExecuteCeilingPlay(car, ball, oppGoalX, teamDir, env, evtObj, isUnfair)) {
     return;
   }
 
@@ -1632,13 +1826,12 @@ export function executeMasterBotBrain(
   }
 
   // 13. MASTERPIECE ELEVATED SCORING & INTERCEPT
-  const isOffensiveCorridor = (ball.x - ownGoalX) * teamDir > 380 && (car.x - ownGoalX) * teamDir > 300;
-  const isIncomingPass = isOffensiveCorridor && tmCar && !tmCar.isDemoed && ((tmCar.x - car.x) * teamDir > 80) && (ball.vx * teamDir < -10 || Math.abs(ball.vx) < 240);
   z.action = isIncomingPass ? "score_pass" : "attack";
   const intercept = solveBestIntercept(car, ball, teamDir, env, oppCar, tmCar, isUnfair, 2.2);
+  const clinicalTarget = calcClinicalGoalTarget(ball, oppGoal, oppGoalX, oppCar, teamDir, isUnfair);
   const targetX = intercept.strikeTargetX || intercept.x;
   const targetY = intercept.strikeTargetY || intercept.y;
-  const shootAngle = Math.atan2(intercept.targetCornerY - ball.y, oppGoalX - ball.x);
+  const shootAngle = clinicalTarget.shootAngle;
   const cosShoot = Math.cos(shootAngle), sinShoot = Math.sin(shootAngle);
 
   const ballRel = (ball.x - car.x) * teamDir;
@@ -1689,7 +1882,7 @@ export function executeMasterBotBrain(
       if (car.boost > 0 && Math.abs(car.x - ball.x) < 400) {
         car.input.boost = true;
       }
-      if (distToBall <= contactDist + 34 && car.canJump && !car.isFlipping) {
+      if (distToBall <= contactDist + 16 && car.canJump && !car.isFlipping) {
         startBotJumpSeq(car, "dodge", cosShoot, strikeDodgeY);
         if (evtObj && Math.random() < 0.6) evtObj.chatMessage = "🚀 HALF-VOLLEY BOOMER!";
       }
@@ -1698,7 +1891,7 @@ export function executeMasterBotBrain(
       const climbT = 0.05 + hClimb / 480;
       const holdDuration = Math.max(0.04, Math.min(0.20, hClimb / 400));
       if (isApproachingBall && car.canJump && !car.isFlipping) {
-        if (distToBall <= contactDist + 28) {
+        if (distToBall <= contactDist + 16) {
           // Instant dodge flip or Musty flick directly into the ball
           const distToGoal = Math.abs(car.x - oppGoalX);
           const isScoringTapIn = distToGoal < 300;
@@ -1719,7 +1912,7 @@ export function executeMasterBotBrain(
       if (car.boost > 0 && Math.abs(car.x - ball.x) < 360) {
         car.input.boost = true;
       }
-      if (isApproachingBall && distToBall <= contactDist + 30 && car.canJump && !car.isFlipping) {
+      if (isApproachingBall && distToBall <= contactDist + 16 && car.canJump && !car.isFlipping) {
         const distToGoal = Math.abs(car.x - oppGoalX);
         const isScoringTapIn = distToGoal < 300;
         if (!isScoringTapIn && (ball.x - ownGoalX) * teamDir > 320 && oppDist > 160 && Math.random() < 0.40) {
@@ -1739,7 +1932,7 @@ export function executeMasterBotBrain(
     // Fly directly to strike target for bumper alignment with smooth corner aiming
     botDriveAir(car, targetX, targetY, env, intercept.t, false, shootAngle);
     const canAirDodge = car.jumpCount === 1 || car.hasFlipReset || (car.canJump && !car.isGrounded);
-    if (distToBall <= contactDist + 32 && canAirDodge && !car.isFlipping) {
+    if (distToBall <= contactDist + 18 && canAirDodge && !car.isFlipping) {
       if (car.hasFlipReset && Math.random() < 0.65) {
         startBotJumpSeq(car, "musty_jump", cosShoot, sinShoot * 0.9);
         if (evtObj) evtObj.chatMessage = "⚡ RESET MUSTY FLICK!";
@@ -2227,14 +2420,14 @@ function executeAirDribble(
   }
 
   const goalDist = Math.abs(car.x - oppGoalX);
-  const isDefenderClose = oppCar && !oppCar.isDemoed && Math.hypot(oppCar.x - ball.x, oppCar.y - ball.y) < 180;
-  const isBallDropping = ball.vy > 60 || ball.y > env.k - 150;
+  const isDefenderClose = oppCar && !oppCar.isDemoed && Math.hypot(oppCar.x - ball.x, oppCar.y - ball.y) < 140;
+  const isBallDropping = ball.vy > 80 && ball.y > env.k - 120;
   const canDodge = car.jumpCount === 1 || car.hasFlipReset;
 
-  // 1. Scoring Dunk / Power Finish in Attack Zone
-  if (canDodge && dist <= contactDist + 28 && (goalDist < 540 || isDefenderClose || isBallDropping)) {
+  // 1. Clinical Scoring Finish at Net Mouth (Close to goal or low altitude)
+  if (canDodge && dist <= contactDist + 24 && (goalDist < 320 || (isDefenderClose && goalDist < 480) || isBallDropping)) {
     const shootAng = Math.atan2(targetCornerY - ball.y, oppGoalX - ball.x);
-    if (car.hasFlipReset && Math.random() < 0.65) {
+    if (car.hasFlipReset) {
       startBotJumpSeq(car, "musty_jump", Math.cos(shootAng), Math.sin(shootAng) * 0.85);
       if (evtObj) evtObj.chatMessage = "⚡ AIR MUSTY FLICK!";
     } else {
@@ -2244,24 +2437,33 @@ function executeAirDribble(
     return;
   }
 
-  // 2. Consecutive Chaining: If carried for 2+ touches in midfield with altitude, catch a Flip Reset!
-  const canChainFlipReset = (car.botState.airDribbleTouches || 0) >= 2 && !car.hasFlipReset && ball.y < env.k - 180 && goalDist >= 500 && car.boost > 10;
+  // 2. Consecutive Chaining: If carried for 2+ touches with altitude, catch an inverted Flip Reset!
+  const canChainFlipReset = (car.botState.airDribbleTouches || 0) >= 2 && !car.hasFlipReset && ball.y < env.k - 180 && goalDist >= 360 && car.boost > 8;
   if (canChainFlipReset) {
     const undercarriageX = ball.x;
     const undercarriageY = ball.y + (ball.radius || 30) + specs.halfH + 2;
-    botDriveAir(car, undercarriageX, undercarriageY, env, 0.18, true);
-    if (dist <= contactDist + 22) {
+    botDriveAir(car, undercarriageX, undercarriageY, env, 0.16, true);
+    if (dist <= contactDist + 24) {
       car.input.mouseAim = true;
       car.input.mouseTargetAngle = teamDir > 0 ? Math.PI : 0;
     }
     return;
   }
 
-  // 3. Push directly through lower-rear quadrant to maintain forward carry and loft:
-  // Position car center below the ball so the roof/bumper constantly scoops and lifts the ball!
-  const sweetX = ball.x - teamDir * (specs.halfW * 0.65);
-  const sweetY = ball.y + (ball.radius || 30) * 0.8 + specs.halfH * 0.4;
-  botDriveAir(car, sweetX, sweetY, env, 0.18);
+  // 3. Post-Reset Musty Flick Alignment:
+  if (car.hasFlipReset && dist <= contactDist + 35) {
+    const shootAng = Math.atan2(targetCornerY - ball.y, oppGoalX - ball.x);
+    startBotJumpSeq(car, "musty_jump", Math.cos(shootAng), Math.sin(shootAng) * 0.85);
+    if (evtObj) evtObj.chatMessage = "⚡ RESET MUSTY FLICK!";
+    return;
+  }
+
+  // 4. Aerodynamic Loft Carry:
+  // Position car front bumper smoothly under the ball's lower-rear quadrant
+  const sweetX = ball.x - teamDir * (specs.halfW * 0.55);
+  const sweetY = ball.y + (ball.radius || 30) * 0.65 + specs.halfH * 0.35;
+  const carryAngle = Math.atan2(targetCornerY - car.y, oppGoalX - car.x);
+  botDriveAir(car, sweetX, sweetY, env, 0.16, false, carryAngle);
 }
 
 function findStrategicBoostPad(car: any, boostPads: any[], ownGoalX: number, oppGoalX: number, teamDir: number) {

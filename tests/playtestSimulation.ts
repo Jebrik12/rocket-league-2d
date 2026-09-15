@@ -308,6 +308,28 @@ function checkBallCarCollision(ball: any, car: any, stats: any, env: ArenaEnv) {
           const flDir = car.team === "blue" ? 1 : -1;
           ball.vx = flDir * Math.max(Math.abs(ball.vx) + 550, 950);
           ball.vy = -Math.max(Math.abs(ball.vy) + 380, 550);
+          stats.mechanics.mustyFlicks = (stats.mechanics.mustyFlicks || 0) + 1;
+        }
+
+        // Engine Wall Pinch (matching App.tsx lines 2291-2333)
+        const dLeft = ball.x - env.At - ball.radius;
+        const dRight = env.Mt - ball.x - ball.radius;
+        const isLeftSolidWall = (ball.y < (env.le.yMin || 380) - 10 || ball.y > (env.le.yMax || 680) + 10);
+        const isRightSolidWall = (ball.y < (env.ae.yMin || 380) - 10 || ball.y > (env.ae.yMax || 680) + 10);
+        const carSpd = Math.hypot(car.vx, car.vy);
+        const isPinchImpact = carSpd > 180 || Math.abs(vDotN) > 150;
+        if (dLeft < 52 && isLeftSolidWall && car.vx < -90 && isPinchImpact) {
+          const pinchSpd = Math.min(1480, Math.max(1150, (carSpd + Math.abs(vDotN)) * 1.35 + 460));
+          ball.vx = pinchSpd * 0.94;
+          const targetNetY = (env.ae.yMin + env.ae.yMax) / 2;
+          ball.vy = Math.max(-420, Math.min(420, (targetNetY - ball.y) * 0.42 + car.vy * 0.25));
+          stats.mechanics.wallPinches = (stats.mechanics.wallPinches || 0) + 1;
+        } else if (dRight < 52 && isRightSolidWall && car.vx > 90 && isPinchImpact) {
+          const pinchSpd = Math.min(1480, Math.max(1150, (carSpd + Math.abs(vDotN)) * 1.35 + 460));
+          ball.vx = -pinchSpd * 0.94;
+          const targetNetY = (env.le.yMin + env.le.yMax) / 2;
+          ball.vy = Math.max(-420, Math.min(420, (targetNetY - ball.y) * 0.42 + car.vy * 0.25));
+          stats.mechanics.wallPinches = (stats.mechanics.wallPinches || 0) + 1;
         }
       }
 
@@ -315,13 +337,31 @@ function checkBallCarCollision(ball: any, car: any, stats: any, env: ArenaEnv) {
       ball.lastTouchId = car.id;
       stats.totalTouches++;
 
+      // Track Air Dribbles & Double Taps
+      if (!car.isGrounded && ball.y < env.k - 90) {
+        if (stats.currentTick - (car._lastAirTouchTick || 0) < 100) {
+          car._airTouches = (car._airTouches || 0) + 1;
+          if (car._airTouches >= 2) {
+            stats.mechanics.airDribbles = (stats.mechanics.airDribbles || 0) + 1;
+          }
+        } else {
+          car._airTouches = 1;
+        }
+        car._lastAirTouchTick = stats.currentTick;
+
+        if (ball._backboardRebound && stats.currentTick - ball._backboardRebound.tick < 160 && ball._backboardRebound.team === car.team) {
+          stats.mechanics.doubleTaps = (stats.mechanics.doubleTaps || 0) + 1;
+          ball._backboardRebound = null;
+        }
+      }
+
       // Check Wheel Contact for Flip Reset
       if (!car.isGrounded && !car.hasFlipReset && !car.isFlipping) {
         const isCarBelowBall = car.y > ball.y && Math.abs(car.x - ball.x) < specs.halfW * 0.85;
         const isCarInverted = Math.cos(car.angle) < -0.3 || car.airRollInverted;
         if (isCarBelowBall && isCarInverted) {
           car.hasFlipReset = true;
-          stats.mechanics.flipResets++;
+          stats.mechanics.flipResets = (stats.mechanics.flipResets || 0) + 1;
         }
       }
     }
