@@ -858,7 +858,7 @@ export function updateBotJumpSeq(car: any, dt: number, env: ArenaEnv): boolean {
       // Pop jump
       car.input.jump = true;
       car.input.throttleForward = true;
-      if (s.timer >= 0.07) {
+      if (s.timer >= 0.04) {
         s.stage = "tilt";
         s.timer = 0;
         car.input.jump = false;
@@ -869,7 +869,7 @@ export function updateBotJumpSeq(car: any, dt: number, env: ArenaEnv): boolean {
       car.input.jump = false;
       car.input.mouseAim = true;
       car.input.mouseTargetAngle = s.dodgeX > 0 ? 2.15 : -2.15;
-      if (s.timer >= 0.09) {
+      if (s.timer >= 0.07) {
         s.stage = "press2";
         s.timer = 0;
         car.input.jump = true;
@@ -1578,7 +1578,9 @@ export function executeMasterBotBrain(
       if (isApproachingBall && car.canJump && !car.isFlipping) {
         if (distToBall <= contactDist + 28) {
           // Instant dodge flip or Musty flick directly into the ball
-          if (car.boost >= 12 && oppDist > 160 && Math.random() < 0.35) {
+          const distToGoal = Math.abs(car.x - oppGoalX);
+          const isScoringTapIn = distToGoal < 300;
+          if (!isScoringTapIn && oppDist > 160 && Math.random() < 0.35) {
             startBotJumpSeq(car, "musty_jump", cosShoot, strikeDodgeY);
             if (evtObj) evtObj.chatMessage = "⚡ AERIAL MUSTY FLICK!";
           } else {
@@ -1596,7 +1598,9 @@ export function executeMasterBotBrain(
         car.input.boost = true;
       }
       if (isApproachingBall && distToBall <= contactDist + 30 && car.canJump && !car.isFlipping) {
-        if ((ball.x - ownGoalX) * teamDir > 320 && car.boost >= 12 && oppDist > 160 && Math.random() < 0.40) {
+        const distToGoal = Math.abs(car.x - oppGoalX);
+        const isScoringTapIn = distToGoal < 300;
+        if (!isScoringTapIn && (ball.x - ownGoalX) * teamDir > 320 && oppDist > 160 && Math.random() < 0.40) {
           startBotJumpSeq(car, "musty_jump", cosShoot, strikeDodgeY);
           if (evtObj) evtObj.chatMessage = "⚡ GROUND MUSTY FLICK!";
         } else {
@@ -2023,20 +2027,22 @@ function executeShadowRecovery(car: any, ball: any, ownGoal: GoalDef, teamDir: n
           return;
         }
 
-        // 2. Anti-Own-Goal Braking: If dangerously close and moving towards ball on ground, brake hard!
-        if (isMovingTowardBall && distToBallX < 220) {
+        // 2. Anti-Own-Goal Braking: If dangerously close, moving towards ball, or ball heading to own net, brake hard!
+        const isBallMovingToOwnGoal = ball.vx * teamDir < -30;
+        if ((isMovingTowardBall && distToBallX < 340) || distToBallX < 180 || isBallMovingToOwnGoal) {
           car.input.throttleForward = false;
           car.input.throttleReverse = true;
           car.input.jump = false;
+          car.input.boost = false;
           car.input.steerLeft = false;
           car.input.steerRight = false;
           return;
         }
 
-        // 3. Proactive High Leap-Over: Jump high over the ball towards own goal to reset goal-side!
-        const canLeapOver = distToBallX >= 130 && distToBallX <= 420 && car.canJump && !car.isFlipping;
+        // 3. Proactive High Leap-Over: When stationary or moving away with safe clearance (180-420px) over neutral ball:
+        const canLeapOver = !isMovingTowardBall && distToBallX >= 180 && distToBallX <= 420 && car.canJump && !car.isFlipping;
         if (canLeapOver) {
-          startBotJumpSeq(car, "fast_aerial", -teamDir * 0.70, -0.71);
+          startBotJumpSeq(car, "fast_aerial", -teamDir * 0.35, -0.94);
           return;
         }
 

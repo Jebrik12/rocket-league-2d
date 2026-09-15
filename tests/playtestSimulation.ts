@@ -384,7 +384,9 @@ export function runPlaytestSimulation(ticks: number = 2400, mode: "rl_pro" | "le
     const evtBlue: any = {};
     const evtOrange: any = {};
 
-    if (tick % 600 === 0) {
+    if (mode === "rl_pro" && (tick < 70 && tick % 5 === 0)) {
+      console.log(`[rl_pro] Tick ${tick}: Ball (${Math.round(ball.x)}, ${Math.round(ball.y)}, vx=${Math.round(ball.vx)}, vy=${Math.round(ball.vy)}), Blue: ${blueCar.botState.action} (x=${Math.round(blueCar.x)}, vx=${Math.round(blueCar.vx)}, jmp=${blueCar.botState.jumpSeq.stage}/${blueCar.botState.jumpSeq.type}), Orange: ${orangeCar.botState.action} (x=${Math.round(orangeCar.x)}, vx=${Math.round(orangeCar.vx)}, jmp=${orangeCar.botState.jumpSeq.stage}/${orangeCar.botState.jumpSeq.type})`);
+    } else if (tick % 600 === 0) {
       console.log(`[${mode}] Tick ${tick}: Ball (${Math.round(ball.x)}, ${Math.round(ball.y)}), Blue: ${blueCar.botState.action}, Orange: ${orangeCar.botState.action}`);
     }
 
@@ -397,7 +399,7 @@ export function runPlaytestSimulation(ticks: number = 2400, mode: "rl_pro" | "le
     if (blueCar.botState.action === "flip_reset_dunk" || orangeCar.botState.action === "flip_reset_dunk") stats.mechanics.flipResets++;
     if (blueCar.botState.action === "wall_pinch" || orangeCar.botState.action === "wall_pinch") stats.mechanics.wallPinches++;
     if (blueCar.botState.action === "double_tap" || orangeCar.botState.action === "double_tap" || blueCar.botState.action === "double_tap_setup" || orangeCar.botState.action === "double_tap_setup") stats.mechanics.doubleTaps++;
-    if (blueCar.botState.action === "repossess" || orangeCar.botState.action === "repossess") stats.mechanics.repossessions = (stats.mechanics.repossessions || 0) + 1;
+    if (blueCar.botState.action === "dribble" || orangeCar.botState.action === "dribble" || blueCar.botState.action === "repossess" || orangeCar.botState.action === "repossess") stats.mechanics.repossessions = (stats.mechanics.repossessions || 0) + 1;
     if (blueCar.botState.action === "save" || orangeCar.botState.action === "save") stats.mechanics.saves++;
 
     // Track flicks
@@ -413,8 +415,13 @@ export function runPlaytestSimulation(ticks: number = 2400, mode: "rl_pro" | "le
     simulateBallSubstep(ball, dt / 2, env);
 
     // 3. Collisions
-    checkBallCarCollision(ball, blueCar, stats, env);
-    checkBallCarCollision(ball, orangeCar, stats, env);
+    if (tick % 2 === 0) {
+      checkBallCarCollision(ball, blueCar, stats, env);
+      checkBallCarCollision(ball, orangeCar, stats, env);
+    } else {
+      checkBallCarCollision(ball, orangeCar, stats, env);
+      checkBallCarCollision(ball, blueCar, stats, env);
+    }
 
     // 4. Boost replenishment
     if (blueCar.isGrounded) blueCar.boost = Math.min(100, blueCar.boost + 8 * dt);
