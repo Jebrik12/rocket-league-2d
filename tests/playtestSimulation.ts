@@ -335,6 +335,7 @@ function checkBallCarCollision(ball: any, car: any, stats: any, env: ArenaEnv) {
 
       ball.lastTouchTeam = car.team;
       ball.lastTouchId = car.id;
+      ball.lastTouchTick = stats.currentTick;
       stats.totalTouches++;
 
       // Track Air Dribbles & Double Taps
@@ -405,7 +406,8 @@ export function runPlaytestSimulation(ticks: number = 2400, mode: "rl_pro" | "le
     vy: 0,
     radius: 30,
     lastTouchTeam: null as string | null,
-    lastTouchId: null as string | null
+    lastTouchId: null as string | null,
+    lastTouchTick: 0
   };
 
   const resetKickoff = () => {
@@ -490,7 +492,7 @@ export function runPlaytestSimulation(ticks: number = 2400, mode: "rl_pro" | "le
 
     if (inBlueGoal) {
       if (ball.lastTouchTeam === "blue") {
-        console.warn(`[OWN GOAL ALERT] Blue scored into own net at tick ${tick}!`);
+        console.warn(`[OWN GOAL ALERT] Blue scored into own net at tick ${tick}! lastTouch=${ball.lastTouchTeam}, lastTouchTick=${ball.lastTouchTick}, ball.vx=${ball.vx.toFixed(1)}, ball.vy=${ball.vy.toFixed(1)}, ball.x=${ball.x.toFixed(1)}, ball.y=${ball.y.toFixed(1)}`);
         stats.ownGoals++;
       } else {
         stats.orangeGoals++;
@@ -498,7 +500,7 @@ export function runPlaytestSimulation(ticks: number = 2400, mode: "rl_pro" | "le
       resetKickoff();
     } else if (inOrangeGoal) {
       if (ball.lastTouchTeam === "orange") {
-        console.warn(`[OWN GOAL ALERT] Orange scored into own net at tick ${tick}!`);
+        console.warn(`[OWN GOAL ALERT] Orange scored into own net at tick ${tick}! lastTouch=${ball.lastTouchTeam}, lastTouchTick=${ball.lastTouchTick}, ball.vx=${ball.vx.toFixed(1)}, ball.vy=${ball.vy.toFixed(1)}, ball.x=${ball.x.toFixed(1)}, ball.y=${ball.y.toFixed(1)}`);
         stats.ownGoals++;
       } else {
         stats.blueGoals++;

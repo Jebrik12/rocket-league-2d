@@ -12,7 +12,8 @@ import {
   CAR_HITBOX_MAP,
   calcClinicalGoalTarget,
   checkAndExecuteWallPinch,
-  checkAndExecuteCeilingPlay
+  checkAndExecuteCeilingPlay,
+  calculateFreestyleScore
 } from "../src/bot/botBrain";
 
 // Standard arena environment matching App.tsx default RL_PHYSICS
@@ -1315,6 +1316,126 @@ function runTests() {
     botDriveAir(terminalCar, 1040, 600, testEnv, 0.1, false, strikeAng);
     assert(terminalCar.input.mouseAim === true, "Terminal guidance engages high-rate mouseAim");
     assert(terminalCar.input.mouseTargetAngle === strikeAng, "Terminal guidance sets exact strike angle on close approach (< 95px)");
+  }
+
+  // =========================================================================
+  // 30. CONSECUTIVE FREESTYLE SCORING, AGGRESSIVE AERIALS & ZERO-STOP ATTACK
+  // =========================================================================
+  console.log(`\n--- 30. Consecutive Freestyle Scoring, Aggressive Aerials & Zero-Stop Attack ---`);
+  {
+    // 30.1 Zero Midfield/Offensive Braking: Bot Never Slams Brakes in Midfield
+    const midfieldCar = createMockCar({
+      x: testEnv.Kt / 2 + 50,
+      y: testEnv.k - 14.5,
+      vx: 300,
+      facing: 1,
+      angle: 0,
+      team: "blue",
+      boost: 30
+    });
+    // Ball slightly behind car's nose in midfield (ballRel < 0)
+    const midfieldBall = { x: testEnv.Kt / 2 - 10, y: testEnv.k - 20, vx: 50, vy: 0, radius: 30 };
+    executeMasterBotBrain(midfieldCar, midfieldBall, null, null, [], 1, 0.016, testEnv, true, [], {});
+    assert(midfieldCar.input.throttleReverse === false, "Bot in midfield NEVER slams reverse throttle when near ball");
+
+    // 30.2 Goal-Side Goalkeeper Shot Engagement: High Aerial Save to Intercept Elevated Shot
+    const goalSideKeeper = createMockCar({
+      x: 240,
+      y: testEnv.k - 14.5,
+      vx: 0,
+      team: "blue",
+      boost: 40
+    });
+    // Incoming shot approaching from midfield into goal mouth (y=530)
+    const incomingShot = { x: 380, y: 530, vx: -500, vy: 0, radius: 30 };
+    executeMasterBotBrain(goalSideKeeper, incomingShot, null, null, [], 1, 0.016, testEnv, true, [], {});
+    assert(goalSideKeeper.botState.action === "save", "Goal-side keeper recognizes incoming shot save");
+    assert(
+      goalSideKeeper.botState.jumpSeq.stage !== "idle" && goalSideKeeper.botState.jumpSeq.type === "fast_aerial",
+      "Goal-side keeper launches fast aerial save to intercept elevated incoming shot"
+    );
+    assert(goalSideKeeper.input.throttleReverse === false, "Goal-side keeper NEVER engages reverse brakes");
+    assert(goalSideKeeper.input.boost === true, "Goal-side keeper uses boost to accelerate towards ball");
+
+    // 30.3 High-Aerial Intercept Prioritization
+    const aerialStriker = createMockCar({
+      x: 800,
+      y: testEnv.k - 14.5,
+      vx: 350,
+      team: "blue",
+      boost: 50
+    });
+    // High bouncing ball approaching apex
+    const highApexBall = { x: 1100, y: testEnv.k - 220, vx: 180, vy: -40, radius: 30 };
+    const aerialIntercept = solveBestIntercept(aerialStriker, highApexBall, 1, testEnv, null, null, true, 2.0);
+    assert(aerialIntercept.isAerial === true, "Predictive solver classifies apex ball as aerial");
+    assert(aerialIntercept.t < 1.2, "Predictive solver intercepts high ball early before ground bounce");
+
+    // 30.4 Proactive Fast Aerial Launch on Elevated Ball
+    const fastAerialCar = createMockCar({
+      x: 950,
+      y: testEnv.k - 14.5,
+      vx: 400,
+      facing: 1,
+      angle: 0,
+      team: "blue",
+      boost: 45
+    });
+    const floatingChestBall = { x: 1150, y: testEnv.k - 140, vx: 100, vy: 0, radius: 30 };
+    executeMasterBotBrain(fastAerialCar, floatingChestBall, null, null, [], 1, 0.016, testEnv, true, [], {});
+    assert(
+      fastAerialCar.botState.jumpSeq.stage !== "idle" && fastAerialCar.botState.jumpSeq.type === "fast_aerial",
+      "Proactive fast aerial triggers on elevated ball with sufficient boost"
+    );
+
+    // 30.5 Consecutive Freestyle Style Scoring System
+    // (a) Base standard goal
+    const standardScore = calculateFreestyleScore([]);
+    assert(standardScore.totalStylePoints === 100, "Standard goal without mechanics awards 100 pts");
+    assert(standardScore.multiplier === 1.0, "Standard goal has 1.0x multiplier");
+    assert(standardScore.tier === "standard", "Standard goal tier is standard");
+
+    // (b) Single mechanic goal
+    const singleScore = calculateFreestyleScore([{ type: "air_dribble", time: 1000 }]);
+    assert(singleScore.totalStylePoints === 250, "Single air dribble goal awards 250 pts (100 base + 150)");
+    assert(singleScore.multiplier === 1.0, "Single mechanic has 1.0x multiplier");
+    assert(singleScore.tier === "freestyle", "Single mechanic tier is freestyle");
+
+    // (c) 2-mechanic combo (1.5x multiplier)
+    const combo2Score = calculateFreestyleScore([
+      { type: "air_dribble", time: 1000 },
+      { type: "flip_reset", time: 2000 }
+    ]);
+    // 150 + 250 = 400 * 1.5 = 600 bonus + 100 base = 700 pts
+    assert(combo2Score.totalStylePoints === 700, "2-mechanic combo awards 700 pts with 1.5x multiplier");
+    assert(combo2Score.chainCount === 2, "Chain count is 2");
+    assert(combo2Score.multiplier === 1.5, "2-mechanic combo multiplier is 1.5");
+    assert(combo2Score.bannerText.includes("FREESTYLE COMBO x2"), "Banner displays freestyle combo x2 text");
+
+    // (d) 3-mechanic insane combo (2.0x multiplier)
+    const combo3Score = calculateFreestyleScore([
+      { type: "ceiling_shot", time: 1000 },
+      { type: "flip_reset", time: 2000 },
+      { type: "musty", time: 3000 }
+    ]);
+    // (250 + 250 + 300) = 800 * 2.0 = 1600 bonus + 100 base = 1700 pts
+    assert(combo3Score.totalStylePoints === 1700, "3-mechanic combo awards 1700 pts with 2.0x multiplier");
+    assert(combo3Score.multiplier === 2.0, "3-mechanic combo multiplier is 2.0");
+    assert(combo3Score.tier === "insane", "3-mechanic combo tier is insane");
+    assert(combo3Score.bannerText.includes("INSANE FREESTYLE CHAIN x3"), "Banner displays insane freestyle chain text");
+
+    // (e) 4-mechanic godlike combo (3.0x multiplier)
+    const combo4Score = calculateFreestyleScore([
+      { type: "ceiling_shot", time: 1000 },
+      { type: "air_dribble", time: 2000 },
+      { type: "flip_reset", time: 3000 },
+      { type: "musty", time: 4000 }
+    ]);
+    // (250 + 150 + 250 + 300) = 950 * 3.0 = 2850 bonus + 100 base = 2950 pts
+    assert(combo4Score.totalStylePoints === 2950, "4-mechanic combo awards 2950 pts with 3.0x multiplier");
+    assert(combo4Score.multiplier === 3.0, "4-mechanic combo multiplier is 3.0");
+    assert(combo4Score.tier === "legendary", "4-mechanic combo tier is legendary");
+    assert(combo4Score.bannerText.includes("GODLIKE FREESTYLE x4"), "Banner displays godlike freestyle text");
   }
 
   // Summary

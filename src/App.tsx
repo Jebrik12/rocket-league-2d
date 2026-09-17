@@ -109,7 +109,8 @@ import {
   updateBotJumpSeq,
   solveBestIntercept,
   botDriveGround,
-  botDriveAir
+  botDriveAir,
+  calculateFreestyleScore
 } from "./bot/botBrain";
 
 
@@ -1821,6 +1822,17 @@ function emitMechanicEvent(s: any, car: any, event: { type: string, text: string
   
   if (event.type !== "save" && event.type !== "epic_save") {
     car.score = (car.score || 0) + 25;
+    car.freestyleChain = car.freestyleChain || [];
+    car.freestyleChain.push({
+      type: event.type,
+      text: event.text,
+      time: pNow,
+      speedKmh: event.speedKmh
+    });
+    // Keep only mechanics from the last 3.5 seconds
+    while (car.freestyleChain.length > 0 && pNow - car.freestyleChain[0].time > 3500) {
+      car.freestyleChain.shift();
+    }
   }
   car.activeMechanicAlerts = car.activeMechanicAlerts || [];
   
@@ -2357,6 +2369,9 @@ function Uv_legacy(u: any, f: any, r: number, s: any) {
         }
       } else u.isGrounded && (u.airTouches = 0);
       const prevTouchTeam = f.lastTouchTeam;
+      if (prevTouchTeam && prevTouchTeam !== u.team && Array.isArray(r)) {
+        for (const c of r) { if (c.team === prevTouchTeam) c.freestyleChain = []; }
+      }
       u.vx -= ot * Te * .15, u.vy -= Lt * Te * .15, f.lastTouchTeam = u.team, f.lastTouchPlayer = u.name, f.lastTouchTime = Date.now(), f.touchEffectTimer = .2;
       u.score = (u.score || 0) + 2;
       const isHeadingToOppGoal = u.team === "blue" ? f.vx > 100 : f.vx < -100;
@@ -3454,6 +3469,9 @@ function Uv(u:any,f:any,r:number,s:any){
     }
 
     const prevTouchTeam = f.lastTouchTeam;
+    if (prevTouchTeam && prevTouchTeam !== u.team && Array.isArray(r)) {
+      for (const c of r) { if (c.team === prevTouchTeam) c.freestyleChain = []; }
+    }
     f.lastTouchTeam=u.team;
     f.lastTouchPlayer=u.name;
     f.lastTouchTime=Date.now();
@@ -3745,8 +3763,8 @@ function Uv(u:any,f:any,r:number,s:any){
   const tmCar = s && s.length > 0 ? (s.find((D: any) => !D.isDemoed) || s[0]) : null;
 
   switch (y) {
-    case "rookie": Lv(u, f, r); break;
-    case "pro": Vv(u, f, ownGoal.x, oppGoal.x, teamDir, m); break;
+    case "rookie":
+    case "pro":
     case "allstar":
     case "ssl":
     case "unfair":
@@ -10662,7 +10680,15 @@ const o2 = ({ goalInfo: u, kickoffCountdown: f }: any) =>
                   d.jsx(Ru, { className: "w-4 h-4 fill-amber-300" }),
                   d.jsxs("span", { children: ["SHOT SPEED: ", u.speedKmh, " KM/H"] })
                 ]
-              })
+              }),
+              u.freestyleBanner &&
+                d.jsx("div", {
+                  className: "mt-3 px-6 py-2 rounded-2xl bg-gradient-to-r from-amber-500/35 via-purple-500/35 to-pink-500/35 border border-amber-400/70 shadow-[0_0_25px_rgba(245,158,11,0.6)] flex items-center gap-2 animate-pulse",
+                  children: d.jsx("span", {
+                    className: "text-sm sm:text-base font-black text-amber-300 tracking-wide uppercase drop-shadow",
+                    children: u.freestyleBanner
+                  })
+                })
             ]
           })
         }),
@@ -10982,6 +11008,11 @@ const GoalReplayOverlay = ({
               <span className="text-[10px] sm:text-xs px-1.5 py-0.5 rounded-md bg-black/50 font-mono font-black text-amber-300 border border-amber-400/40">
                 ⚡ {replayUI.info.speedKmh} <span className="hidden sm:inline">KM/H</span>
               </span>
+              {replayUI.info.freestyleBanner && (
+                <span className="text-[10px] sm:text-xs px-2 py-0.5 rounded-md bg-gradient-to-r from-amber-500/40 via-purple-500/40 to-pink-500/40 font-mono font-black text-amber-300 border border-amber-400/50 animate-pulse hidden sm:inline">
+                  {replayUI.info.freestyleBanner}
+                </span>
+              )}
             </div>
           )}
         </div>
@@ -12020,24 +12051,24 @@ function r2(){
     w.push(ut("p1", "Player", "blue", !1, "ssl", pCar, pLoadout));
   } else if (H === "bot_vs_bot") {
     const b1 = getRandomMemeName("🔵"), b2 = getRandomMemeName("🟠");
-    w.push(ut("b1", b1, "blue", !0, "ssl", getBotCarModel(b1)));
-    w.push(ut("b2", b2, "orange", !0, "ssl", getBotCarModel(b2)));
+    w.push(ut("b1", b1, "blue", !0, Z, getBotCarModel(b1)));
+    w.push(ut("b2", b2, "orange", !0, Z, getBotCarModel(b2)));
   } else if (H === "spectator_2v2") {
     const b1 = getRandomMemeName("🔵"), b2 = getRandomMemeName("🔷");
     const o1 = getRandomMemeName("🟠"), o2 = getRandomMemeName("🔶");
-    w.push(ut("b1", b1, "blue", !0, "ssl", getBotCarModel(b1)));
-    w.push(ut("b2", b2, "blue", !0, "ssl", getBotCarModel(b2)));
-    w.push(ut("o1", o1, "orange", !0, "ssl", getBotCarModel(o1)));
-    w.push(ut("o2", o2, "orange", !0, "ssl", getBotCarModel(o2)));
+    w.push(ut("b1", b1, "blue", !0, Z, getBotCarModel(b1)));
+    w.push(ut("b2", b2, "blue", !0, Z, getBotCarModel(b2)));
+    w.push(ut("o1", o1, "orange", !0, Z, getBotCarModel(o1)));
+    w.push(ut("o2", o2, "orange", !0, Z, getBotCarModel(o2)));
   } else if (H === "spectator_3v3") {
     const b1 = getRandomMemeName("🔵"), b2 = getRandomMemeName("🔷"), b3 = getRandomMemeName("⚡");
     const o1 = getRandomMemeName("🟠"), o2 = getRandomMemeName("🔶"), o3 = getRandomMemeName("🔥");
-    w.push(ut("b1", b1, "blue", !0, "ssl", getBotCarModel(b1)));
-    w.push(ut("b2", b2, "blue", !0, "ssl", getBotCarModel(b2)));
-    w.push(ut("b3", b3, "blue", !0, "ssl", getBotCarModel(b3)));
-    w.push(ut("o1", o1, "orange", !0, "ssl", getBotCarModel(o1)));
-    w.push(ut("o2", o2, "orange", !0, "ssl", getBotCarModel(o2)));
-    w.push(ut("o3", o3, "orange", !0, "ssl", getBotCarModel(o3)));
+    w.push(ut("b1", b1, "blue", !0, Z, getBotCarModel(b1)));
+    w.push(ut("b2", b2, "blue", !0, Z, getBotCarModel(b2)));
+    w.push(ut("b3", b3, "blue", !0, Z, getBotCarModel(b3)));
+    w.push(ut("o1", o1, "orange", !0, Z, getBotCarModel(o1)));
+    w.push(ut("o2", o2, "orange", !0, Z, getBotCarModel(o2)));
+    w.push(ut("o3", o3, "orange", !0, Z, getBotCarModel(o3)));
   }
   return w;
 }function ut(H: string, Z: string, w: string, q: boolean, Wt: string = "ssl", carModelId: string = "octane", customLoadout?: any, isPlayerBot: boolean = false, botUpgrades?: any){const il=w==="blue",xt=il?At+280:Mt-280;const def=CAR_DEFINITIONS[carModelId]||CAR_DEFINITIONS.octane;const carWidth=def.width,carHeight=def.height;return{id:H,name:Z,team:w,isBot:q,isPlayerBot:!!isPlayerBot,botUpgrades:botUpgrades||(isPlayerBot?getBotUpgrades():undefined),botDifficulty:Wt,carModel:carModelId,hitboxClass:def.hitboxClass,wheelbase:def.wheelbase,wheelRadius:def.wheelRadius,customDecal:customLoadout?.decal,customWheels:customLoadout?.wheels,customBoost:customLoadout?.boost,customTopper:customLoadout?.topper,x:xt,y:k-carHeight/2,vx:0,vy:0,angle:il?0:Math.PI,facing:il?1:-1,airRollInverted:!1,angularVel:0,width:carWidth,height:carHeight,isGrounded:!0,surfaceNormal:{x:0,y:-1},surfaceType:"floor",boost:33,isBoosting:!1,isSupersonic:!1,supersonicTimer:0,canJump:!0,jumpCount:0,jumpHoldTimer:0,flipWindowTimer:0,isFlipping:!1,flipDirection:{x:0,y:0},flipTimer:0,isDemoed:!1,demoRespawnTimer:0,score:0,goals:0,saves:0,shots:0,demos:0,input:{steerLeft:!1,steerRight:!1,throttleForward:!1,throttleReverse:!1,pitchUp:!1,pitchDown:!1,jump:!1,boost:!1,handbrake:!1}}}const be=st.useCallback(()=>{
@@ -12057,6 +12088,7 @@ function r2(){
         H.angle=isBlue?0:Math.PI;
         H.facing=isBlue?1:-1;
         H.y=k-(H.height||ks)/2;
+        H.freestyleChain = [];
         H.input={steerLeft:!1,steerRight:!1,throttleForward:!1,throttleReverse:!1,pitchUp:!1,pitchDown:!1,airRollLeft:!1,airRollRight:!1,jump:!1,boost:!1,handbrake:!1};
 
         let spawnX=isBlue?At+260:Mt-260;
@@ -12426,40 +12458,67 @@ const Et=isPlaying||p==="goal_scored",rt=jv(xt,et,ne.current,q,!Et&&p!=="goal_sc
 }
 if(rt.goalScored&&isPlaying){
   const nt=rt.goalScored;
-  matchEventsRef.current.push({id:"goal_"+Date.now(),time:performance.now(),type:"goal",text:"GOAL",player:nt.scorerName,team:nt.scoringTeam,color:nt.scoringTeam==="blue"?"#38bdf8":"#fb923c",speedKmh:nt.speedKmh});
-  A("goal_scored");
-  Xt.current=1.2;
-  lastGoalInfoRef.current=nt;
-  nt.scoringTeam==="blue"?z(Ge=>Ge+1):D(Ge=>Ge+1);
-  ot({scoringTeam:nt.scoringTeam,scorerName:nt.scorerName,speedKmh:nt.speedKmh});
   const scorerCar = xt.find(c => c.name === nt.scorerName);
+  const freestyleRes = calculateFreestyleScore(scorerCar?.freestyleChain || []);
+  const awardedScore = freestyleRes.totalStylePoints;
+
   if (scorerCar) {
     scorerCar.goals = (scorerCar.goals || 0) + 1;
-    scorerCar.score = (scorerCar.score || 0) + 100;
+    scorerCar.score = (scorerCar.score || 0) + awardedScore;
+    scorerCar.freestyleChain = []; // Reset after goal
   }
-  const goalX=et.x,goalY=et.y;
-  for(const car of xt){
-    const dx=car.x-goalX,dy=car.y-goalY,dist=Math.hypot(dx,dy)||1;
-    const blastSpeed=Math.max(750,1650*Math.max(0,1-dist/(Kt*0.85)));
-    const nx=dx/dist,ny=(dy/dist)-0.45;
-    car.vx=nx*blastSpeed,car.vy=ny*blastSpeed-240,car.angularVel=(Math.random()-0.5)*16,car.isGrounded=!1,car.surfaceNormal=null;
-    car.input={steerLeft:!1,steerRight:!1,throttleForward:!1,throttleReverse:!1,pitchUp:!1,pitchDown:!1,airRollLeft:!1,airRollRight:!1,jump:!1,boost:!1,handbrake:!1};
+
+  const goalText = freestyleRes.tier !== "standard" ? freestyleRes.bannerText : "GOAL";
+  matchEventsRef.current.push({
+    id: "goal_" + Date.now(),
+    time: performance.now(),
+    type: "goal",
+    text: goalText,
+    player: nt.scorerName,
+    team: nt.scoringTeam,
+    color: nt.scoringTeam === "blue" ? "#38bdf8" : "#fb923c",
+    speedKmh: nt.speedKmh
+  });
+  A("goal_scored");
+  Xt.current = 1.2;
+  const goalInfoFull = {
+    ...nt,
+    freestyleBanner: freestyleRes.tier !== "standard" ? freestyleRes.bannerText : undefined,
+    freestylePoints: awardedScore,
+    freestyleChain: freestyleRes.chainNames
+  };
+  lastGoalInfoRef.current = goalInfoFull;
+  nt.scoringTeam === "blue" ? z(Ge => Ge + 1) : D(Ge => Ge + 1);
+  ot(goalInfoFull);
+
+  const goalX = et.x, goalY = et.y;
+  for (const car of xt) {
+    const dx = car.x - goalX, dy = car.y - goalY, dist = Math.hypot(dx, dy) || 1;
+    const blastSpeed = Math.max(750, 1650 * Math.max(0, 1 - dist / (Kt * 0.85)));
+    const nx = dx / dist, ny = (dy / dist) - 0.45;
+    car.vx = nx * blastSpeed, car.vy = ny * blastSpeed - 240, car.angularVel = (Math.random() - 0.5) * 16, car.isGrounded = !1, car.surfaceNormal = null;
+    car.input = { steerLeft: !1, steerRight: !1, throttleForward: !1, throttleReverse: !1, pitchUp: !1, pitchDown: !1, airRollLeft: !1, airRollRight: !1, jump: !1, boost: !1, handbrake: !1 };
   }
-  for(let pIdx=0;pIdx<45;pIdx++){
-    const angle=Math.random()*Math.PI*2,pSpeed=220+Math.random()*550;
-    Yt.current.push({id:++On,x:goalX,y:goalY,vx:Math.cos(angle)*pSpeed,vy:Math.sin(angle)*pSpeed,life:0.8+Math.random()*0.6,maxLife:1.4,color:nt.scoringTeam==="blue"?(Math.random()>.5?"#38bdf8":"#0284c7"):(Math.random()>.5?"#fb923c":"#ea580c"),size:10+Math.random()*14,type:"demo_explosion"});
+  for (let pIdx = 0; pIdx < 45; pIdx++) {
+    const angle = Math.random() * Math.PI * 2, pSpeed = 220 + Math.random() * 550;
+    Yt.current.push({ id: ++On, x: goalX, y: goalY, vx: Math.cos(angle) * pSpeed, vy: Math.sin(angle) * pSpeed, life: 0.8 + Math.random() * 0.6, maxLife: 1.4, color: nt.scoringTeam === "blue" ? (Math.random() > .5 ? "#38bdf8" : "#0284c7") : (Math.random() > .5 ? "#fb923c" : "#ea580c"), size: 10 + Math.random() * 14, type: "demo_explosion" });
   }
-  const lastTouchCar=Gt.current.find(c=>c.name===nt.scorerName);
-  if(lastTouchCar&&lastTouchCar.isBot){
-    let senderName=nt.scorerName;
-    let senderTeam=lastTouchCar.team;
-    if(lastTouchCar.team!==nt.scoringTeam){
-      const ownGoalChats=["Close one!","OMG!","No problem.","Savage!"];
-      x(ownGoalChats[Math.floor(Math.random()*ownGoalChats.length)],senderName,senderTeam);
-    }else{
-      const Rt=["EZ!","Calculated.","What a save!","Too easy!","Savage!"];
-      const We=Rt[Math.floor(Math.random()*Rt.length)];
-      x(We,senderName,senderTeam);
+  const lastTouchCar = Gt.current.find(c => c.name === nt.scorerName);
+  if (lastTouchCar && lastTouchCar.isBot) {
+    let senderName = nt.scorerName;
+    let senderTeam = lastTouchCar.team;
+    if (lastTouchCar.team !== nt.scoringTeam) {
+      const ownGoalChats = ["Close one!", "OMG!", "No problem.", "Savage!"];
+      x(ownGoalChats[Math.floor(Math.random() * ownGoalChats.length)], senderName, senderTeam);
+    } else {
+      if (freestyleRes.tier === "legendary" || freestyleRes.tier === "insane") {
+        const freestyleChats = ["FREESTYLE MASTERCLASS!", "Calculated.", "SHEESH!", "WHAT A PLAY!", "Clip that! 🔥"];
+        x(freestyleChats[Math.floor(Math.random() * freestyleChats.length)], senderName, senderTeam);
+      } else {
+        const Rt = ["EZ!", "Calculated.", "What a save!", "Too easy!", "Savage!"];
+        const We = Rt[Math.floor(Math.random() * Rt.length)];
+        x(We, senderName, senderTeam);
+      }
     }
   }
 }
